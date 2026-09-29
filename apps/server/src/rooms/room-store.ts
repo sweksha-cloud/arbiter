@@ -1,4 +1,4 @@
-import type { PlaceCandidate, ReactionsByMember } from '@arbiter/shared';
+import type { Guest, LatLng, PlaceCandidate, ReactionsByMember, SessionStatus } from '@arbiter/shared';
 
 /**
  * Live state of one session. Holds Google place data, which by Google's terms
@@ -6,8 +6,14 @@ import type { PlaceCandidate, ReactionsByMember } from '@arbiter/shared';
  */
 export interface RoomState {
   sessionId: string;
+  hostId: string;
+  status: SessionStatus;
+  center: LatLng;
+  members: Guest[];
   suggestions: PlaceCandidate[];
   reactions: ReactionsByMember;
+  scannedCount: number;
+  eliminatedCount: number;
 }
 
 /**

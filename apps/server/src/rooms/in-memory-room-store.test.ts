@@ -4,7 +4,17 @@ import { describe, expect, it } from 'vitest';
 import { InMemoryRoomStore } from './in-memory-room-store.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState } from './room-store.js';
 
-const emptyRoom = (sessionId: string): RoomState => ({ sessionId, suggestions: [], reactions: {} });
+const emptyRoom = (sessionId: string): RoomState => ({
+  sessionId,
+  hostId: 'host',
+  status: 'lobby',
+  center: { lat: 37.3352, lng: -121.8811 },
+  members: [],
+  suggestions: [],
+  reactions: {},
+  scannedCount: 0,
+  eliminatedCount: 0
+});
 
 describe('InMemoryRoomStore', () => {
   it('creates, reads, and deletes a room', async () => {
