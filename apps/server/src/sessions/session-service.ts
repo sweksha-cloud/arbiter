@@ -40,6 +40,13 @@ export interface SessionServiceOptions {
   missingDataPolicy: MissingDataPolicy;
 }
 
+/**
+ * Results appear on their own once everyone has submitted, but only with at
+ * least this many people; otherwise a host alone in a new session would see
+ * results the moment they submit, before any friend joins.
+ */
+export const MIN_MEMBERS_FOR_AUTO_START = 2;
+
 // No 0/O or 1/I/L, so codes are easy to read out loud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
@@ -48,15 +55,20 @@ function newSessionCode(): string {
   return Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 }
 
+export function everyoneSubmitted(room: RoomState): boolean {
+  return room.members.length >= MIN_MEMBERS_FOR_AUTO_START && room.members.every((m) => m.submitted);
+}
+
 /**
  * All session rules live here, on the server. Clients only send requests; this
  * decides whether they are allowed and what the new state is.
+ *
+ * Lifecycle: lobby (people join and submit preferences) → scanning → voting → ended.
  */
 export class SessionService {
   constructor(private readonly options: SessionServiceOptions) {}
 
   async create(host: Guest, center: LatLng): Promise<string> {
-    const hostMember = { ...host, ready: await this.hasPreferences(host) };
     for (;;) {
       const sessionId = newSessionCode();
       try {
@@ -65,7 +77,8 @@ export class SessionService {
           hostId: host.id,
           status: 'lobby',
           center,
-          members: [hostMember],
+          members: [{ ...host, submitted: false }],
+          submissions: {},
           suggestions: [],
           reactions: {},
           scannedCount: 0,
@@ -84,66 +97,56 @@ export class SessionService {
     return room;
   }
 
-  /** Adds the guest, or refreshes their ready flag if they are already in (reconnects). */
+  /** Adds the guest. Joining again (a reconnect) changes nothing. */
   async join(sessionId: string, guest: Guest): Promise<RoomState> {
-    const member = { ...guest, ready: await this.hasPreferences(guest) };
-    return this.update(sessionId, (room) => ({
-      ...room,
-      members: room.members.some((m) => m.id === guest.id)
-        ? room.members.map((m) => (m.id === guest.id ? member : m))
-        : [...room.members, member]
-    }));
-  }
-
-  /** Marks a member ready once their preferences are saved. */
-  async markReady(sessionId: string, guest: Guest): Promise<RoomState> {
-    if (!(await this.hasPreferences(guest))) {
-      throw new SessionError('invalid_state', 'Save your preferences first');
-    }
-    return this.update(sessionId, (room) => {
-      if (!room.members.some((m) => m.id === guest.id)) {
-        throw new SessionError('forbidden', 'Join the session first');
-      }
-      return { ...room, members: room.members.map((m) => (m.id === guest.id ? { ...m, ready: true } : m)) };
-    });
+    return this.update(sessionId, (room) =>
+      room.members.some((m) => m.id === guest.id)
+        ? room
+        : { ...room, members: [...room.members, { ...guest, submitted: false }] }
+    );
   }
 
   /**
-   * Scans, eliminates, and ranks. Moves through 'scanning' first so a second
-   * start request can't trigger a second (paid) scan.
+   * Records a member's preferences for this session (resubmitting replaces
+   * them). Also saves them as the member's latest preferences, to prefill next
+   * time. When this completes the group, the scan starts automatically.
    */
-  async start(sessionId: string, guest: Guest, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+  async submit(
+    sessionId: string,
+    guest: Guest,
+    preferences: Preferences,
+    onScanStarted?: () => Promise<void>
+  ): Promise<RoomState> {
     const room = await this.update(sessionId, (current) => {
-      this.requireHost(current, guest);
-      if (current.status !== 'lobby') throw new SessionError('invalid_state', 'This session has already started');
-      return { ...current, status: 'scanning' };
-    });
-    await onScanStarted?.();
-
-    try {
-      const scanned = await this.options.places.searchNearby({
-        center: room.center,
-        radiusMeters: this.options.radiusMeters
-      });
-      const preferences = await this.preferencesOf(room.members);
-      const { kept, eliminatedCount } = eliminate(
-        scanned,
-        combineHardConstraints(preferences),
-        this.options.missingDataPolicy
-      );
-      const suggestions = rankSuggestions(kept, preferences);
-
-      return await this.update(sessionId, (current) => ({
+      if (!current.members.some((m) => m.id === guest.id)) {
+        throw new SessionError('forbidden', 'Join the session first');
+      }
+      if (current.status !== 'lobby') {
+        throw new SessionError('invalid_state', 'Results are already in; preferences are locked');
+      }
+      return {
         ...current,
-        status: 'voting',
-        suggestions,
-        scannedCount: scanned.length,
-        eliminatedCount
-      }));
+        members: current.members.map((m) => (m.id === guest.id ? { ...m, submitted: true } : m)),
+        submissions: { ...current.submissions, [guest.id]: preferences }
+      };
+    });
+    await this.options.guests.setPreferences(guest.id, preferences);
+
+    if (!everyoneSubmitted(room)) return room;
+    try {
+      return await this.scan(sessionId, onScanStarted);
     } catch (error) {
-      await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
+      // Two last submissions at the same moment: the other one started the scan.
+      if (error instanceof SessionError && error.code === 'invalid_state') return this.get(sessionId);
       throw error;
     }
+  }
+
+  /** Host only: show results now, without waiting for everyone to submit. */
+  async start(sessionId: string, guest: Guest, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+    const room = await this.get(sessionId);
+    this.requireHost(room, guest);
+    return this.scan(sessionId, onScanStarted);
   }
 
   async react(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
@@ -191,17 +194,46 @@ export class SessionService {
     };
   }
 
+  /**
+   * Scans, eliminates, and ranks using the preferences submitted in this
+   * session. Moves through 'scanning' first so a second request can't trigger
+   * a second (paid) scan.
+   */
+  private async scan(sessionId: string, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+    const room = await this.update(sessionId, (current) => {
+      if (current.status !== 'lobby') throw new SessionError('invalid_state', 'This session has already started');
+      return { ...current, status: 'scanning' };
+    });
+    await onScanStarted?.();
+
+    try {
+      const scanned = await this.options.places.searchNearby({
+        center: room.center,
+        radiusMeters: this.options.radiusMeters
+      });
+      const preferences = Object.values(room.submissions);
+      const { kept, eliminatedCount } = eliminate(
+        scanned,
+        combineHardConstraints(preferences),
+        this.options.missingDataPolicy
+      );
+      const suggestions = rankSuggestions(kept, preferences);
+
+      return await this.update(sessionId, (current) => ({
+        ...current,
+        status: 'voting',
+        suggestions,
+        scannedCount: scanned.length,
+        eliminatedCount
+      }));
+    } catch (error) {
+      await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
+      throw error;
+    }
+  }
+
   private requireHost(room: RoomState, guest: Guest) {
     if (room.hostId !== guest.id) throw new SessionError('forbidden', 'Only the host can do that');
-  }
-
-  private async hasPreferences(guest: Guest): Promise<boolean> {
-    return (await this.options.guests.getPreferences(guest.id)) !== null;
-  }
-
-  private async preferencesOf(members: Guest[]): Promise<Preferences[]> {
-    const all = await Promise.all(members.map((m) => this.options.guests.getPreferences(m.id)));
-    return all.filter((p): p is Preferences => p !== null);
   }
 
   private async update(sessionId: string, change: (room: RoomState) => RoomState): Promise<RoomState> {

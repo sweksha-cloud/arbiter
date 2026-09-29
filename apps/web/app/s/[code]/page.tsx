@@ -4,6 +4,7 @@ import {
   newerView,
   type Ack,
   type ClientToServerEvents,
+  type Preferences,
   type Reaction,
   type ServerToClientEvents,
   type SessionView
@@ -75,12 +76,19 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   };
   const socket = () => socketRef.current;
 
+  async function submitPreferences(preferences: Preferences) {
+    const s = socket();
+    if (!s) throw new Error('Not connected yet. Try again in a moment.');
+    const ack = await s.emitWithAck('session:submit', { preferences });
+    if (!ack.ok) throw new Error(ack.error);
+  }
+
   if (!view) {
     return error ? <p className="error">{error}</p> : <p className="muted">Joining session {code}…</p>;
   }
 
   const isHost = view.hostId === identity.guest.id;
-  const host = view.members.find((m) => m.id === view.hostId);
+  const me = view.members.find((m) => m.id === identity.guest.id);
 
   return (
     <>
@@ -90,28 +98,18 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
         {!connected && <p className="warning small">Reconnecting…</p>}
       </header>
 
-      <Members view={view} myId={identity.guest.id} />
-
       {error && <p className="error">{error}</p>}
 
       {view.status === 'lobby' && (
         <>
+          <SubmissionStatus view={view} myId={identity.guest.id} />
           <InviteCard sessionId={view.sessionId} />
-          <MyPreferences
-            token={identity.token}
-            ready={view.members.find((m) => m.id === identity.guest.id)?.ready ?? false}
-            onSaved={() => socket()?.emit('session:ready', handleAck)}
-          />
-          <StartControls
-            view={view}
-            isHost={isHost}
-            hostName={host?.displayName}
-            onStart={() => socket()?.emit('session:start', handleAck)}
-          />
+          <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
+          {isHost && <ShowResultsNow view={view} onStart={() => socket()?.emit('session:start', handleAck)} />}
         </>
       )}
 
-      {view.status === 'scanning' && <p className="card">Finding places near you…</p>}
+      {view.status === 'scanning' && <p className="card">Everyone&apos;s in. Finding places…</p>}
 
       {(view.status === 'voting' || view.status === 'ended') && (
         <section className="stack">
@@ -150,9 +148,42 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               End session
             </button>
           )}
+
+          <Members view={view} myId={identity.guest.id} />
         </section>
       )}
     </>
+  );
+}
+
+/** "1 of 2 submitted" with a bar, and who is still choosing. Never shows what anyone chose. */
+function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
+  const submitted = view.members.filter((m) => m.submitted).length;
+  const total = view.members.length;
+  const alone = total < 2;
+
+  return (
+    <section className="card stack" aria-live="polite">
+      <div className="row spread">
+        <strong>
+          {submitted} of {total} submitted
+        </strong>
+        <span className="muted small">{alone ? 'Waiting for friends to join' : 'Results appear when everyone submits'}</span>
+      </div>
+      <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={submitted}>
+        <div className="progress-fill" style={{ width: `${total === 0 ? 0 : (submitted / total) * 100}%` }} />
+      </div>
+      <ul className="members">
+        {view.members.map((m) => (
+          <li key={m.id}>
+            {m.displayName}
+            {m.id === myId && ' (you)'}
+            {m.id === view.hostId && <span className="badge">host</span>}
+            <span className={`badge ${m.submitted ? 'ready' : 'waiting'}`}>{m.submitted ? '✓' : 'choosing…'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -171,11 +202,9 @@ function InviteCard({ sessionId }: { sessionId: string }) {
     <section className="card stack">
       <h2>Invite your friends</h2>
       <p className="muted small">Send them this link, or have them enter the code on the home page.</p>
+      <input className="invite-url" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Invite link" />
       <div className="row">
-        <input className="invite-url" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Invite link" />
-      </div>
-      <div className="row">
-        <button className="button primary grow" onClick={copy}>
+        <button className="button grow" onClick={copy}>
           {copied ? 'Copied!' : 'Copy link'}
         </button>
         {canShare && (
@@ -191,22 +220,31 @@ function InviteCard({ sessionId }: { sessionId: string }) {
   );
 }
 
-/** Everyone, host included, sets preferences here while the group gathers. */
-function MyPreferences({ token, ready, onSaved }: { token: string; ready: boolean; onSaved: () => void }) {
+/** Everyone, host included, submits preferences here, for this session. */
+function MyPreferences({
+  token,
+  submitted,
+  onSubmit
+}: {
+  token: string;
+  submitted: boolean;
+  onSubmit: (preferences: Preferences) => Promise<void>;
+}) {
+  // Last time's answers, to prefill the form. They don't count until submitted here.
   const { preferences, setPreferences, error } = usePreferences(token);
   const [editing, setEditing] = useState(false);
 
   if (error) return <p className="error">{error}</p>;
   if (preferences === undefined) return null;
 
-  if (ready && !editing) {
+  if (submitted && !editing) {
     return (
       <section className="card row spread">
         <p>
-          <strong>✓ You&apos;re ready.</strong> <span className="muted small">Nobody else can see your answers.</span>
+          <strong>✓ Submitted.</strong> <span className="muted small">Nobody else can see your answers.</span>
         </p>
         <button className="button" onClick={() => setEditing(true)}>
-          Edit
+          Change
         </button>
       </section>
     );
@@ -216,48 +254,36 @@ function MyPreferences({ token, ready, onSaved }: { token: string; ready: boolea
     <section className="stack">
       <h2>Your preferences</h2>
       <p className="muted small">
-        {preferences ? 'Here’s what you picked last time. Change anything, then tap below.' : 'Private to you. Saved for next time.'}
+        {preferences ? 'Filled in from last time. Change anything, then submit.' : 'Private to you. Nobody sees your answers.'}
       </p>
       <PreferencesForm
-        token={token}
         initial={preferences}
-        submitLabel={ready ? 'Save changes' : "I'm ready"}
-        onSaved={(saved) => {
-          setPreferences(saved);
+        submitLabel={submitted ? 'Update' : 'Submit'}
+        onSubmit={async (p) => {
+          await onSubmit(p);
+          setPreferences(p);
           setEditing(false);
-          onSaved();
         }}
       />
     </section>
   );
 }
 
-function StartControls({
-  view,
-  isHost,
-  hostName,
-  onStart
-}: {
-  view: SessionView;
-  isHost: boolean;
-  hostName: string | undefined;
-  onStart: () => void;
-}) {
-  const readyCount = view.members.filter((m) => m.ready).length;
-  const total = view.members.length;
-  const allReady = readyCount === total;
+/** Host fallback so one person who never submits can't stall the group. */
+function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => void }) {
+  const submitted = view.members.filter((m) => m.submitted).length;
+  if (submitted === 0) return null;
+  const waitingOn = view.members.filter((m) => !m.submitted).map((m) => m.displayName);
 
-  if (!isHost) {
-    return <p className="muted center">Waiting for {hostName ?? 'the host'} to find places…</p>;
-  }
   return (
-    <section className="card stack">
+    <section className="stack tight center">
       <p className="muted small">
-        {readyCount} of {total} ready
-        {!allReady && '. Anyone not ready yet won’t have their must-haves counted.'}
+        {waitingOn.length > 0
+          ? `Still waiting on ${waitingOn.join(', ')}. Their must-haves won't count if you go now.`
+          : 'Everyone here has submitted.'}
       </p>
-      <button className={`button ${allReady ? 'primary' : ''}`} onClick={onStart}>
-        {allReady ? 'Find places' : 'Find places anyway'}
+      <button className="button link" onClick={onStart}>
+        Show results now
       </button>
     </section>
   );
@@ -273,9 +299,6 @@ function Members({ view, myId }: { view: SessionView; myId: string }) {
             {m.displayName}
             {m.id === myId && ' (you)'}
             {m.id === view.hostId && <span className="badge">host</span>}
-            {view.status === 'lobby' && (
-              <span className={`badge ${m.ready ? 'ready' : 'waiting'}`}>{m.ready ? '✓ ready' : 'choosing…'}</span>
-            )}
           </li>
         ))}
       </ul>
