@@ -28,6 +28,22 @@ describe('app', () => {
     expect(other.headers['access-control-allow-origin']).not.toBe('*');
   });
 
+  it('allows the browser to PUT with an Authorization header (preflight)', async () => {
+    app = await buildApp({ webOrigin, logLevel: 'silent' });
+    const preflight = await app.http.inject({
+      method: 'OPTIONS',
+      url: '/api/me/preferences',
+      headers: {
+        origin: webOrigin,
+        'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'authorization,content-type'
+      }
+    });
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers['access-control-allow-methods']).toContain('PUT');
+    expect(String(preflight.headers['access-control-allow-headers'])).toMatch(/authorization/i);
+  });
+
   it('creates a guest and saves their preferences with the returned token', async () => {
     app = await buildApp({ webOrigin, logLevel: 'silent' });
     const created = await app.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: ' Sam ' } });
