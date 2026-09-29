@@ -1,0 +1,19 @@
+{
+  "name": "arbiter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Arbiter monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -w @arbiter/shared build && npm run -w @arbiter/server build && npm run -w @arbiter/web build",
+    "test": "npm run -w @arbiter/shared test",
+    "dev:server": "npm run -w @arbiter/server dev",
+    "dev:web": "npm run -w @arbiter/web dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
