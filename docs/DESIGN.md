@@ -34,6 +34,9 @@ Options that were considered: app picks a winner; group votes on everything left
 - Guests can choose to log in so their preferences are saved.
 - Anyone can create a session and send an invite link.
 
+**Built (temporary)**
+- A guest is a name plus a random token the server issues. The browser keeps it in `localStorage` and sends it in the `Authorization` header and the Socket.IO handshake. Guests live in server memory until the data model is approved.
+
 **Open**
 - Login method for "log in to save" (magic email link, Google sign-in, or passkeys). Not needed until guest flow works.
 - Do long-lived groups exist, or only sessions? The overview mentions "a group is created" but the decision above is session-centric. See data-model tradeoff (a).
@@ -117,4 +120,9 @@ Tradeoffs for the owner:
 
 ## 9. Real-time events
 
-**Deferred** ("much much later").
+**Deferred** ("much much later"). A minimal provisional set exists so the local demo works; it will be revisited when this section is designed properly:
+
+- Client → server: `session:join`, `session:start` (host only), `session:react` (like, dislike, or clear), `session:end` (host only). Each gets an `{ ok }` or `{ ok: false, error }` reply.
+- Server → client: `session:state`, the full view for that person (totals, their own reactions, member names), sent after every change.
+- Reconnect: the client rejoins on every connect and receives the current state, including its own reactions.
+- Out-of-order updates: every state has a `version`; clients keep the highest.
