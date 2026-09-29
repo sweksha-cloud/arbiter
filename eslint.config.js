@@ -12,5 +12,9 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', ignoreRestSiblings: true }]
     }
+  },
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } }
   }
 );
