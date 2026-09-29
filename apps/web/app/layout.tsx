@@ -1,8 +1,20 @@
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
-export const metadata = {
+import './globals.css';
+
+export const metadata: Metadata = {
   title: 'Arbiter',
   description: 'Fair group food decisions, fast.'
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fafaf7' },
+    { media: '(prefers-color-scheme: dark)', color: '#141413' }
+  ]
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
