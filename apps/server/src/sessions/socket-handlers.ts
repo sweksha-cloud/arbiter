@@ -37,11 +37,15 @@ export function registerSocketHandlers(
     next();
   });
 
-  /** Sends each person in the session their own view of the new state. */
+  /**
+   * Sends each person in the session their own view of the latest state.
+   * Concurrent broadcasts can still arrive out of order; clients keep the
+   * highest `version` (see newerView).
+   */
   async function broadcast(sessionId: string) {
+    const sockets = await io.in(roomName(sessionId)).fetchSockets();
     const room = await sessions.get(sessionId).catch(() => undefined);
     if (!room) return;
-    const sockets = await io.in(roomName(sessionId)).fetchSockets();
     for (const socket of sockets) {
       socket.emit('session:state', sessions.view(room, socket.data.guest.id));
     }

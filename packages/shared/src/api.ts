@@ -45,6 +45,8 @@ export type SuggestionView = z.infer<typeof SuggestionViewSchema>;
 
 export const SessionViewSchema = z.object({
   sessionId: z.string(),
+  /** Goes up by one on every change, so clients can ignore out-of-order updates. */
+  version: z.number().int().nonnegative(),
   status: SessionStatusSchema,
   hostId: z.string(),
   /** Names only. Preferences are never included. */
@@ -56,6 +58,15 @@ export const SessionViewSchema = z.object({
   placesSource: z.enum(['sample', 'google'])
 });
 export type SessionView = z.infer<typeof SessionViewSchema>;
+
+/**
+ * Two updates sent close together can arrive in either order. Keeps whichever
+ * view is newer so an older one never overwrites it.
+ */
+export function newerView(current: SessionView | undefined, incoming: SessionView): SessionView {
+  if (current && current.sessionId === incoming.sessionId && current.version > incoming.version) return current;
+  return incoming;
+}
 
 // ---- Socket.IO events ----
 

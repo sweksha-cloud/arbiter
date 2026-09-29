@@ -156,6 +156,7 @@ export class SessionService {
     const mine = room.reactions[viewerId] ?? {};
     return {
       sessionId: room.sessionId,
+      version: room.version,
       status: room.status,
       hostId: room.hostId,
       members: room.members,
