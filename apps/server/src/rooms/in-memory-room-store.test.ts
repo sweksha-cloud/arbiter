@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { InMemoryRoomStore } from './in-memory-room-store.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState } from './room-store.js';
 
-const emptyRoom = (sessionId: string): RoomState => ({
+const emptyRoom = (sessionId: string): Omit<RoomState, 'version'> => ({
   sessionId,
   hostId: 'host',
   status: 'lobby',
@@ -20,7 +20,7 @@ describe('InMemoryRoomStore', () => {
   it('creates, reads, and deletes a room', async () => {
     const store = new InMemoryRoomStore();
     await store.create(emptyRoom('s1'));
-    expect(await store.get('s1')).toEqual(emptyRoom('s1'));
+    expect(await store.get('s1')).toEqual({ ...emptyRoom('s1'), version: 0 });
 
     await store.delete('s1');
     expect(await store.get('s1')).toBeUndefined();
@@ -50,5 +50,6 @@ describe('InMemoryRoomStore', () => {
 
     const room = await store.get('s1');
     expect(Object.keys(room?.reactions ?? {})).toHaveLength(50);
+    expect(room?.version).toBe(50);
   });
 });

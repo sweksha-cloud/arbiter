@@ -6,6 +6,8 @@ import type { Guest, LatLng, PlaceCandidate, ReactionsByMember, SessionStatus } 
  */
 export interface RoomState {
   sessionId: string;
+  /** Set by the store: starts at 0 and goes up by one on every update. */
+  version: number;
   hostId: string;
   status: SessionStatus;
   center: LatLng;
@@ -24,12 +26,12 @@ export interface RoomState {
 export interface RoomStore {
   get(sessionId: string): Promise<RoomState | undefined>;
   /** Throws RoomExistsError if the room already exists. */
-  create(state: RoomState): Promise<void>;
+  create(state: Omit<RoomState, 'version'>): Promise<void>;
   /**
    * Applies `change` atomically: no other update to the same room can happen
    * between reading the current state and saving the result. Takes a function
    * rather than a value so a Redis store can run it inside a transaction.
-   * Throws RoomNotFoundError if the room doesn't exist.
+   * Increments `version`. Throws RoomNotFoundError if the room doesn't exist.
    */
   update(sessionId: string, change: (current: RoomState) => RoomState): Promise<RoomState>;
   delete(sessionId: string): Promise<void>;
