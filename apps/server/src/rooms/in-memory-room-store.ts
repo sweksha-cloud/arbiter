@@ -7,9 +7,9 @@ export class InMemoryRoomStore implements RoomStore {
     return this.rooms.get(sessionId);
   }
 
-  async create(state: RoomState): Promise<void> {
+  async create(state: Omit<RoomState, 'version'>): Promise<void> {
     if (this.rooms.has(state.sessionId)) throw new RoomExistsError(state.sessionId);
-    this.rooms.set(state.sessionId, state);
+    this.rooms.set(state.sessionId, { ...state, version: 0 });
   }
 
   // Read, change and write happen with no await in between, so on one Node
@@ -17,7 +17,7 @@ export class InMemoryRoomStore implements RoomStore {
   async update(sessionId: string, change: (current: RoomState) => RoomState): Promise<RoomState> {
     const current = this.rooms.get(sessionId);
     if (!current) throw new RoomNotFoundError(sessionId);
-    const next = change(current);
+    const next = { ...change(current), version: current.version + 1 };
     this.rooms.set(sessionId, next);
     return next;
   }
