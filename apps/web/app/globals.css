@@ -327,3 +327,29 @@ input:not([type='checkbox']) {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* Lobby */
+
+.spread {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.grow {
+  flex: 1;
+}
+
+.invite-url {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.9rem !important;
+}
+
+.badge.ready {
+  color: var(--like);
+}
+
+.badge.waiting {
+  color: var(--muted);
+  font-weight: 400;
+}

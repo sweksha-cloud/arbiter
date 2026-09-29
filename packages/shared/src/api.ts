@@ -18,6 +18,13 @@ export const GuestSchema = z.object({
 });
 export type Guest = z.infer<typeof GuestSchema>;
 
+/**
+ * A person in a session. `ready` says they have set preferences; what they
+ * chose is never shared.
+ */
+export const SessionMemberSchema = GuestSchema.extend({ ready: z.boolean() });
+export type SessionMember = z.infer<typeof SessionMemberSchema>;
+
 export const CreateGuestRequestSchema = z.object({ displayName: DisplayNameSchema });
 export const CreateGuestResponseSchema = z.object({ guest: GuestSchema, token: z.string() });
 export type CreateGuestResponse = z.infer<typeof CreateGuestResponseSchema>;
@@ -49,8 +56,8 @@ export const SessionViewSchema = z.object({
   version: z.number().int().nonnegative(),
   status: SessionStatusSchema,
   hostId: z.string(),
-  /** Names only. Preferences are never included. */
-  members: z.array(GuestSchema),
+  /** Names and ready flags only. Preferences are never included. */
+  members: z.array(SessionMemberSchema),
   suggestions: z.array(SuggestionViewSchema),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
@@ -77,6 +84,8 @@ export type Ack = { ok: true } | { ok: false; error: string };
 
 export interface ClientToServerEvents {
   'session:join': (payload: { sessionId: string }, ack: (result: Ack) => void) => void;
+  /** "I've saved my preferences": marks the sender ready in their current session. */
+  'session:ready': (ack: (result: Ack) => void) => void;
   'session:start': (ack: (result: Ack) => void) => void;
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
   'session:end': (ack: (result: Ack) => void) => void;

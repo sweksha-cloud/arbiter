@@ -25,7 +25,6 @@ type ArbiterSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 export default function SessionPage() {
   const { code } = useParams<{ code: string }>();
   const identity = useIdentity();
-  const { preferences, setPreferences, error: preferencesError } = usePreferences(identity?.token);
 
   return (
     <main className="page stack">
@@ -33,20 +32,7 @@ export default function SessionPage() {
         <Link href="/">← Home</Link>
       </p>
       {identity === null && <NameForm intro="You've been invited to pick a place to eat." />}
-      {preferencesError && <p className="error">{preferencesError}</p>}
-      {identity && preferences === null && (
-        <>
-          <h1>Before you join</h1>
-          <p className="muted">Set your preferences once. They&apos;re private and apply to every session.</p>
-          <PreferencesForm
-            token={identity.token}
-            initial={null}
-            submitLabel="Save and join"
-            onSaved={setPreferences}
-          />
-        </>
-      )}
-      {identity && preferences && <LiveSession code={code} identity={identity} />}
+      {identity && <LiveSession code={code} identity={identity} />}
     </main>
   );
 }
@@ -104,10 +90,25 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
         {!connected && <p className="warning small">Reconnecting…</p>}
       </header>
 
+      <Members view={view} myId={identity.guest.id} />
+
       {error && <p className="error">{error}</p>}
 
       {view.status === 'lobby' && (
-        <Lobby view={view} isHost={isHost} hostName={host?.displayName} onStart={() => socket()?.emit('session:start', handleAck)} />
+        <>
+          <InviteCard sessionId={view.sessionId} />
+          <MyPreferences
+            token={identity.token}
+            ready={view.members.find((m) => m.id === identity.guest.id)?.ready ?? false}
+            onSaved={() => socket()?.emit('session:ready', handleAck)}
+          />
+          <StartControls
+            view={view}
+            isHost={isHost}
+            hostName={host?.displayName}
+            onStart={() => socket()?.emit('session:start', handleAck)}
+          />
+        </>
       )}
 
       {view.status === 'scanning' && <p className="card">Finding places near you…</p>}
@@ -151,13 +152,87 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           )}
         </section>
       )}
-
-      <Members view={view} myId={identity.guest.id} />
     </>
   );
 }
 
-function Lobby({
+function InviteCard({ sessionId }: { sessionId: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/s/${sessionId}`;
+  const canShare = typeof navigator.share === 'function';
+
+  async function copy() {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <section className="card stack">
+      <h2>Invite your friends</h2>
+      <p className="muted small">Send them this link, or have them enter the code on the home page.</p>
+      <div className="row">
+        <input className="invite-url" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Invite link" />
+      </div>
+      <div className="row">
+        <button className="button primary grow" onClick={copy}>
+          {copied ? 'Copied!' : 'Copy link'}
+        </button>
+        {canShare && (
+          <button
+            className="button grow"
+            onClick={() => navigator.share({ title: 'Arbiter', text: 'Help pick where we eat', url }).catch(() => {})}
+          >
+            Share
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Everyone, host included, sets preferences here while the group gathers. */
+function MyPreferences({ token, ready, onSaved }: { token: string; ready: boolean; onSaved: () => void }) {
+  const { preferences, setPreferences, error } = usePreferences(token);
+  const [editing, setEditing] = useState(false);
+
+  if (error) return <p className="error">{error}</p>;
+  if (preferences === undefined) return null;
+
+  if (ready && !editing) {
+    return (
+      <section className="card row spread">
+        <p>
+          <strong>✓ You&apos;re ready.</strong> <span className="muted small">Nobody else can see your answers.</span>
+        </p>
+        <button className="button" onClick={() => setEditing(true)}>
+          Edit
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="stack">
+      <h2>Your preferences</h2>
+      <p className="muted small">
+        {preferences ? 'Here’s what you picked last time. Change anything, then tap below.' : 'Private to you. Saved for next time.'}
+      </p>
+      <PreferencesForm
+        token={token}
+        initial={preferences}
+        submitLabel={ready ? 'Save changes' : "I'm ready"}
+        onSaved={(saved) => {
+          setPreferences(saved);
+          setEditing(false);
+          onSaved();
+        }}
+      />
+    </section>
+  );
+}
+
+function StartControls({
   view,
   isHost,
   hostName,
@@ -168,31 +243,22 @@ function Lobby({
   hostName: string | undefined;
   onStart: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  const readyCount = view.members.filter((m) => m.ready).length;
+  const total = view.members.length;
+  const allReady = readyCount === total;
 
-  async function share() {
-    const url = window.location.href;
-    if (navigator.share) {
-      await navigator.share({ title: 'Arbiter', text: 'Help pick where we eat', url }).catch(() => {});
-      return;
-    }
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
+  if (!isHost) {
+    return <p className="muted center">Waiting for {hostName ?? 'the host'} to find places…</p>;
   }
-
   return (
     <section className="card stack">
-      <p>Invite friends with this code or link. Everyone sets their must-haves once, then the host finds places.</p>
-      <button className="button" onClick={share}>
-        {copied ? 'Link copied' : 'Share invite link'}
+      <p className="muted small">
+        {readyCount} of {total} ready
+        {!allReady && '. Anyone not ready yet won’t have their must-haves counted.'}
+      </p>
+      <button className={`button ${allReady ? 'primary' : ''}`} onClick={onStart}>
+        {allReady ? 'Find places' : 'Find places anyway'}
       </button>
-      {isHost ? (
-        <button className="button primary" onClick={onStart}>
-          Find places ({view.members.length} {view.members.length === 1 ? 'person' : 'people'})
-        </button>
-      ) : (
-        <p className="muted">Waiting for {hostName ?? 'the host'} to find places…</p>
-      )}
     </section>
   );
 }
@@ -207,6 +273,9 @@ function Members({ view, myId }: { view: SessionView; myId: string }) {
             {m.displayName}
             {m.id === myId && ' (you)'}
             {m.id === view.hostId && <span className="badge">host</span>}
+            {view.status === 'lobby' && (
+              <span className={`badge ${m.ready ? 'ready' : 'waiting'}`}>{m.ready ? '✓ ready' : 'choosing…'}</span>
+            )}
           </li>
         ))}
       </ul>
