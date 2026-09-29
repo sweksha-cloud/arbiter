@@ -3,7 +3,6 @@
 import type { Preferences } from '@arbiter/shared';
 import { useState, type FormEvent } from 'react';
 
-import { api } from '../lib/api';
 import { MILE_OPTIONS, metersToMiles, milesToMeters } from '../lib/format';
 
 const CUISINES = [
@@ -36,15 +35,14 @@ const nextFeeling = (current: CuisineFeeling | undefined): CuisineFeeling | unde
   current === undefined ? 'like' : current === 'like' ? 'dislike' : undefined;
 
 export function PreferencesForm({
-  token,
   initial,
   submitLabel,
-  onSaved
+  onSubmit
 }: {
-  token: string;
   initial: Preferences | null;
   submitLabel: string;
-  onSaved: (preferences: Preferences) => void;
+  /** Sends the preferences somewhere (a session, or saved settings). Rejects with a user-facing message. */
+  onSubmit: (preferences: Preferences) => Promise<void>;
 }) {
   const start = initial ?? EMPTY;
   const [vegetarian, setVegetarian] = useState(start.hard.vegetarian ?? false);
@@ -75,8 +73,7 @@ export function PreferencesForm({
     setBusy(true);
     setError(undefined);
     try {
-      await api.savePreferences(token, preferences);
-      onSaved(preferences);
+      await onSubmit(preferences);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {

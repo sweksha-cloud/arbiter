@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net';
 
-import type { Ack, ClientToServerEvents, ServerToClientEvents, SessionView } from '@arbiter/shared';
+import type { Ack, ClientToServerEvents, Preferences, ServerToClientEvents, SessionView } from '@arbiter/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -53,6 +53,8 @@ describe('session over Socket.IO', () => {
   const join = (client: Client, sessionId: string) =>
     new Promise<Ack>((resolve) => client.emit('session:join', { sessionId }, resolve));
   const start = (client: Client) => new Promise<Ack>((resolve) => client.emit('session:start', resolve));
+  const submit = (client: Client, preferences: Preferences = { hard: {}, soft: {} }) =>
+    new Promise<Ack>((resolve) => client.emit('session:submit', { preferences }, resolve));
   const react = (client: Client, placeId: string, reaction: 'like' | 'dislike' | null) =>
     new Promise<Ack>((resolve) => client.emit('session:react', { placeId, reaction }, resolve));
 
@@ -82,11 +84,17 @@ describe('session over Socket.IO', () => {
     expect(error.message).toBe('unauthorized');
   });
 
-  it('runs a session end to end: join, start, react, and everyone sees the same totals', async () => {
+  it('runs a session end to end: join, submit, automatic results, react, same totals for everyone', async () => {
     const { hostClient, friendClient } = await sessionWithTwoPeople();
 
+    const hostSeesProgress = nextState(hostClient, (v) => v.members.filter((m) => m.submitted).length === 1);
+    expect(await submit(friendClient, { hard: { vegetarian: true }, soft: {} })).toEqual({ ok: true });
+    const progress = await hostSeesProgress;
+    expect(progress.status).toBe('lobby');
+    expect(JSON.stringify(progress)).not.toContain('vegetarian');
+
     const friendSeesVoting = nextState(friendClient, (v) => v.status === 'voting');
-    expect(await start(hostClient)).toEqual({ ok: true });
+    expect(await submit(hostClient)).toEqual({ ok: true });
     const voting = await friendSeesVoting;
     expect(voting.suggestions.length).toBeGreaterThan(0);
     expect(voting.placesSource).toBe('sample');
@@ -100,7 +108,7 @@ describe('session over Socket.IO', () => {
     expect(view.suggestions[0]?.myReaction).toBe('like');
   });
 
-  it('refuses start from someone who is not the host', async () => {
+  it('refuses "show results now" from someone who is not the host', async () => {
     const { friendClient } = await sessionWithTwoPeople();
     expect(await start(friendClient)).toEqual({ ok: false, error: 'Only the host can do that' });
   });
@@ -108,7 +116,8 @@ describe('session over Socket.IO', () => {
   it('gives a reconnecting person the current state, including their own reaction', async () => {
     const { sessionId, friend, hostClient, friendClient } = await sessionWithTwoPeople();
     const voting = nextState(friendClient, (v) => v.status === 'voting');
-    await start(hostClient);
+    await submit(friendClient);
+    await submit(hostClient);
     const placeId = (await voting).suggestions[0]!.place.id;
     await react(friendClient, placeId, 'like');
 

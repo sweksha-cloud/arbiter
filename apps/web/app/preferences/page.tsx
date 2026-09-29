@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { NameForm } from '../../components/NameForm';
 import { PreferencesForm } from '../../components/PreferencesForm';
+import { api } from '../../lib/api';
 import { useIdentity } from '../../lib/identity';
 import { usePreferences } from '../../lib/use-preferences';
 
@@ -26,16 +27,16 @@ export default function PreferencesPage() {
         <PreferencesForm
           // Remount with fresh state when the loaded preferences change.
           key={identity.token}
-          token={identity.token}
           initial={preferences}
           submitLabel="Save"
-          onSaved={(p) => {
+          onSubmit={async (p) => {
+            await api.savePreferences(identity.token, p);
             setPreferences(p);
             setSaved(true);
           }}
         />
       )}
-      {saved && <p className="success">Saved. They&apos;ll apply to every session you join.</p>}
+      {saved && <p className="success">Saved. They&apos;ll be filled in for you in your next session.</p>}
     </main>
   );
 }
