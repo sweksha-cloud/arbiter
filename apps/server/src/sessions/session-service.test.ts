@@ -42,7 +42,25 @@ describe('SessionService', () => {
     const { service, host, sessionId } = await setup();
     expect(sessionId).toMatch(/^[A-HJ-KM-NP-Z2-9]{6}$/);
     const room = await service.get(sessionId);
-    expect(room).toMatchObject({ status: 'lobby', hostId: host.id, members: [host] });
+    expect(room).toMatchObject({ status: 'lobby', hostId: host.id, members: [{ ...host, ready: false }] });
+  });
+
+  it('marks members ready only after they save preferences, without exposing them', async () => {
+    const { guests, service, friend, sessionId } = await setup();
+    await service.join(sessionId, friend);
+    await expect(service.markReady(sessionId, friend)).rejects.toThrow('Save your preferences first');
+
+    await guests.setPreferences(friend.id, { hard: { vegetarian: true }, soft: {} });
+    const room = await service.markReady(sessionId, friend);
+
+    expect(room.members.find((m) => m.id === friend.id)).toEqual({ ...friend, ready: true });
+  });
+
+  it('treats someone who already has saved preferences as ready when they join', async () => {
+    const { guests, service, friend, sessionId } = await setup();
+    await guests.setPreferences(friend.id, { hard: {}, soft: {} });
+    const room = await service.join(sessionId, friend);
+    expect(room.members.find((m) => m.id === friend.id)?.ready).toBe(true);
   });
 
   it('adds each member once, even if they join twice', async () => {

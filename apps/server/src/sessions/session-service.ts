@@ -56,6 +56,7 @@ export class SessionService {
   constructor(private readonly options: SessionServiceOptions) {}
 
   async create(host: Guest, center: LatLng): Promise<string> {
+    const hostMember = { ...host, ready: await this.hasPreferences(host) };
     for (;;) {
       const sessionId = newSessionCode();
       try {
@@ -64,7 +65,7 @@ export class SessionService {
           hostId: host.id,
           status: 'lobby',
           center,
-          members: [host],
+          members: [hostMember],
           suggestions: [],
           reactions: {},
           scannedCount: 0,
@@ -83,10 +84,28 @@ export class SessionService {
     return room;
   }
 
+  /** Adds the guest, or refreshes their ready flag if they are already in (reconnects). */
   async join(sessionId: string, guest: Guest): Promise<RoomState> {
-    return this.update(sessionId, (room) =>
-      room.members.some((m) => m.id === guest.id) ? room : { ...room, members: [...room.members, guest] }
-    );
+    const member = { ...guest, ready: await this.hasPreferences(guest) };
+    return this.update(sessionId, (room) => ({
+      ...room,
+      members: room.members.some((m) => m.id === guest.id)
+        ? room.members.map((m) => (m.id === guest.id ? member : m))
+        : [...room.members, member]
+    }));
+  }
+
+  /** Marks a member ready once their preferences are saved. */
+  async markReady(sessionId: string, guest: Guest): Promise<RoomState> {
+    if (!(await this.hasPreferences(guest))) {
+      throw new SessionError('invalid_state', 'Save your preferences first');
+    }
+    return this.update(sessionId, (room) => {
+      if (!room.members.some((m) => m.id === guest.id)) {
+        throw new SessionError('forbidden', 'Join the session first');
+      }
+      return { ...room, members: room.members.map((m) => (m.id === guest.id ? { ...m, ready: true } : m)) };
+    });
   }
 
   /**
@@ -174,6 +193,10 @@ export class SessionService {
 
   private requireHost(room: RoomState, guest: Guest) {
     if (room.hostId !== guest.id) throw new SessionError('forbidden', 'Only the host can do that');
+  }
+
+  private async hasPreferences(guest: Guest): Promise<boolean> {
+    return (await this.options.guests.getPreferences(guest.id)) !== null;
   }
 
   private async preferencesOf(members: Guest[]): Promise<Preferences[]> {

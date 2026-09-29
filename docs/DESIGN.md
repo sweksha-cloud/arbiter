@@ -89,15 +89,15 @@ What the code does meanwhile, so nothing is silently assumed:
 **Proposed** (the owner said "up to Claude")
 
 1. **Home**: "Start a session" and "Join with a code".
-2. **Your preferences**: set once. Stored with the guest identity, or the account after logging in.
-3. **New session**: set where the group is (method depends on section 4).
-4. **Lobby**: invite link and QR code, list of who has joined (names only), and a "Find places" button for the host.
+2. **Your preferences** (optional page): edit saved preferences outside a session.
+3. **New session**: one tap. Uses the host's location for now (method depends on section 4).
+4. **Lobby**: invite link with Copy/Share, who has joined with a ready ✓ (never what they chose), and a "Your preferences" form that everyone, host included, fills in while the group gathers. Saved preferences are prefilled and count as ready. The host's button shows "N of M ready" and can start anyway; anyone not ready has no must-haves counted.
 5. **Suggestions**: the short list. Each card shows name, distance, price level, rating, the like/dislike bar, a Directions button (opens Google Maps), and Google Maps attribution.
 6. **Nothing fits**: empty state when no place survives (behavior depends on the open question in section 1).
 7. **Terms of Use** and **Privacy Policy**: public pages, required by Google.
 8. **Log in to save**: optional, reachable from preferences.
 
-Main flow: host opens Home → sets preferences (first time only) → New session → Lobby, shares link → friends open link → set preferences (first time only) → Lobby → host taps "Find places" → everyone sees Suggestions and reacts.
+Main flow (**Decided**: the owner asked that starting a session not wait on preferences): host enters a name → Start a session → Lobby with invite link immediately → friends open link, enter a name → everyone sets preferences in the lobby → host taps "Find places" → everyone sees Suggestions and reacts.
 
 ## 8. Data model
 
