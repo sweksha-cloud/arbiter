@@ -91,6 +91,14 @@ export function registerSocketHandlers(
       })
     );
 
+    socket.on('session:ready', (ack) =>
+      respond(ack, async () => {
+        const sessionId = currentSession(socket);
+        await sessions.markReady(sessionId, guest);
+        await broadcast(sessionId);
+      })
+    );
+
     socket.on('session:start', (ack) =>
       respond(ack, async () => {
         const sessionId = currentSession(socket);
