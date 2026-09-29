@@ -1,71 +1,50 @@
 # Arbiter
 
-Arbiter helps friend groups pick a place to eat quickly and fairly by collecting everyone’s constraints up front and automatically removing places that do not work for someone.
+Arbiter helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
 
-## Problem
+- Product decisions: [`docs/DESIGN.md`](docs/DESIGN.md)
+- Technical decisions: [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md)
 
-Group food decisions are often slow and biased toward whoever speaks the loudest. Arbiter makes constraints explicit (dietary, budget, travel time, etc.), enforces hard constraints automatically, and drives the group to a final decision in one live session.
+## Status
 
-## What Arbiter does
+Phase 1 (scaffold) is in place: workspace, tooling, local Postgres, migrations setup, CI, and the core domain logic. Several product decisions are still open (see `docs/DESIGN.md`); the database schema, Google Places client, and real-time events wait on them.
 
-1. Create a group and invite friends.
-2. Each person sets preferences once (hard + soft constraints).
-3. Start a session with a location.
-4. Backend scans nearby options using Google Places API.
-5. Places failing any member’s hard constraints are eliminated.
-6. Group selects from remaining options (winner flow to be finalized).
-7. Winner is revealed to everyone with a Google Maps directions link.
-8. Post-outing rating is stored for future recommendation work.
+## Layout
 
-## Core architecture decisions
+| Path | What it is |
+| --- | --- |
+| `packages/shared` | Types, Zod schemas, and pure domain logic used by both apps: elimination, ranking, reactions, distance |
+| `apps/server` | Fastify + Socket.IO backend: config, database client, `RoomStore`, `PlacesProvider` |
+| `apps/web` | Next.js frontend (shell only so far) |
 
-- **Language:** TypeScript end-to-end
-- **Frontend:** Next.js (Vercel target)
-- **Backend:** Node.js + Fastify + Socket.IO (Docker on EC2)
-- **Database:** Postgres (Neon)
-- **Region:** `us-west-2` for EC2 and Neon
-- **Places source:** Google Places Nearby Search
-- **Auth transport:** Header tokens (not cookies)
-- **Infra:** Terraform + GitHub Actions + ECR + CodeDeploy + CloudWatch + SSM + SSM Parameter Store
+## Domain logic (`packages/shared`)
 
-## Repository bootstrap (this commit)
+- **`combineHardConstraints`**: the strictest constraint in the group wins. Budget uses the lowest maximum; distance uses the shortest; vegetarian and no-fast-food apply if anyone sets them.
+- **`eliminate`**: removes places failing the group's constraints. Takes a required `MissingDataPolicy` so places with missing data (no price level, unknown vegetarian options) are handled explicitly. Returns survivors and a count, never who caused a removal.
+- **`rankSuggestions`**: picks the short list (3 by default) by liked/disliked cuisines, then rating, then distance.
+- **`setReaction` / `tallyReactions`**: one like or dislike per person per place, changeable, tallied as totals only.
 
-This repository is now started as a TypeScript monorepo with:
+## Development
 
-- `apps/web`: Next.js web app shell
-- `apps/server`: Fastify + Socket.IO server shell with `/health`
-- `packages/shared`: Shared domain types and hard-constraint elimination logic
-
-### Current implemented domain behavior
-
-`packages/shared/src/elimination.ts` implements hard-constraint filtering:
-
-- vegetarian-only members remove places without vegetarian options
-- no-fast-food members remove fast-food places
-- max-drive-minutes removes distant places
-- max-price-level removes expensive places
-
-This is covered by a focused test in `packages/shared/src/elimination.test.ts`.
-
-## Quick start
+Requirements: Node 22, pnpm 10, Docker.
 
 ```bash
-npm install
-npm test
-npm run build
+pnpm install
+pnpm db:up                                   # local Postgres in Docker
+cp apps/server/.env.example apps/server/.env
+
+pnpm dev:server                              # http://localhost:4000/health
+pnpm dev:web                                 # http://localhost:3000
 ```
 
-Run apps locally:
+Checks (the same ones CI runs):
 
 ```bash
-npm run dev:server
-npm run dev:web
+pnpm lint
+pnpm typecheck
+pnpm test
+DATABASE_URL=postgres://arbiter:arbiter@localhost:5432/arbiter pnpm test:integration
+pnpm build
 ```
 
-## Next steps
-
-1. Group/member/session persistence in Postgres
-2. Google Places scan integration + quota controls
-3. Real-time session state over Socket.IO
-4. Winner-selection workflow implementation
-5. Terms/Privacy pages and production deployment plumbing
+If you use Volta, set `VOLTA_FEATURE_PNPM=1` in your shell so pnpm runs on the project's pinned Node 22 instead of whichever Node pnpm was installed with.
