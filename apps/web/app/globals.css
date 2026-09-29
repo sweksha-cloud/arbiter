@@ -353,3 +353,25 @@ input:not([type='checkbox']) {
   color: var(--muted);
   font-weight: 400;
 }
+
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--like);
+  transition: width 0.3s ease;
+}
+
+.button.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-weight: 500;
+  min-height: 36px;
+}

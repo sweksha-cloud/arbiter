@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { LatLngSchema, PlaceCandidateSchema } from './place.js';
-import { PreferencesSchema } from './preferences.js';
+import { PreferencesSchema, type Preferences } from './preferences.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
 
 // Request, response and real-time event shapes shared by server and web.
@@ -19,10 +19,10 @@ export const GuestSchema = z.object({
 export type Guest = z.infer<typeof GuestSchema>;
 
 /**
- * A person in a session. `ready` says they have set preferences; what they
- * chose is never shared.
+ * A person in a session. `submitted` says they have submitted preferences for
+ * this session; what they chose is never shared.
  */
-export const SessionMemberSchema = GuestSchema.extend({ ready: z.boolean() });
+export const SessionMemberSchema = GuestSchema.extend({ submitted: z.boolean() });
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
 
 export const CreateGuestRequestSchema = z.object({ displayName: DisplayNameSchema });
@@ -56,7 +56,7 @@ export const SessionViewSchema = z.object({
   version: z.number().int().nonnegative(),
   status: SessionStatusSchema,
   hostId: z.string(),
-  /** Names and ready flags only. Preferences are never included. */
+  /** Names and submitted flags only. Preferences are never included. */
   members: z.array(SessionMemberSchema),
   suggestions: z.array(SuggestionViewSchema),
   scannedCount: z.number().int().nonnegative(),
@@ -78,14 +78,16 @@ export function newerView(current: SessionView | undefined, incoming: SessionVie
 // ---- Socket.IO events ----
 
 export const JoinSessionPayloadSchema = z.object({ sessionId: z.string().min(1) });
+export const SubmitPreferencesPayloadSchema = z.object({ preferences: PreferencesSchema });
 export const ReactPayloadSchema = z.object({ placeId: z.string().min(1), reaction: ReactionSchema.nullable() });
 
 export type Ack = { ok: true } | { ok: false; error: string };
 
 export interface ClientToServerEvents {
   'session:join': (payload: { sessionId: string }, ack: (result: Ack) => void) => void;
-  /** "I've saved my preferences": marks the sender ready in their current session. */
-  'session:ready': (ack: (result: Ack) => void) => void;
+  /** Submits (or resubmits) the sender's preferences for this session. */
+  'session:submit': (payload: { preferences: Preferences }, ack: (result: Ack) => void) => void;
+  /** Host only: show results before everyone has submitted. */
   'session:start': (ack: (result: Ack) => void) => void;
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
   'session:end': (ack: (result: Ack) => void) => void;

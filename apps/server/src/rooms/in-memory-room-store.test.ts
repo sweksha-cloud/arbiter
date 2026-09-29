@@ -10,6 +10,7 @@ const emptyRoom = (sessionId: string): Omit<RoomState, 'version'> => ({
   status: 'lobby',
   center: { lat: 37.3352, lng: -121.8811 },
   members: [],
+  submissions: {},
   suggestions: [],
   reactions: {},
   scannedCount: 0,

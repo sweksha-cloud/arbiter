@@ -1,6 +1,7 @@
 import {
   JoinSessionPayloadSchema,
   ReactPayloadSchema,
+  SubmitPreferencesPayloadSchema,
   type Ack,
   type ClientToServerEvents,
   type Guest,
@@ -91,11 +92,16 @@ export function registerSocketHandlers(
       })
     );
 
-    socket.on('session:ready', (ack) =>
+    socket.on('session:submit', (payload, ack) =>
       respond(ack, async () => {
         const sessionId = currentSession(socket);
-        await sessions.markReady(sessionId, guest);
-        await broadcast(sessionId);
+        const { preferences } = SubmitPreferencesPayloadSchema.parse(payload);
+        try {
+          // May complete the group, which starts the scan; broadcast "scanning" as it begins.
+          await sessions.submit(sessionId, guest, preferences, () => broadcast(sessionId));
+        } finally {
+          await broadcast(sessionId);
+        }
       })
     );
 
