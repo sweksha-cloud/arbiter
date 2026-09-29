@@ -30,7 +30,8 @@ export async function buildApp({ webOrigin, logLevel, ...deps }: AppOptions): Pr
   const http = Fastify({ logger: { level: logLevel } });
 
   // Auth uses Authorization headers, not cookies, so credentials stay off.
-  await http.register(cors, { origin: webOrigin });
+  // @fastify/cors only allows GET, HEAD and POST unless methods are listed.
+  await http.register(cors, { origin: webOrigin, methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'] });
 
   const io: ArbiterServer = new Server(http.server, { cors: { origin: webOrigin } });
   http.addHook('onClose', async () => {
