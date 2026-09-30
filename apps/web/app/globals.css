@@ -1,41 +1,41 @@
 :root {
-  --bg: #ffc1cf;
-  --surface: #ffffff;
-  --surface-warm: #e8ffb7;
-  --surface-cool: #c4f5fc;
-  --surface-lilac: #e2a0ff;
-  --text: #292333;
-  --muted: #665c6c;
-  --border: #e1c9df;
-  --accent: #a64cc4;
+  --bg: #fff8e8;
+  --surface: #fffdf7;
+  --surface-warm: #ffe0b2;
+  --surface-cool: #d9f0e6;
+  --surface-lilac: #ffd1c2;
+  --text: #30251f;
+  --muted: #766960;
+  --border: #ead8c5;
+  --accent: #d94f35;
   --accent-text: #ffffff;
-  --like: #2bbd91;
-  --dislike: #e66d8c;
-  --notice-bg: #e8ffb7;
-  --notice-text: #4a5b25;
+  --like: #4f8f57;
+  --dislike: #c65348;
+  --notice-bg: #f9df7b;
+  --notice-text: #66500b;
   --radius: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #241b2b;
-    --surface: #30263a;
-    --surface-warm: #453044;
-    --surface-cool: #244650;
-    --surface-lilac: #4c3048;
-    --text: #fff3fa;
-    --muted: #cdbbd0;
-    --border: #55445d;
-    --accent: #e2a0ff;
-    --accent-text: #241b2b;
-    --like: #8fe2c3;
-    --dislike: #f39ab1;
-    --notice-bg: #53452d;
-    --notice-text: #f5dda0;
+    --bg: #28251d;
+    --surface: #363329;
+    --surface-warm: #57412d;
+    --surface-cool: #29483e;
+    --surface-lilac: #58352d;
+    --text: #fff5df;
+    --muted: #d0c1aa;
+    --border: #5d5947;
+    --accent: #f0785d;
+    --accent-text: #332018;
+    --like: #8fc58a;
+    --dislike: #ec8a78;
+    --notice-bg: #615329;
+    --notice-text: #ffe79a;
   }
 
   .page > section.card {
-    border-color: #c9e86b;
+    border-color: #d6b94d;
   }
 
   .page > form.card {
@@ -43,7 +43,7 @@
   }
 
   .rejoin {
-    border-color: #c9e86b;
+    border-color: #d6b94d;
   }
 }
 
@@ -126,17 +126,17 @@ a {
 
 .page > section.card {
   background: var(--surface-warm);
-  border-color: #c4e57b;
+  border-color: #efbd6e;
 }
 
 .page > form.card {
   background: var(--surface-cool);
-  border-color: #82dce9;
+  border-color: #9acdb5;
 }
 
 .rejoin {
   background: var(--surface-lilac);
-  border-color: #c77be6;
+  border-color: #efa080;
 }
 
 .muted {
