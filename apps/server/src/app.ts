@@ -74,7 +74,7 @@ export async function buildApp({
     rooms: deps.rooms ?? new InMemoryRoomStore(),
     guests,
     history: deps.history ?? new InMemorySessionHistory(),
-    onHistoryError: (error, context) => http.log.error({ err: error, ...context }, 'Could not save session history'),
+    log: http.log,
     places: deps.places ?? new DemoPlacesProvider(),
     placesSource: deps.placesSource ?? 'sample',
     radiusMeters: SCAN_RADIUS_METERS,

@@ -59,7 +59,8 @@ export function registerSocketHandlers(
     }
   }
 
-  async function respond(ack: unknown, action: () => Promise<void>) {
+  /** `context` (guest, session, event) goes into the log if the action fails unexpectedly. */
+  async function respond(ack: unknown, context: object, action: () => Promise<void>) {
     const reply = (result: Ack) => {
       if (typeof ack === 'function') (ack as (r: Ack) => void)(result);
     };
@@ -72,7 +73,7 @@ export function registerSocketHandlers(
       if (error instanceof PlacesQuotaExceededError) {
         return reply({ ok: false, error: 'Arbiter has hit its daily search limit. Try again tomorrow.', code: 'quota' });
       }
-      log.error({ err: error }, 'Socket action failed');
+      log.error({ err: error, ...context }, 'Socket action failed');
       reply({ ok: false, error: 'Something went wrong', code: 'internal' });
     }
   }
@@ -85,6 +86,8 @@ export function registerSocketHandlers(
 
   io.on('connection', (socket) => {
     const { guest } = socket.data;
+    const logContext = (event: string) => ({ event, guestId: guest.id, sessionId: socket.data.sessionId, socketId: socket.id });
+    log.debug({ guestId: guest.id, socketId: socket.id }, 'Socket connected');
 
     // Refuse events over the limit with an answer, not silence, so the app
     // shows "slow down" instead of waiting forever for a reply.
@@ -95,17 +98,20 @@ export function registerSocketHandlers(
       if (typeof ack === 'function') {
         (ack as (r: Ack) => void)({ ok: false, error: 'Slow down a little, then try again.', code: 'rate_limited' });
       }
-      log.warn({ guestId: guest.id, event: packet[0] }, 'Socket event rate limited');
+      log.warn(logContext(String(packet[0])), 'Socket event rate limited');
     });
 
     // Tell the others this person went offline (tab closed, connection lost).
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       const { sessionId } = socket.data;
-      if (sessionId) void broadcast(sessionId).catch((error: unknown) => log.error({ err: error }, 'Broadcast failed'));
+      log.debug({ guestId: guest.id, sessionId, socketId: socket.id, reason }, 'Socket disconnected');
+      if (sessionId) {
+        void broadcast(sessionId).catch((error: unknown) => log.error({ err: error, sessionId }, 'Broadcast failed'));
+      }
     });
 
     socket.on('session:join', (payload, ack) =>
-      respond(ack, async () => {
+      respond(ack, logContext('session:join'), async () => {
         const { sessionId } = JoinSessionPayloadSchema.parse(payload);
         await sessions.join(sessionId, guest);
         if (socket.data.sessionId && socket.data.sessionId !== sessionId) {
@@ -118,7 +124,7 @@ export function registerSocketHandlers(
     );
 
     socket.on('session:submit', (payload, ack) =>
-      respond(ack, async () => {
+      respond(ack, logContext('session:submit'), async () => {
         const sessionId = currentSession(socket);
         const { preferences } = SubmitPreferencesPayloadSchema.parse(payload);
         try {
@@ -131,7 +137,7 @@ export function registerSocketHandlers(
     );
 
     socket.on('session:start', (ack) =>
-      respond(ack, async () => {
+      respond(ack, logContext('session:start'), async () => {
         const sessionId = currentSession(socket);
         try {
           await sessions.start(sessionId, guest, () => broadcast(sessionId));
@@ -143,7 +149,7 @@ export function registerSocketHandlers(
     );
 
     socket.on('session:react', (payload, ack) =>
-      respond(ack, async () => {
+      respond(ack, logContext('session:react'), async () => {
         const sessionId = currentSession(socket);
         const { placeId, reaction } = ReactPayloadSchema.parse(payload);
         await sessions.react(sessionId, guest, placeId, reaction);
@@ -152,7 +158,7 @@ export function registerSocketHandlers(
     );
 
     socket.on('session:end', (ack) =>
-      respond(ack, async () => {
+      respond(ack, logContext('session:end'), async () => {
         const sessionId = currentSession(socket);
         await sessions.end(sessionId, guest);
         await broadcast(sessionId);
