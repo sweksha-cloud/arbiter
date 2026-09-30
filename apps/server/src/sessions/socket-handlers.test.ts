@@ -108,9 +108,15 @@ describe('session over Socket.IO', () => {
     expect(view.suggestions[0]?.myReaction).toBe('like');
   });
 
+  it('answers joining an unknown session with a not_found code', async () => {
+    const guest = await createGuest('Lost');
+    const client = connectClient(guest.token);
+    expect(await join(client, 'NOPE22')).toEqual({ ok: false, error: 'Session not found', code: 'not_found' });
+  });
+
   it('refuses "show results now" from someone who is not the host', async () => {
     const { friendClient } = await sessionWithTwoPeople();
-    expect(await start(friendClient)).toEqual({ ok: false, error: 'Only the host can do that' });
+    expect(await start(friendClient)).toEqual({ ok: false, error: 'Only the host can do that', code: 'forbidden' });
   });
 
   it('gives a reconnecting person the current state, including their own reaction', async () => {

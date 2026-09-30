@@ -14,8 +14,10 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
+import { normalizeSessionCode } from '../../../components/JoinCodeForm';
 import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
+import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
 import { SERVER_URL } from '../../../lib/config';
 import { clearIdentity, useIdentity, type Identity } from '../../../lib/identity';
@@ -24,7 +26,7 @@ import { usePreferences } from '../../../lib/use-preferences';
 type ArbiterSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 export default function SessionPage() {
-  const { code } = useParams<{ code: string }>();
+  const code = normalizeSessionCode(useParams<{ code: string }>().code);
   const identity = useIdentity();
 
   return (
@@ -43,6 +45,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const [view, setView] = useState<SessionView>();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     const socket: ArbiterSocket = io(SERVER_URL, { auth: { token: identity.token } });
@@ -52,7 +55,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
     socket.on('connect', () => {
       setConnected(true);
       socket.emit('session:join', { sessionId: code }, (ack) => {
-        if (!ack.ok) setError(ack.error);
+        if (ack.ok) setNotFound(false);
+        else if (ack.code === 'not_found') setNotFound(true);
+        else setError(ack.error);
       });
     });
     socket.on('disconnect', () => setConnected(false));
@@ -82,6 +87,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
     const ack = await s.emitWithAck('session:submit', { preferences });
     if (!ack.ok) throw new Error(ack.error);
   }
+
+  // Also covers a session that vanished while open (e.g. the server restarted).
+  if (notFound) return <SessionNotFound code={code} token={identity.token} />;
 
   if (!view) {
     return error ? <p className="error">{error}</p> : <p className="muted">Joining session {code}…</p>;
