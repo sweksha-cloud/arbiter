@@ -63,3 +63,34 @@ test('starting a session works even if the location prompt is never answered (BU
   // Falls back to the default area after 10 s instead of hanging.
   await expect(host.getByText('Invite your friends')).toBeVisible({ timeout: 15_000 });
 });
+
+test('a custom distance limits results for the group, and "Don\'t care" adds no limit', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Custom' }).click();
+  await host.getByLabel(/Miles/).fill('0.3');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: "Don't care" }).click();
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  // The sample data has exactly three places within 0.3 mi of the host.
+  await expect(friend.locator('article h3')).toHaveCount(3);
+  expect((await friend.locator('article h3').allTextContents()).sort()).toEqual([
+    'Burger Barn',
+    'Corner Cafe',
+    'Green Bowl'
+  ]);
+});
+
+test('a custom distance outside the allowed range is caught before submitting', async ({ newPhone }) => {
+  const host = await newPhone();
+  await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Custom' }).click();
+  await host.getByLabel(/Miles/).fill('');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(host.getByText('Enter a distance between 0.1 and 31 miles.')).toBeVisible();
+  await expect(host.getByText('0 of 1 submitted')).toBeVisible();
+});

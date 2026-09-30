@@ -167,6 +167,21 @@ describe('SessionService', () => {
     expect(searchNearby).toHaveBeenCalledTimes(1);
   });
 
+  it("searches as far as the group's tightest distance limit, or the default area if nobody set one", async () => {
+    const provider = new FixturePlacesProvider([place('a')]);
+    const searchNearby = vi.spyOn(provider, 'searchNearby');
+
+    const limited = await lobbyOfTwo(provider);
+    await limited.service.submit(limited.sessionId, limited.host, { hard: { maxDistanceMeters: 32_000 }, soft: {} });
+    await limited.service.submit(limited.sessionId, limited.friend, { hard: { maxDistanceMeters: 16_000 }, soft: {} });
+    expect(searchNearby).toHaveBeenLastCalledWith({ center, radiusMeters: 16_000 });
+
+    const unlimited = await lobbyOfTwo(provider);
+    await unlimited.service.submit(unlimited.sessionId, unlimited.host, noPreferences);
+    await unlimited.service.submit(unlimited.sessionId, unlimited.friend, noPreferences);
+    expect(searchNearby).toHaveBeenLastCalledWith({ center, radiusMeters: 3000 });
+  });
+
   it('goes back to the lobby if the scan fails', async () => {
     const failing: PlacesProvider = { searchNearby: () => Promise.reject(new Error('network down')) };
     const { service, host, friend, sessionId } = await lobbyOfTwo(failing);
