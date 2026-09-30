@@ -74,4 +74,34 @@ describe('app', () => {
     const emptyName = await app.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: '  ' } });
     expect(emptyName.statusCode).toBe(400);
   });
+
+  it('gives members a summary of their session, and 404 to everyone else', async () => {
+    app = await buildApp({ webOrigin, logLevel: 'silent' });
+    const newGuest = async (displayName: string) =>
+      (await app!.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName } })).json<{ token: string }>().token;
+    const host = await newGuest('Host');
+    const outsider = await newGuest('Outsider');
+
+    const created = await app.http.inject({
+      method: 'POST',
+      url: '/api/sessions',
+      headers: { authorization: `Bearer ${host}` },
+      payload: { center: { lat: 37.3, lng: -121.9 } }
+    });
+    const { sessionId } = created.json<{ sessionId: string }>();
+
+    const mine = await app.http.inject({
+      method: 'GET',
+      url: `/api/sessions/${sessionId.toLowerCase()}`,
+      headers: { authorization: `Bearer ${host}` }
+    });
+    expect(mine.json()).toEqual({ sessionId, status: 'lobby', isHost: true });
+
+    const theirs = await app.http.inject({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}`,
+      headers: { authorization: `Bearer ${outsider}` }
+    });
+    expect(theirs.statusCode).toBe(404);
+  });
 });

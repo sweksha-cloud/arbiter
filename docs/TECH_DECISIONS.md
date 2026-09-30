@@ -66,3 +66,15 @@ One entry per decision: what was chosen, what else was considered, and why. Choi
 
 ## socket.io-client
 - **Why:** the browser client for Socket.IO (web app), and a devDependency of the server for real end-to-end socket tests.
+
+## Presence from open connections, not stored state
+- **Alternatives:** store an `online` flag in room state and update it on connect/disconnect; client heartbeats.
+- **Why:** who is online is exactly "who has a socket in this session's room right now", which Socket.IO already knows (`fetchSockets`, which also works across servers with the Redis adapter later). Computing it when sending views means it can never go stale, e.g. after a crash that skipped a disconnect handler. Clients wait 5 s before showing "the host has left" so a page reload doesn't flash it.
+
+## Graceful shutdown drops live sockets first
+- **Bug found in a browser test:** stopping the server with phones connected hung forever. Node's HTTP server waits for open connections to finish before closing, and a WebSocket never finishes. Every deploy would have stalled until force-killed, leaving phones attached to a dying server.
+- **Fix:** a Fastify `preClose` hook calls `io.disconnectSockets(true)` before the HTTP server closes. Clients treat a server-initiated disconnect as "reconnect now" (Socket.IO only auto-retries network drops by default). A regression test asserts shutdown completes within 3 s with a client connected.
+
+## Remembering the active session in the browser
+- **Alternatives:** the server looks up "sessions this guest is in".
+- **Why:** the browser stores the last joined code; the home page asks `GET /api/sessions/:id` whether it's still running and whether you're a member (non-members get 404, so codes can't be probed). Keeps `RoomStore` free of search queries until Postgres holds sessions.

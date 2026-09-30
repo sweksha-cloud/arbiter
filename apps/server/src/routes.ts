@@ -8,7 +8,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 
 import type { GuestStore } from './identity/guest-store.js';
-import type { SessionService } from './sessions/session-service.js';
+import { SessionError, type SessionService } from './sessions/session-service.js';
 
 /** Reads `Authorization: Bearer <token>`. Sends 401 and returns undefined if missing or unknown. */
 async function requireGuest(guests: GuestStore, request: FastifyRequest, reply: FastifyReply) {
@@ -54,6 +54,19 @@ export function registerRoutes(
     if (!preferences) return reply;
     await guests.setPreferences(guest.id, preferences);
     return { preferences };
+  });
+
+  http.get<{ Params: { sessionId: string } }>('/api/sessions/:sessionId', async (request, reply) => {
+    const guest = await requireGuest(guests, request, reply);
+    if (!guest) return reply;
+    try {
+      return await sessions.summary(request.params.sessionId.toUpperCase(), guest);
+    } catch (error) {
+      if (error instanceof SessionError && error.code === 'not_found') {
+        return reply.code(404).send({ error: 'Session not found' });
+      }
+      throw error;
+    }
   });
 
   http.post('/api/sessions', async (request, reply) => {

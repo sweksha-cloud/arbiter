@@ -375,3 +375,44 @@ input:not([type='checkbox']) {
   font-weight: 500;
   min-height: 36px;
 }
+
+/* Presence, rejoin, connection */
+
+.members li.offline {
+  opacity: 0.5;
+}
+
+.rejoin {
+  border-color: var(--accent);
+  gap: 12px;
+}
+
+.row.nowrap {
+  flex-wrap: nowrap;
+}
+
+.button.icon {
+  min-width: 44px;
+  padding: 10px;
+}
+
+.connection-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -24px -16px 0;
+  padding: 10px 16px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.connection-banner.down {
+  background: var(--notice-bg);
+  color: var(--notice-text);
+}
+
+.connection-banner.up {
+  background: var(--like);
+  color: var(--accent-text);
+}

@@ -1,5 +1,8 @@
 import type { LatLng, PlaceCandidate, Preferences, ReactionsByMember, SessionMember, SessionStatus } from '@arbiter/shared';
 
+/** Presence (`online`) isn't stored; it's worked out from open connections when sending views. */
+export type RoomMember = Omit<SessionMember, 'online'>;
+
 /**
  * Live state of one session. Holds Google place data, which by Google's terms
  * may only be kept for the life of the session.
@@ -11,7 +14,7 @@ export interface RoomState {
   hostId: string;
   status: SessionStatus;
   center: LatLng;
-  members: SessionMember[];
+  members: RoomMember[];
   /** memberId -> preferences submitted for this session. Never sent to clients. */
   submissions: Record<string, Preferences>;
   suggestions: PlaceCandidate[];
