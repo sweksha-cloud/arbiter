@@ -103,4 +103,4 @@ Not bugs in the code as written. These are gaps that exist on purpose for now, o
 | OPEN-003 | If the host leaves for good, nobody can show results early or end the session | Only the host can; handing over the host role is undecided | Pass the host role to the next person after a timeout, or let anyone end |
 | OPEN-004 | Someone who joins after results appear has no preferences counted | Preferences lock when results appear, by design | Acceptable; maybe show them "results were chosen before you joined" |
 | OPEN-005 | No rate limiting on creating guests or sessions | Not needed locally | Add `@fastify/rate-limit` before going public |
-| OPEN-006 | Places are sample data | Google Places decisions are pending | Google provider behind `PlacesProvider` |
+| OPEN-006 | Google Places client untested against the live API | Needs the owner's API key | Set `GOOGLE_PLACES_API_KEY` and run one session; the unit tests use recorded-shape responses |

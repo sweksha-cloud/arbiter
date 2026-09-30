@@ -72,7 +72,7 @@ Options that were considered: app picks a winner; group votes on everything left
 What the code does meanwhile, so nothing is silently assumed:
 - Every place field that Google may omit (price level, vegetarian, fast-food, rating, open now) is optional in the type.
 - Elimination takes a required `MissingDataPolicy` that says, per field, whether a place with no data is kept or eliminated. There is no default; the caller must choose.
-- The actual Google client is not written yet. The server talks to a `PlacesProvider` interface, with a fixture provider for local development and tests.
+- The Google client exists (`apps/server/src/places/google-places-provider.ts`) and is used when `GOOGLE_PLACES_API_KEY` is set; otherwise sample places. Its provisional choices: types `restaurant`, `cafe`, `fast_food_restaurant`; up to 20 results ranked by Google's default (popularity) inside the group's distance limit. See `TRADEOFFS.md` 21 and 21b.
 
 ## 5. Privacy
 

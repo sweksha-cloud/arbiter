@@ -18,8 +18,8 @@ The whole loop works locally: join as a guest, set preferences, start a session,
 
 Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
 
-- **Places are sample data.** The server places 12 made-up restaurants around wherever the session starts. No Google API is called yet.
-- **Guests, preferences and sessions live in server memory.** Restarting the server forgets them; the app then asks for your name again. Postgres storage comes once the data model is approved.
+- **Places are sample data unless you add a Google API key.** Without one, the server places 12 made-up restaurants around wherever the session starts (see "Real places" below).
+- **Live sessions live in server memory.** Guests, preferences and session history are saved in Postgres, but a server restart ends any session in progress.
 - **No login, ratings, Terms or Privacy pages yet.**
 
 ## Run it locally
@@ -46,6 +46,14 @@ cp apps/server/.env.example apps/server/.env
 ```
 
 The defaults in `.env` work as is. The web app talks to `http://localhost:4000` unless you set `NEXT_PUBLIC_SERVER_URL` (see `apps/web/.env.example`).
+
+#### Real places (optional)
+
+Set `GOOGLE_PLACES_API_KEY` in `apps/server/.env` to scan real places with the Google Places API (New). The server logs `Using Google Places` on start. Before you do:
+
+- Enable **Places API (New)** in a Google Cloud project and restrict the key to that API.
+- Set a **hard daily quota** of about 30 requests on Nearby Search (APIs & Services → Places API (New) → Quotas). Budget alerts only warn you after spending; the quota is what makes a bill impossible. When it's hit, the app says "try again tomorrow".
+- Each session makes exactly one request. Place names, prices and ratings are kept only in memory for that session; only place IDs are saved.
 
 ### 3. Start everything
 
@@ -131,7 +139,7 @@ pnpm test:e2e                                                                   
 2. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
 3. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
 4. When everyone has submitted (at least 2 people), or the host taps **Show results now**, the server:
-   - scans once (sample data for now),
+   - scans once (Google Places with an API key, sample data without),
    - combines everyone's must-haves so the strictest wins (for example, the lowest budget),
    - removes places that fail any of them,
    - ranks what's left by liked and disliked cuisines, then rating, then distance, and keeps the top 3.

@@ -247,9 +247,26 @@ Live sessions still run from in-memory room state (fast, and the only place Goog
 - **Why:** mocks test your assumptions about the database, not the database. Integration tests run against Docker Postgres locally and a Postgres service in CI.
 - **Unit vs integration split:** `pnpm test` needs nothing running, so it's fast feedback. `pnpm test:integration` needs a database.
 
-### 21. Sample places instead of Google, for now (Proposed)
-- **Why:** the Google decisions are still open, and tests must never cost money. The sample provider places 12 invented restaurants around any location, deliberately including missing data so elimination rules get exercised.
-- **Pattern to name:** dependency injection. The session logic depends on a `PlacesProvider` interface, and the real Google client just plugs in.
+### 21. Sample places by default; Google when a key is set (Proposed)
+- **Choice:** the server uses Google Places when `GOOGLE_PLACES_API_KEY` is set and the sample provider otherwise. Tests always use fakes, so they never cost money.
+- **Option A (chosen): the key's presence picks the provider**
+  - Pros: nothing extra to configure; a fresh clone runs with no Google account; production can't accidentally use sample data if the key is set.
+  - Cons: a missing key silently falls back to sample data in production. Mitigated: the server logs which one it uses on start, and the page shows "Sample places for testing".
+- **Option B: an explicit `PLACES_PROVIDER=google|sample` setting**
+  - Pros: nothing implicit; production could refuse to start without a key.
+  - Cons: one more setting to keep in sync with the key.
+- **Pattern to name:** dependency injection. The session logic depends on a `PlacesProvider` interface; Google, sample and test fakes all plug in.
+
+### 21b. How Google's data is turned into places (Proposed)
+- **Which fields:** id, name, location, types, price level, rating and `servesVegetarianFood`. Google bills per call at the tier of the most expensive field. Price and rating are Enterprise; vegetarian is **Enterprise + Atmosphere**.
+  - *Include vegetarian (chosen).* Pros: vegetarian is a must-have, and without it nearly every place would be "unknown" and eliminated for vegetarian groups. Cons: every call bills at the higher tier once past the free 1,000/month; the ~30/day quota keeps us under it.
+  - *Leave it out.* Pros: cheaper tier. Cons: vegetarian would rely only on the `vegetarian_restaurant` type, which only fully vegetarian places have.
+- **Unknown stays unknown.** A place not typed as fast food gets `isFastFood: undefined`, not `false`, because Google's types say "yes" reliably but "no" unreliably. Same for missing price and vegetarian (see 6).
+  - Pros: the missing-data policy stays the one place that decides what unknown means. Cons: fewer places are known non-fast-food, which only matters for ranking.
+- **Cuisines from types:** `thai_restaurant` becomes `thai`; a few are renamed to match the form (`hamburger_restaurant` → `burgers`, `coffee_shop` → `cafe`).
+  - Pros: no extra API call or data source. Cons: Google's types are coarse; a place typed only `restaurant` has no cuisine and can't match likes or dislikes.
+- **Google's response is checked with Zod** like any outside input, but tolerates new fields, and places with no name or location are skipped rather than failing the whole scan.
+- **Errors:** 429 (the hard daily quota) becomes "try again tomorrow". Other errors keep Google's status and message but never the API key.
 
 ---
 
