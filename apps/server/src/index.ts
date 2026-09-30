@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { connectWithRetry, createDb, createPool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
+import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 
 const config = loadConfig();
@@ -10,7 +11,8 @@ const db = createDb(pool);
 const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
-  guests: new PostgresGuestStore(db)
+  guests: new PostgresGuestStore(db),
+  history: new PostgresSessionHistory(db)
 });
 http.addHook('onClose', async () => {
   await pool.end();
