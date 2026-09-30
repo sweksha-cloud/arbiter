@@ -232,6 +232,19 @@ Live sessions still run from in-memory room state (fast, and the only place Goog
 ### 17. A hard daily quota on the Google API (Spec)
 - **Why:** budget alerts only notify you *after* spending. A hard cap of about 30 calls per day in Google Cloud makes a bill impossible. When the cap is hit, the app shows "try again tomorrow" (`PlacesQuotaExceededError`) instead of failing silently.
 
+### 17b. Rate limits: per IP for REST, per connection for live events (Proposed)
+- **Choice:** 120 REST requests a minute per IP; tighter limits where a request creates a row (20 guests, 10 sessions a minute); 30 live events per 10 s per connection. Refused REST calls get a 429 saying how long to wait; refused live events get a `rate_limited` reply. Numbers live in `apps/server/src/rate-limits.ts`.
+- **Per IP vs per guest for REST**
+  - *Per IP (chosen).* Pros: works before anyone has a token (guest creation is the easiest thing to spam); built into `@fastify/rate-limit`. Cons: friends on one Wi-Fi network share an IP, so limits must stay generous; behind a proxy it needs `TRUST_PROXY` or everyone shares the proxy's IP.
+  - *Per guest.* Pros: fair to people sharing a network. Cons: can't protect guest creation itself, and an attacker just makes more guests.
+- **Per connection vs per IP for live events**
+  - *Per connection (chosen).* Pros: a tiny in-memory counter with no shared state; each person's phone is one connection. Cons: opening many connections multiplies the limit (listed in `SECURITY.md`).
+  - *Per IP.* Pros: harder to multiply. Cons: needs shared counting across connections, and punishes groups on one network.
+- **Answer, don't drop:** a refused event still calls the acknowledgement with `rate_limited`, because the client waits for that reply; silently dropping would leave a button spinning forever.
+- **Fixed window vs sliding window/token bucket:** fixed window is a few lines and easy to test. Its weakness, up to twice the limit across a window boundary, doesn't matter at these sizes.
+- **E2E runs with limits off** (`RATE_LIMITS=off`), because the suite creates dozens of guests from one machine in seconds. The limits themselves are covered by unit tests.
+- **Interview angle:** "What stops someone burning your Google quota?" Honestly, not enough yet: rate limits slow it down, but a per-guest daily scan limit is the real fix (`SECURITY.md`, known gaps).
+
 ---
 
 ## Tooling decisions
@@ -275,5 +288,5 @@ Live sessions still run from in-memory room state (fast, and the only place Goog
 - **"Restart the server and all sessions vanish."** Half true now. Guests and their preferences are in Postgres and survive restarts. Session history (members, suggested place IDs, reactions) is saved too (16d). Live sessions are still in memory; Redis room state (Phase 7) makes them survive, though the place names would need a fresh scan because Google's terms forbid saving them. The `GuestStore` and `RoomStore` interfaces are why this can happen without touching the session rules.
 - **"What if the host leaves?"** Not handled yet. Only the host can start or end a session. Options: pass the host role to the next person, or let anyone end the session.
 - **"A person who joins after results appear isn't counted in elimination."** True: preferences lock when results appear. Someone who joins *before* that holds up auto-results until they submit too, so they are counted.
-- **"How do you stop someone spamming session creation?"** No rate limiting yet. Worth adding before going public (for example, `@fastify/rate-limit` by IP).
+- **"How do you stop someone spamming session creation?"** Per-IP rate limits (17b). The honest weak spot is the Google quota: one person can still use up the day's ~30 scans; a per-guest daily scan limit is the fix.
 - **"Your version check is on the client. Can a client fake it?"** It doesn't matter: the version only decides which of the *server's* messages to display. A faked version only confuses that one person's own screen.

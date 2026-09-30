@@ -13,6 +13,7 @@ import { ZodError } from 'zod';
 
 import type { GuestStore } from '../identity/guest-store.js';
 import { PlacesQuotaExceededError } from '../places/places-provider.js';
+import { WindowCounter, type RateLimits } from '../rate-limits.js';
 import { SessionError, type SessionService } from './session-service.js';
 
 interface SocketData {
@@ -27,7 +28,12 @@ const roomName = (sessionId: string) => `session:${sessionId}`;
 
 export function registerSocketHandlers(
   io: ArbiterServer,
-  { guests, sessions, log }: { guests: GuestStore; sessions: SessionService; log: FastifyBaseLogger }
+  {
+    guests,
+    sessions,
+    log,
+    rateLimits
+  }: { guests: GuestStore; sessions: SessionService; log: FastifyBaseLogger; rateLimits: RateLimits }
 ) {
   // Same token as the REST API, sent in the handshake instead of a header.
   io.use(async (socket, next) => {
@@ -79,6 +85,18 @@ export function registerSocketHandlers(
 
   io.on('connection', (socket) => {
     const { guest } = socket.data;
+
+    // Refuse events over the limit with an answer, not silence, so the app
+    // shows "slow down" instead of waiting forever for a reply.
+    const events = new WindowCounter(rateLimits.socketEventsPer10Seconds, 10_000);
+    socket.use((packet, next) => {
+      if (events.take()) return next();
+      const ack = packet.at(-1);
+      if (typeof ack === 'function') {
+        (ack as (r: Ack) => void)({ ok: false, error: 'Slow down a little, then try again.', code: 'rate_limited' });
+      }
+      log.warn({ guestId: guest.id, event: packet[0] }, 'Socket event rate limited');
+    });
 
     // Tell the others this person went offline (tab closed, connection lost).
     socket.on('disconnect', () => {

@@ -35,6 +35,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Fails on high or critical advisories. Moderate ones in dev-only tools are reviewed by hand (SECURITY.md).
+      - run: pnpm audit --audit-level high
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

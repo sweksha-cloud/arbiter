@@ -6,7 +6,23 @@ const required = { WEB_ORIGIN: 'http://localhost:3000', DATABASE_URL: 'postgres:
 
 describe('loadConfig', () => {
   it('applies defaults', () => {
-    expect(loadConfig(required)).toMatchObject({ HOST: '0.0.0.0', PORT: 4000, NODE_ENV: 'development' });
+    expect(loadConfig(required)).toMatchObject({
+      HOST: '0.0.0.0',
+      PORT: 4000,
+      NODE_ENV: 'development',
+      TRUST_PROXY: false,
+      RATE_LIMITS: 'on'
+    });
+  });
+
+  it('reads TRUST_PROXY as a boolean and refuses anything but true or false', () => {
+    expect(loadConfig({ ...required, TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+    expect(() => loadConfig({ ...required, TRUST_PROXY: 'yes' })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('treats a missing Google key as "use sample places", not an error', () => {
+    expect(loadConfig(required).GOOGLE_PLACES_API_KEY).toBeUndefined();
+    expect(loadConfig({ ...required, GOOGLE_PLACES_API_KEY: 'k' }).GOOGLE_PLACES_API_KEY).toBe('k');
   });
 
   it('parses PORT as a number', () => {

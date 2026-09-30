@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 
 import type { GuestStore } from './identity/guest-store.js';
+import type { RateLimits } from './rate-limits.js';
 import { SessionError, type SessionService } from './sessions/session-service.js';
 
 /** Reads `Authorization: Bearer <token>`. Sends 401 and returns undefined if missing or unknown. */
@@ -33,9 +34,12 @@ async function parseBody<T extends z.ZodType>(schema: T, request: FastifyRequest
 
 export function registerRoutes(
   http: FastifyInstance,
-  { guests, sessions }: { guests: GuestStore; sessions: SessionService }
+  { guests, sessions, rateLimits }: { guests: GuestStore; sessions: SessionService; rateLimits: RateLimits }
 ) {
-  http.post('/api/guests', async (request, reply) => {
+  // Tighter limits where each request creates a database row.
+  const perMinute = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
+
+  http.post('/api/guests', perMinute(rateLimits.guestsPerMinute), async (request, reply) => {
     const body = await parseBody(CreateGuestRequestSchema, request, reply);
     if (!body) return reply;
     return reply.code(201).send(await guests.create(body.displayName));
@@ -69,7 +73,7 @@ export function registerRoutes(
     }
   });
 
-  http.post('/api/sessions', async (request, reply) => {
+  http.post('/api/sessions', perMinute(rateLimits.sessionsPerMinute), async (request, reply) => {
     const guest = await requireGuest(guests, request, reply);
     if (!guest) return reply;
     const body = await parseBody(CreateSessionRequestSchema, request, reply);

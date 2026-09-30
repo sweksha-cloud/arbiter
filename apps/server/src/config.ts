@@ -9,6 +9,16 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Real places from Google when set; invented sample places when not. */
   GOOGLE_PLACES_API_KEY: z.string().min(1).optional(),
+  /**
+   * Behind a reverse proxy (Caddy in production), trust its X-Forwarded-For so
+   * rate limits see each visitor's IP rather than the proxy's.
+   */
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /** 'off' only for the E2E suite. */
+  RATE_LIMITS: z.enum(['on', 'off']).default('on'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')
 });
 

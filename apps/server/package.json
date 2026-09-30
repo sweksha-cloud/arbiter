@@ -16,6 +16,7 @@
   "dependencies": {
     "@arbiter/shared": "workspace:*",
     "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
     "pg": "^8.23.0",
