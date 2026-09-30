@@ -23,7 +23,13 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
 
   await host.goto('/preferences');
   await expect(host.getByRole('button', { name: /save/i })).toBeVisible();
-  await expectNoViolations(host, 'saved preferences');
+  // Selected states have their own colours: one cuisine liked, one disliked, then saved.
+  await host.getByRole('button', { name: /thai$/ }).click();
+  await host.getByRole('button', { name: /pizza$/ }).click();
+  await host.getByRole('button', { name: /pizza$/ }).click();
+  await host.getByRole('button', { name: /save/i }).click();
+  await expect(host.locator('.success')).toBeVisible();
+  await expectNoViolations(host, 'saved preferences, with choices and a success message');
 
   await host.goto('/');
   await host.getByRole('button', { name: 'Start a session' }).click();
@@ -34,16 +40,26 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   const friend = await newPhone();
   await joinSession(friend, invite, 'Alex');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(host.getByText('1 of 2 submitted')).toBeVisible();
+  await expectNoViolations(host, 'the lobby with a "submitted" badge');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.locator('article').first()).toBeVisible();
   await expectNoViolations(host, 'results');
 
+  // Pressed like and dislike buttons.
+  await host.locator('article').nth(0).getByRole('button', { name: /👍/ }).click();
+  await host.locator('article').nth(1).getByRole('button', { name: /👎/ }).click();
+  await expect(host.locator('article').nth(1).getByRole('button', { name: /👎 1/ })).toBeVisible();
+  await expectNoViolations(host, 'results with reactions');
+
   // Dark mode has its own colors, so check them too.
   await host.emulateMedia({ colorScheme: 'dark' });
-  await expectNoViolations(host, 'results (dark mode)');
+  await expectNoViolations(host, 'results with reactions (dark mode)');
   await host.goto('/preferences');
   await expect(host.getByRole('button', { name: /save/i })).toBeVisible();
-  await expectNoViolations(host, 'saved preferences (dark mode)');
+  await host.getByRole('button', { name: /save/i }).click();
+  await expect(host.locator('.success')).toBeVisible();
+  await expectNoViolations(host, 'saved preferences with choices (dark mode)');
   await host.emulateMedia({ colorScheme: 'light' });
 
   await host.goto('/s/ZZ99ZZ');
@@ -58,12 +74,24 @@ test('the account pages pass automated WCAG 2.1 AA checks', async ({ newPhone })
     ['/signup', 'Make an account'],
     ['/forgot-password', 'Reset your password'],
     ['/reset-password#token=example', 'Choose a new password'],
+    ['/verify-email#token=example', 'Confirm your email'],
     ['/history', 'Past sessions']
   ] as const) {
     await phone.goto(url);
     await expect(phone.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
     await expectNoViolations(phone, url);
   }
+
+  // Error messages have their own colour; show one in light and dark mode.
+  await phone.goto('/login');
+  await phone.getByLabel('Email').fill('nobody@example.com');
+  await phone.getByLabel('Password').fill('wrong password');
+  await phone.getByRole('button', { name: 'Log in' }).click();
+  await expect(phone.locator('.error')).toBeVisible();
+  await expectNoViolations(phone, 'login with an error');
+  await phone.emulateMedia({ colorScheme: 'dark' });
+  await expectNoViolations(phone, 'login with an error (dark mode)');
+  await phone.emulateMedia({ colorScheme: 'light' });
 
   await phone.goto('/signup');
   await phone.getByLabel('What should your friends call you?').fill('Sam');

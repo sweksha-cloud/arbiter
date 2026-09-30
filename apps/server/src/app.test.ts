@@ -162,7 +162,7 @@ describe('app', () => {
     it('signs a guest up, knows who they are, and logs them out', async () => {
       app = await build();
       const { token: guestToken, guest } = (await post('/api/guests', { displayName: 'Sam' })).json<{ token: string; guest: { id: string } }>();
-      expect((await get('/api/me', guestToken)).json()).toEqual({ guest: { id: guest.id, displayName: 'Sam' }, email: null });
+      expect((await get('/api/me', guestToken)).json()).toEqual({ guest: { id: guest.id, displayName: 'Sam' }, email: null, emailVerified: false });
 
       const signup = await post('/api/auth/signup', credentials, guestToken);
       expect(signup.statusCode).toBe(201);
@@ -191,7 +191,7 @@ describe('app', () => {
     });
 
     it('answers "forgot password" the same whether or not the account exists, and the emailed link works', async () => {
-      const sent: { text: string }[] = [];
+      const sent: { subject: string; text: string }[] = [];
       app = await build({ mailer: () => ({ send: async (email) => void sent.push(email) }) });
       await post('/api/auth/signup', { ...credentials, displayName: 'Sam' });
 
@@ -200,8 +200,9 @@ describe('app', () => {
       expect([known.statusCode, known.body]).toEqual([unknown.statusCode, unknown.body]);
       expect(known.statusCode).toBe(202);
 
-      await vi.waitFor(() => expect(sent).toHaveLength(1));
-      const resetToken = decodeURIComponent(/#token=(\S+)/.exec(sent[0]!.text)![1]!);
+      const resets = () => sent.filter((e) => e.subject.startsWith('Reset'));
+      await vi.waitFor(() => expect(resets()).toHaveLength(1));
+      const resetToken = decodeURIComponent(/#token=(\S+)/.exec(resets()[0]!.text)![1]!);
       const reset = await post('/api/auth/reset-password', { token: resetToken, password: 'a new password' });
       expect(reset.statusCode).toBe(200);
       expect((await post('/api/auth/login', { email: credentials.email, password: 'a new password' })).statusCode).toBe(200);

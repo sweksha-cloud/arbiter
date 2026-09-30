@@ -26,6 +26,7 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | Password guessing | 10 sign-in attempts a minute per IP, and 5 wrong passwords in 15 minutes pauses that email address whatever IPs the guesses come from (unknown emails pause the same way, so a pause reveals nothing; a password reset ends it). Slow hashing. Password rules ask for length (8+), not symbols. | `rate-limits.ts`, `account-service.ts`, `auth.ts` |
 | Finding out who has an account | Login gives one message for a wrong password and an unknown email, and takes the same time for both (a dummy hash is checked). "Forgot password" answers the same way either way and doesn't wait for the email. | `account-service.ts` |
 | Reset links being intercepted or reused | Random, hashed at rest, single use (atomic), one hour. Sent in the URL fragment, so it never reaches server logs or Referer headers. A reset signs out every device. | `account-service.ts`, `postgres-guest-store.ts` |
+| Signing up with someone else's email | Signup emails a single-use confirmation link (24 hours, hashed at rest, in the URL fragment); using a reset link also confirms the address. Accounts show whether their email is confirmed. | `account-service.ts`, `apps/web/app/verify-email/` |
 | A copied guest token riding into an account | Every sign-in (signup, login, reset) issues a new token and revokes the old one. | `account-service.ts` |
 | A stolen or forgotten token | A sign-in unused for 90 days stops working (each use pushes it back, written at most daily). Changing your password signs out every other device; a reset signs out all of them. Expired sign-ins and old reset links are deleted daily. | `guest-store.ts`, `postgres-guest-store.ts`, `index.ts` |
 | Guessing session codes | Codes are 6 characters from a 31-letter alphabet (~887 million). Live events are limited per connection. Only members get a session's summary; everyone else gets the same "not found", so codes can't be probed over REST. | `session-service.ts`, `rate-limits.ts` |
@@ -46,7 +47,7 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | Gap | Risk | Plan |
 | --- | --- | --- |
 | **Signup reveals whether an email has an account** | "That email already has an account" is the only useful signup answer. | Verify email addresses before creating the account. |
-| **No email verification** | Someone could sign up with an address that isn't theirs (that person could then reset the password and take the account). | A verification email once a provider exists (OPEN-007). |
+| **Email verification isn't enforced** | Accounts work before the email is confirmed, so a typo'd address can't reset its password, and someone could sign up with an address that isn't theirs (its real owner could still take it over by resetting the password). | Decide whether anything should need a confirmed email; the links already work. |
 | **Rate-limit counters are per server, in memory** | They reset on restart, and with two servers (Phase 7) each counts separately, doubling every limit. | Move counters to Redis, which `@fastify/rate-limit` supports. |
 | **Someone with many IPs** | Per-IP limits (including the daily scan limit) don't stop a spread-out attacker. | The Google quota is still a hard ceiling on cost; if it's hit in practice, require an account for scans. |
 

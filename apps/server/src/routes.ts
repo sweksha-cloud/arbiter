@@ -7,6 +7,7 @@ import {
   PreferencesSchema,
   ResetPasswordRequestSchema,
   SignupRequestSchema,
+  VerifyEmailRequestSchema,
   type Guest,
   type PastSession
 } from '@arbiter/shared';
@@ -179,6 +180,22 @@ export function registerRoutes(
       await accounts.changePassword(current.guest, current.token, body.currentPassword, body.newPassword);
       return reply.code(204).send();
     });
+  });
+
+  http.post('/api/auth/verify-email', authLimit, async (request, reply) => {
+    const body = await parseBody(VerifyEmailRequestSchema, request, reply);
+    if (!body) return reply;
+    return authAction(reply, async () => {
+      await accounts.verifyEmail(body.token);
+      return reply.code(204).send();
+    });
+  });
+
+  http.post('/api/auth/resend-verification', perMinute(rateLimits.passwordResetsPerMinute), async (request, reply) => {
+    const guest = await requireGuest(guests, request, reply);
+    if (!guest) return reply;
+    await accounts.resendVerification(guest);
+    return reply.code(202).send({ ok: true });
   });
 
   // ---- Past sessions: a reason to log in (TRADEOFFS.md 4b) ----

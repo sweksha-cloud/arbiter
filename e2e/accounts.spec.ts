@@ -34,7 +34,7 @@ test('log out, then log back in on another phone with the same account', async (
   await expect(laptop.getByText('Hi Alex.')).toBeVisible();
 
   await laptop.getByRole('link', { name: 'Account' }).click();
-  await expect(laptop.getByText(email)).toBeVisible();
+  await expect(laptop.getByText(email, { exact: true })).toBeVisible();
   await laptop.getByRole('button', { name: 'Log out' }).click();
   await expect(laptop.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
 
@@ -139,4 +139,29 @@ test('typing into a form before the page has finished loading is kept (BUG-013)'
   // Once the app has taken over, the header shows its links; the typed email must still be there.
   await expect(phone.getByRole('link', { name: 'Sign up' }).first()).toBeVisible();
   await expect(phone.getByLabel('Email')).toHaveValue('early@example.com');
+});
+
+test('the email link from signup confirms the address, and the account page stops asking', async ({ newPhone }) => {
+  const phone = await newPhone();
+  const email = newEmail();
+  await phone.goto('/signup');
+  await phone.getByLabel('What should your friends call you?').fill('Vee');
+  await phone.getByLabel('Email').fill(email);
+  await phone.getByLabel('Password').fill(password);
+  await phone.getByRole('button', { name: 'Make my account' }).click();
+  await expect(phone.getByText('Hi Vee.')).toBeVisible();
+
+  await phone.goto('/account');
+  await expect(phone.getByText('Confirm your email.')).toBeVisible();
+  await phone.getByRole('button', { name: 'Send the link again' }).click();
+  await expect(phone.getByRole('status')).toHaveText('Sent. The new link works for 24 hours.');
+
+  const mail = await lastEmailTo(email);
+  expect(mail.subject).toBe('Confirm your email for Arbiter');
+  await phone.goto(/(http\S+#token=\S+)/.exec(mail.text)![1]!);
+  await expect(phone.getByRole('status')).toContainText('your email is confirmed');
+
+  await phone.goto('/account');
+  await expect(phone.getByRole('heading', { name: 'Change your password' })).toBeVisible();
+  await expect(phone.getByText('Confirm your email.')).toHaveCount(0);
 });

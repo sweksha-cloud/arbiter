@@ -36,13 +36,18 @@ export const ForgotPasswordRequestSchema = z.object({ email: EmailSchema });
 
 export const ResetPasswordRequestSchema = z.object({ token: z.string().min(1).max(200), password: PasswordSchema });
 
+export const VerifyEmailRequestSchema = z.object({ token: z.string().min(1).max(200) });
+
 export const ChangePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: PasswordSchema
 });
 
-/** Who is signed in on this device. `email` is null for a guest without an account. */
-export const MeResponseSchema = z.object({ guest: GuestSchema, email: z.string().nullable() });
+/**
+ * Who is signed in on this device. `email` is null for a guest without an
+ * account; `emailVerified` says whether they've opened the link emailed to it.
+ */
+export const MeResponseSchema = z.object({ guest: GuestSchema, email: z.string().nullable(), emailVerified: z.boolean() });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 /** Returned by signup, login and password reset: a fresh token for this device. */

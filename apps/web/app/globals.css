@@ -12,6 +12,9 @@
   --accent-text: #ffffff;
   /* Links sit on white, peach, yellow and blue cards: this passes 4.5:1 on all of them. */
   --link: #bc094a;
+  /* Text versions of the reaction colours: the bright ones are for bars and fills (BUG-016). */
+  --error-text: #bc094a;
+  --success-text: #086b56;
   --like: #10cfa5;
   --dislike: #f75590;
   --notice-bg: #fbd87f;
@@ -32,6 +35,8 @@
     --accent: #ff8066;
     --accent-text: #291827;
     --link: #ff8066;
+    --error-text: #ff93a6;
+    --success-text: #63d6a1;
     --like: #63d6a1;
     --dislike: #ff8298;
     --notice-bg: #51401e;
@@ -173,11 +178,11 @@ a {
 }
 
 .error {
-  color: var(--dislike);
+  color: var(--error-text);
 }
 
 .success {
-  color: var(--like);
+  color: var(--success-text);
 }
 
 .warning {
@@ -323,12 +328,12 @@ input:not([type='checkbox']) {
 
 .chip.like {
   border-color: var(--like);
-  color: var(--like);
+  color: var(--success-text);
 }
 
 .chip.dislike {
   border-color: var(--dislike);
-  color: var(--dislike);
+  color: var(--error-text);
 }
 
 /* Suggestions */
@@ -360,12 +365,12 @@ input:not([type='checkbox']) {
 
 .reaction.like[aria-pressed='true'] {
   border-color: var(--like);
-  color: var(--like);
+  color: var(--success-text);
 }
 
 .reaction.dislike[aria-pressed='true'] {
   border-color: var(--dislike);
-  color: var(--dislike);
+  color: var(--error-text);
 }
 
 /* Members */
@@ -412,7 +417,7 @@ input:not([type='checkbox']) {
 }
 
 .badge.ready {
-  color: var(--like);
+  color: var(--success-text);
 }
 
 .badge.waiting {
@@ -436,7 +441,7 @@ input:not([type='checkbox']) {
 .button.link {
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--link);
   text-decoration: underline;
   font-weight: 500;
   min-height: 36px;

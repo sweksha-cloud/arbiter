@@ -14,9 +14,15 @@ class CapturingMailer implements Mailer {
   async send(email: Email) {
     this.sent.push(email);
   }
-  resetToken(): string {
-    const link = /(https?:\/\/\S+)/.exec(this.sent.at(-1)?.text ?? '')?.[1] ?? '';
+  ofKind(kind: 'reset' | 'verify'): Email[] {
+    return this.sent.filter((e) => e.subject.startsWith(kind === 'reset' ? 'Reset' : 'Confirm'));
+  }
+  tokenFrom(kind: 'reset' | 'verify'): string {
+    const link = /(https?:\/\/\S+)/.exec(this.ofKind(kind).at(-1)?.text ?? '')?.[1] ?? '';
     return decodeURIComponent(new URL(link).hash.replace('#token=', ''));
+  }
+  resetToken(): string {
+    return this.tokenFrom('reset');
   }
 }
 
@@ -137,9 +143,9 @@ describe('AccountService', () => {
       const { guest, token: oldToken } = await accounts.signup(undefined, { displayName: 'Sam', email, password });
 
       await accounts.forgotPassword(email);
-      await vi.waitFor(() => expect(mailer.sent).toHaveLength(1));
-      expect(mailer.sent[0]).toMatchObject({ to: email, subject: 'Reset your Arbiter password' });
-      expect(mailer.sent[0]!.text).toContain('https://arbiter.example/reset-password#token=');
+      await vi.waitFor(() => expect(mailer.ofKind('reset')).toHaveLength(1));
+      expect(mailer.ofKind('reset')[0]).toMatchObject({ to: email, subject: 'Reset your Arbiter password' });
+      expect(mailer.ofKind('reset')[0]!.text).toContain('https://arbiter.example/reset-password#token=');
 
       const result = await accounts.resetPassword(mailer.resetToken(), 'a brand new password');
       expect(result).toMatchObject({ guest, email });
@@ -157,7 +163,7 @@ describe('AccountService', () => {
       const { mailer, accounts } = setup();
       await expect(accounts.forgotPassword('who@example.com')).resolves.toBeUndefined();
       await new Promise((r) => setTimeout(r, 10));
-      expect(mailer.sent).toEqual([]);
+      expect(mailer.ofKind('reset')).toEqual([]);
     });
 
     it('refuses a link after an hour', async () => {
@@ -165,7 +171,7 @@ describe('AccountService', () => {
       const { mailer, accounts } = setup(() => now);
       await accounts.signup(undefined, { displayName: 'Sam', email, password });
       await accounts.forgotPassword(email);
-      await vi.waitFor(() => expect(mailer.sent).toHaveLength(1));
+      await vi.waitFor(() => expect(mailer.ofKind('reset')).toHaveLength(1));
       now = new Date('2026-09-30T13:00:00Z');
       await expect(accounts.resetPassword(mailer.resetToken(), 'a brand new password')).rejects.toMatchObject({
         code: 'invalid_reset'
@@ -180,6 +186,7 @@ describe('AccountService', () => {
       await accounts.signup(undefined, { displayName: 'Sam', email, password });
       await expect(accounts.forgotPassword(email)).resolves.toBeUndefined();
       await vi.waitFor(() => expect(onMailError).toHaveBeenCalledWith(new Error('smtp down')));
+      // Signup's verification email failed too, without failing signup.
     });
   });
 
@@ -235,7 +242,7 @@ describe('AccountService', () => {
       await accounts.signup(undefined, { displayName: 'Sam', email, password });
       for (let i = 0; i < 3; i++) await accounts.login(undefined, { email, password: 'nope' }).catch(() => {});
       await accounts.forgotPassword(email);
-      await vi.waitFor(() => expect(mailer.sent).toHaveLength(1));
+      await vi.waitFor(() => expect(mailer.ofKind('reset')).toHaveLength(1));
       await accounts.resetPassword(mailer.resetToken(), 'a brand new password');
       await expect(accounts.login(undefined, { email, password: 'a brand new password' })).resolves.toBeTruthy();
     });
@@ -245,6 +252,40 @@ describe('AccountService', () => {
       const me = await accounts.signup(undefined, { displayName: 'Sam', email, password });
       for (let i = 0; i < 3; i++) await accounts.changePassword(me.guest, me.token, 'nope', 'new password here').catch(() => {});
       await expect(accounts.changePassword(me.guest, me.token, password, 'new password here')).rejects.toMatchObject(paused);
+    });
+  });
+
+  describe('email verification', () => {
+    it('emails a link on signup that verifies the address once', async () => {
+      const { guests, mailer, accounts } = setup();
+      const me = await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      expect(me.emailVerified).toBe(false);
+      await vi.waitFor(() => expect(mailer.ofKind('verify')).toHaveLength(1));
+      expect(mailer.ofKind('verify')[0]!.text).toContain('https://arbiter.example/verify-email#token=');
+
+      await accounts.verifyEmail(mailer.tokenFrom('verify'));
+      expect((await accounts.me(me.guest)).emailVerified).toBe(true);
+      expect((await guests.getAccount(me.guest.id))?.emailVerified).toBe(true);
+      await expect(accounts.verifyEmail(mailer.tokenFrom('verify'))).rejects.toMatchObject({ code: 'invalid_link' });
+    });
+
+    it('resends only while unverified', async () => {
+      const { mailer, accounts } = setup();
+      const me = await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      await accounts.resendVerification(me.guest);
+      await vi.waitFor(() => expect(mailer.ofKind('verify')).toHaveLength(2));
+      await accounts.verifyEmail(mailer.tokenFrom('verify'));
+      await accounts.resendVerification(me.guest);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mailer.ofKind('verify')).toHaveLength(2);
+    });
+
+    it('counts a used reset link as proof of the email', async () => {
+      const { mailer, accounts } = setup();
+      await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      await accounts.forgotPassword(email);
+      await vi.waitFor(() => expect(mailer.ofKind('reset')).toHaveLength(1));
+      expect((await accounts.resetPassword(mailer.resetToken(), 'a brand new password')).emailVerified).toBe(true);
     });
   });
 });

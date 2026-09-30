@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api } from '../../lib/api';
 import { clearIdentity, hasAccount, useIdentity } from '../../lib/identity';
@@ -14,6 +14,18 @@ export default function AccountPage() {
   const [changed, setChanged] = useState(false);
   const change = useSubmit();
   const logout = useSubmit();
+  const resend = useSubmit();
+  const [verified, setVerified] = useState<boolean>();
+  const [resent, setResent] = useState(false);
+  const token = identity?.token;
+
+  useEffect(() => {
+    if (!token) return;
+    api.me(token).then(
+      (me) => setVerified(me.emailVerified),
+      () => {}
+    );
+  }, [token]);
 
   if (identity === undefined) return null;
   if (!hasAccount(identity)) {
@@ -42,6 +54,30 @@ export default function AccountPage() {
           <Link href="/preferences">Your preferences</Link>
         </div>
       </section>
+
+      {verified === false && (
+        <form
+          className="notice stack tight"
+          onSubmit={resend.handle(async () => {
+            await api.resendVerification(identity.token);
+            setResent(true);
+          })}
+        >
+          <p>
+            <strong>Confirm your email.</strong> We sent a link to {identity.email} when you signed up.
+          </p>
+          {resent ? (
+            <p className="small" role="status">
+              Sent. The new link works for 24 hours.
+            </p>
+          ) : (
+            <button className="button link" disabled={resend.busy}>
+              Send the link again
+            </button>
+          )}
+          {resend.error && <p className="error">{resend.error}</p>}
+        </form>
+      )}
 
       <form
         className="card stack"

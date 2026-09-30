@@ -79,8 +79,8 @@ export function describeGuestStore(name: string, makeStore: (options?: GuestStor
       const email = newEmail();
       await store.addAccount(guest.id, email, 'hash-1');
 
-      expect(await store.getAccount(guest.id)).toEqual({ userId: guest.id, email, passwordHash: 'hash-1' });
-      expect(await store.findAccountByEmail(email)).toEqual({ userId: guest.id, email, passwordHash: 'hash-1' });
+      expect(await store.getAccount(guest.id)).toEqual({ userId: guest.id, email, passwordHash: 'hash-1', emailVerified: false });
+      expect(await store.findAccountByEmail(email)).toEqual({ userId: guest.id, email, passwordHash: 'hash-1', emailVerified: false });
       expect(await store.findByToken(token)).toEqual(guest);
       expect(await store.getPreferences(guest.id)).toEqual(prefs);
     });
@@ -199,6 +199,46 @@ export function describeGuestStore(name: string, makeStore: (options?: GuestStor
         expect(await store.findByToken(fresh)).toEqual(guest);
         expect(await store.findByToken(stale)).toBeUndefined();
         expect(await store.consumePasswordReset(reset, time.now())).toBeUndefined();
+      });
+    });
+
+    describe('email verification', () => {
+      const soon = () => new Date(Date.now() + 60 * 60 * 1000);
+
+      it('verifies the account with a link sent to its email, once', async () => {
+        const store = makeStore();
+        const { guest } = await store.create('Ada');
+        const email = newEmail();
+        await store.addAccount(guest.id, email, 'h');
+        const token = await store.createEmailVerification(guest.id, email, soon());
+
+        expect(await store.consumeEmailVerification(token, new Date())).toBe(guest.id);
+        expect((await store.getAccount(guest.id))?.emailVerified).toBe(true);
+        expect(await store.consumeEmailVerification(token, new Date())).toBeUndefined();
+      });
+
+      it('can be marked verified directly, but only for the email the account has', async () => {
+        const store = makeStore();
+        const { guest } = await store.create('Ada');
+        const email = newEmail();
+        await store.addAccount(guest.id, email, 'h');
+        await store.markEmailVerified(guest.id, newEmail(), new Date());
+        expect((await store.getAccount(guest.id))?.emailVerified).toBe(false);
+        await store.markEmailVerified(guest.id, email, new Date());
+        expect((await store.getAccount(guest.id))?.emailVerified).toBe(true);
+      });
+
+      it('refuses an expired link, or one sent to an address the account no longer has', async () => {
+        const store = makeStore();
+        const { guest } = await store.create('Ada');
+        const email = newEmail();
+        await store.addAccount(guest.id, email, 'h');
+        const expired = await store.createEmailVerification(guest.id, email, new Date(Date.now() - 1_000));
+        const otherAddress = await store.createEmailVerification(guest.id, newEmail(), soon());
+
+        expect(await store.consumeEmailVerification(expired, new Date())).toBeUndefined();
+        expect(await store.consumeEmailVerification(otherAddress, new Date())).toBeUndefined();
+        expect((await store.getAccount(guest.id))?.emailVerified).toBe(false);
       });
     });
   });
