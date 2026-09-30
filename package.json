@@ -3,17 +3,31 @@
   "private": true,
   "version": "0.1.0",
   "description": "Arbiter monorepo",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22"
+  },
+  "volta": {
+    "node": "22.23.3",
+    "pnpm": "10.34.5"
+  },
   "scripts": {
-    "build": "npm run -w @arbiter/shared build && npm run -w @arbiter/server build && npm run -w @arbiter/web build",
-    "test": "npm run -w @arbiter/shared test",
-    "dev:server": "npm run -w @arbiter/server dev",
-    "dev:web": "npm run -w @arbiter/web dev"
+    "build": "pnpm -r build",
+    "dev:server": "pnpm --filter @arbiter/server dev",
+    "dev:web": "pnpm --filter @arbiter/shared build && pnpm --filter @arbiter/web dev",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:integration": "pnpm -r test:integration",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0"
   }
 }
