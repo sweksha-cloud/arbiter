@@ -7,6 +7,8 @@ const EnvSchema = z.object({
   /** The only origin allowed to call the API (the Next.js app). */
   WEB_ORIGIN: z.url(),
   DATABASE_URL: z.string().min(1),
+  /** Real places from Google when set; invented sample places when not. */
+  GOOGLE_PLACES_API_KEY: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')
 });
 
