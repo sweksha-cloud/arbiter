@@ -50,7 +50,16 @@ export async function buildApp({
   trustProxy = false,
   ...deps
 }: AppOptions): Promise<App> {
-  const http = Fastify({ logger: { level: logLevel }, bodyLimit: MAX_BODY_BYTES, trustProxy });
+  const http = Fastify({
+    logger: { level: logLevel },
+    bodyLimit: MAX_BODY_BYTES,
+    trustProxy,
+    // On shutdown, close every connection, not just idle ones. A phone that
+    // keeps retrying reuses its kept-alive connection every few seconds, so it
+    // never goes idle: the old server would keep answering it (and never exit)
+    // while the new one sits unused (BUG-015).
+    forceCloseConnections: true
+  });
 
   // Auth uses Authorization headers, not cookies, so credentials stay off.
   // @fastify/cors only allows GET, HEAD and POST unless methods are listed.
@@ -67,12 +76,21 @@ export async function buildApp({
     })
   });
 
-  // Live events are tiny; the 1 MB default would let one message hog memory.
-  const io: ArbiterServer = new Server(http.server, { cors: { origin: webOrigin }, maxHttpBufferSize: MAX_BODY_BYTES });
+  let shuttingDown = false;
+  const io: ArbiterServer = new Server(http.server, {
+    cors: { origin: webOrigin },
+    // Live events are tiny; the 1 MB default would let one message hog memory.
+    maxHttpBufferSize: MAX_BODY_BYTES,
+    // Once shutdown starts, refuse new connections at once. A phone that
+    // reconnects in that moment otherwise reaches the dying server, gets no
+    // answer, and waits out its connect timeout before trying the new one (BUG-015).
+    allowRequest: (_request, callback) => callback(shuttingDown ? 'Server is restarting' : null, !shuttingDown)
+  });
   // Live sockets never go idle, so the HTTP server would wait on them forever
   // and shutdown (every deploy) would hang. Drop them first; clients reconnect
   // to the new server on their own.
   http.addHook('preClose', async () => {
+    shuttingDown = true;
     io.disconnectSockets(true);
   });
 

@@ -63,6 +63,8 @@ test('forgot password: the emailed link sets a new password and works only once'
   const other = await newPhone();
   await other.goto('/login');
   await other.getByRole('link', { name: 'Forgot your password?' }).click();
+  // The login page has an Email box too: wait for the new page before typing.
+  await expect(other.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
   await other.getByLabel('Email').fill(email);
   await other.getByRole('button', { name: 'Send me a link' }).click();
   await expect(other.getByRole('status')).toContainText(`account for ${email}`);
@@ -91,7 +93,10 @@ test('changing the password keeps this phone signed in and signs out the others'
   const email = newEmail();
   await phone.goto('/');
   await enterName(phone, 'Kai');
+  // Wait for the guest to be saved before leaving the page.
+  await expect(phone.getByText('Hi Kai.')).toBeVisible();
   await phone.goto('/signup');
+  await expect(phone.getByText('Signing up as Kai')).toBeVisible();
   await phone.getByLabel('Email').fill(email);
   await phone.getByLabel('Password').fill(password);
   await phone.getByRole('button', { name: 'Make my account' }).click();
@@ -115,4 +120,23 @@ test('changing the password keeps this phone signed in and signs out the others'
   await phone.goto('/history');
   await expect(phone.getByRole('heading', { name: 'Past sessions' })).toBeVisible();
   await expect(phone.getByRole('link', { name: 'Account' })).toBeVisible();
+});
+
+test('typing into a form before the page has finished loading is kept (BUG-013)', async ({ newPhone }) => {
+  const phone = await newPhone();
+  // Hold back the page's JavaScript so the form is plain HTML while we type.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await phone.route('**/_next/static/chunks/**', async (route) => {
+    await held;
+    await route.continue();
+  });
+
+  await phone.goto('/login', { waitUntil: 'commit' });
+  await phone.getByLabel('Email').fill('early@example.com');
+  release();
+
+  // Once the app has taken over, the header shows its links; the typed email must still be there.
+  await expect(phone.getByRole('link', { name: 'Sign up' }).first()).toBeVisible();
+  await expect(phone.getByLabel('Email')).toHaveValue('early@example.com');
 });

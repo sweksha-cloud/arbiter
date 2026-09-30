@@ -52,7 +52,13 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    const socket: ArbiterSocket = io(SERVER_URL, { auth: { token: identity.token } });
+    const socket: ArbiterSocket = io(SERVER_URL, {
+      auth: { token: identity.token },
+      // Give up on a connection attempt that gets no answer after 5 s and try
+      // again, rather than the default 20 s (BUG-015).
+      timeout: 5_000,
+      reconnectionDelayMax: 3_000
+    });
     socketRef.current = socket;
 
     // Joining on every connect also covers reconnects after a dropped connection.
