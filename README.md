@@ -1,6 +1,38 @@
 # Arbiter
 
+[![CI](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml/badge.svg)](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml)
+
 Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
+
+## Hard problems
+
+The idea is simple; making it correct with several phones at once isn't. Each has tests, and the reasoning is in [`TRADEOFFS.md`](.claude/TRADEOFFS.md).
+
+- **The server is the only source of truth.** Phones send requests; the server checks each one against the rules and sends every person the new state. No two phones can disagree about the result.
+- **Updates can arrive out of order.** Every change bumps a version number and phones keep the newest (BUG-002). History writes use the same number, so a slow, older database write can't overwrite a newer one.
+- **Exactly one paid search, even under a race.** When the last two people submit at the same instant, both see "everyone's in". The session moves to `scanning` atomically first, so only one of them triggers the Google call. A test fires both at once and counts the calls.
+- **Privacy by construction.** Each person gets their own view with only totals and their own reactions. Preferences never leave the server, elimination returns only a count of removed places, and logs never contain preferences. Tests check each of these.
+- **Designing around a data provider's terms.** Google allows keeping place IDs forever but names and ratings only for the session. So live sessions keep place data in memory, and history stores only place IDs and shows them as Google Maps links. A test lists the history tables' columns so a new one can't slip in unnoticed.
+- **Deploys that don't hang.** Open WebSockets kept the server from ever shutting down, so every deploy would have stalled (BUG-003). The server now drops sockets first, and clients reconnect on their own.
+- **A hard ceiling on cost.** A daily quota in Google Cloud makes a surprise bill impossible, and the app turns "quota hit" into "try again tomorrow".
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Phones
+    A[Browser A]
+    B[Browser B]
+  end
+  A & B -- REST + Socket.IO --> S[Fastify server<br/>session rules]
+  S -- room state --> R[(In memory<br/>Redis later)]
+  S -- guests, preferences,<br/>session history --> P[(Postgres)]
+  S -- one Nearby Search<br/>per session --> G[Google Places API]
+```
+
+`packages/shared` holds the Zod schemas for every request and live event, used by both the server and the web app, plus the pure rules: elimination, ranking, reactions.
+
+## Docs
 
 Project docs live in `.claude/` for now:
 
@@ -11,10 +43,11 @@ Project docs live in `.claude/` for now:
 - Tech stack review: [`.claude/TECH_STACK_REVIEW.md`](.claude/TECH_STACK_REVIEW.md)
 - Project assessment and roadmap: [`.claude/PROJECT_ASSESSMENT.md`](.claude/PROJECT_ASSESSMENT.md)
 - Planned work: [`.claude/todo/`](.claude/todo/README.md)
+- Security and threat model: [`SECURITY.md`](SECURITY.md)
 
 ## Status
 
-The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. You can also login to save or access past sessions.
+The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. Every session is saved (who came, which places were suggested, how people reacted), ready for a history page once login exists.
 
 Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
 
@@ -104,6 +137,7 @@ These are the same checks CI runs on every push:
 
 ```bash
 pnpm lint
+pnpm audit --audit-level high                                                         # fails on high or critical advisories
 pnpm typecheck
 pnpm test                                                                             # unit tests, no services needed
 DATABASE_URL=postgres://arbiter:arbiter@localhost:5432/arbiter pnpm test:integration  # needs `pnpm db:up`
