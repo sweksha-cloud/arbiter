@@ -26,20 +26,30 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
   return score;
 }
 
+/** More than half of the members would rather skip fast food. */
+export function majorityAvoidsFastFood(members: Pick<Preferences, 'soft'>[]): boolean {
+  const avoiders = members.filter(({ soft }) => soft.noFastFood).length;
+  return avoiders * 2 > members.length;
+}
+
 /**
  * Picks the short list from places that already survived elimination.
- * Order: soft-preference score, then rating (unrated last), then distance,
- * then id so the result is deterministic.
+ * Order: if most of the group would rather skip fast food, every known
+ * fast-food place goes below every other place; then soft-preference score,
+ * rating (unrated last), distance, and id so the result is deterministic.
  */
 export function rankSuggestions(
   places: PlaceCandidate[],
   members: Pick<Preferences, 'soft'>[],
   count: number = DEFAULT_SUGGESTION_COUNT
 ): PlaceCandidate[] {
+  const demoteFastFood = majorityAvoidsFastFood(members);
+  const demoted = (place: PlaceCandidate) => (demoteFastFood && place.isFastFood === true ? 1 : 0);
   return places
     .map((place) => ({ place, score: softScore(place, members) }))
     .sort(
       (a, b) =>
+        demoted(a.place) - demoted(b.place) ||
         b.score - a.score ||
         (b.place.rating ?? 0) - (a.place.rating ?? 0) ||
         a.place.distanceMeters - b.place.distanceMeters ||
