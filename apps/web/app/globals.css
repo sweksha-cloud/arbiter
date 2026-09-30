@@ -1,10 +1,13 @@
 :root {
-  --bg: #f2f5ff;
+  --bg: #fff8ef;
   --surface: #ffffff;
-  --text: #202445;
-  --muted: #626984;
-  --border: #d8dcf0;
-  --accent: #4658c8;
+  --surface-warm: #fff0dc;
+  --surface-cool: #e4f5f1;
+  --surface-lilac: #eee9ff;
+  --text: #28233d;
+  --muted: #6c657f;
+  --border: #ded6ed;
+  --accent: #e95d4f;
   --accent-text: #ffffff;
   --like: #168c78;
   --dislike: #d95768;
@@ -15,17 +18,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #171a3a;
-    --surface: #252950;
-    --text: #f4f2ff;
-    --muted: #b7b9d4;
-    --border: #444a78;
-    --accent: #8c9aff;
-    --accent-text: #181b3b;
+    --bg: #211b38;
+    --surface: #30284a;
+    --surface-warm: #493044;
+    --surface-cool: #1f4b4b;
+    --surface-lilac: #39305c;
+    --text: #fff5e9;
+    --muted: #c4b9d3;
+    --border: #5b4d78;
+    --accent: #ff806b;
+    --accent-text: #321c35;
     --like: #59d1b4;
     --dislike: #ff8c9b;
     --notice-bg: #51451f;
     --notice-text: #ffe291;
+  }
+
+  .page > section.card {
+    border-color: #8b5d5a;
+  }
+
+  .page > form.card {
+    border-color: #397b76;
+  }
+
+  .rejoin {
+    border-color: #7565a8;
   }
 }
 
@@ -106,6 +124,21 @@ a {
   padding: 16px;
 }
 
+.page > section.card {
+  background: var(--surface-warm);
+  border-color: #efc79f;
+}
+
+.page > form.card {
+  background: var(--surface-cool);
+  border-color: #a6d9d0;
+}
+
+.rejoin {
+  background: var(--surface-lilac);
+  border-color: #bdb0ee;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -164,7 +197,7 @@ input:not([type='checkbox']) {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
   color: var(--text);
   width: 100%;
 }
