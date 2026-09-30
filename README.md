@@ -1,6 +1,6 @@
 # Arbiter
 
-Arbiter helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
+Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
 
 Project docs live in `.claude/` for now:
 
