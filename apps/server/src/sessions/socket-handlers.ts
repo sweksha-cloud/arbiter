@@ -60,13 +60,13 @@ export function registerSocketHandlers(
       await action();
       reply({ ok: true });
     } catch (error) {
-      if (error instanceof SessionError) return reply({ ok: false, error: error.message });
-      if (error instanceof ZodError) return reply({ ok: false, error: 'Invalid request' });
+      if (error instanceof SessionError) return reply({ ok: false, error: error.message, code: error.code });
+      if (error instanceof ZodError) return reply({ ok: false, error: 'Invalid request', code: 'invalid_request' });
       if (error instanceof PlacesQuotaExceededError) {
-        return reply({ ok: false, error: 'Arbiter has hit its daily search limit. Try again tomorrow.' });
+        return reply({ ok: false, error: 'Arbiter has hit its daily search limit. Try again tomorrow.', code: 'quota' });
       }
       log.error({ err: error }, 'Socket action failed');
-      reply({ ok: false, error: 'Something went wrong' });
+      reply({ ok: false, error: 'Something went wrong', code: 'internal' });
     }
   }
 
