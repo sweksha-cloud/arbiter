@@ -5,7 +5,7 @@ import type { Guest, Preferences } from '@arbiter/shared';
 /**
  * Guest identities and their preferences. Async so a Postgres implementation
  * can replace the in-memory one once the data model is approved
- * (docs/DESIGN.md section 8).
+ * (.claude/docs/DESIGN.md section 8).
  */
 export interface GuestStore {
   create(displayName: string): Promise<{ guest: Guest; token: string }>;

@@ -6,7 +6,7 @@ export type MissingDataAction = 'keep' | 'eliminate';
 /**
  * What to do with a place when a constraint is active but the place has no
  * data for it. Deliberately has no default: how to treat missing data is a
- * product decision (docs/DESIGN.md section 4), so every caller must choose.
+ * product decision (.claude/docs/DESIGN.md section 4), so every caller must choose.
  */
 export interface MissingDataPolicy {
   priceLevel: MissingDataAction;

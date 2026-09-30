@@ -1,4 +1,4 @@
-# Local development database. Production uses Neon (see docs/DESIGN.md).
+# Local development database. Production uses Neon (see .claude/docs/DESIGN.md).
 services:
   postgres:
     image: postgres:17-alpine

@@ -53,7 +53,7 @@ export async function buildApp({ webOrigin, logLevel, ...deps }: AppOptions): Pr
   });
 
   // Liveness only. Querying the database here would keep Neon's free tier
-  // from ever suspending (see docs/TECH_DECISIONS.md).
+  // from ever suspending (see .claude/docs/TECH_DECISIONS.md).
   http.get('/health', async () => ({ status: 'ok' }));
 
   registerRoutes(http, { guests, sessions });

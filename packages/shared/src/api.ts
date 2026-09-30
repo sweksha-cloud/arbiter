@@ -5,7 +5,7 @@ import { PreferencesSchema, type Preferences } from './preferences.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
 
 // Request, response and real-time event shapes shared by server and web.
-// Provisional: the real-time events are not designed yet (docs/DESIGN.md
+// Provisional: the real-time events are not designed yet (.claude/docs/DESIGN.md
 // section 9); these are the minimum the local demo loop needs.
 
 // ---- REST ----
