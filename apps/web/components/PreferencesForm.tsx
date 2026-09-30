@@ -68,7 +68,7 @@ export function PreferencesForm({
 }) {
   const start = initial ?? EMPTY;
   const [vegetarian, setVegetarian] = useState(start.hard.vegetarian ?? false);
-  const [noFastFood, setNoFastFood] = useState(start.hard.noFastFood ?? false);
+  const [noFastFood, setNoFastFood] = useState(start.soft.noFastFood ?? false);
   const [maxPriceLevel, setMaxPriceLevel] = useState<number | undefined>(start.hard.maxPriceLevel);
   const [distance, setDistance] = useState<DistanceChoice>(() => initialDistance(start));
   const [feelings, setFeelings] = useState(() => initialFeelings(start));
@@ -86,11 +86,11 @@ export function PreferencesForm({
     const preferences: Preferences = {
       hard: {
         vegetarian: vegetarian || undefined,
-        noFastFood: noFastFood || undefined,
         maxPriceLevel,
         maxDistanceMeters: meters
       },
       soft: {
+        noFastFood: noFastFood || undefined,
         likedCuisines: entries.filter(([, f]) => f === 'like').map(([c]) => c),
         dislikedCuisines: entries.filter(([, f]) => f === 'dislike').map(([c]) => c)
       }
@@ -116,11 +116,6 @@ export function PreferencesForm({
           <input type="checkbox" checked={vegetarian} onChange={(e) => setVegetarian(e.target.checked)} />
           <span>I need vegetarian options</span>
         </label>
-        <label className="check">
-          <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
-          <span>No fast food</span>
-        </label>
-
         <fieldset className="field">
           <legend>Most I want to spend</legend>
           <div className="segmented">
@@ -182,7 +177,12 @@ export function PreferencesForm({
 
       <section className="card stack">
         <h2>Nice-to-haves</h2>
-        <p className="muted small">Tap once for 👍 love it, twice for 👎 rather not, three times to clear. These only change the order of suggestions.</p>
+        <p className="muted small">These only change the order of suggestions, never remove a place.</p>
+        <label className="check">
+          <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
+          <span>Rather not do fast food</span>
+        </label>
+        <p className="muted small">Cuisines: tap once for 👍 love it, twice for 👎 rather not, three times to clear.</p>
         <div className="chips">
           {CUISINES.map((cuisine) => {
             const feeling = feelings[cuisine];

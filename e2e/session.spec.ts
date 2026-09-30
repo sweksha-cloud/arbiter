@@ -22,7 +22,7 @@ test('results appear for everyone once the last person submits, and reactions ar
   await expect(friend.getByText('1 of 2 submitted')).toBeVisible();
   await expect(host.getByText('1 of 2 submitted')).toBeVisible();
 
-  await friend.getByText('No fast food').click();
+  await friend.getByText('Rather not do fast food').click();
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   // No button press needed: results show up for both phones.
   await expect(host.locator('article').first()).toBeVisible();

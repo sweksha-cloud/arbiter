@@ -11,6 +11,5 @@ export const MISSING_DATA_POLICY: MissingDataPolicy = {
   priceLevel: 'keep',
   // A vegetarian sent somewhere with nothing to eat is the worst outcome, so
   // unknown counts as "no" when someone needs vegetarian food.
-  servesVegetarian: 'eliminate',
-  isFastFood: 'keep'
+  servesVegetarian: 'eliminate'
 };

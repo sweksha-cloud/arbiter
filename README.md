@@ -69,7 +69,7 @@ Use one normal browser window and one private window (or a second browser). Each
 4. In each window, fill in preferences and tap **Submit**. The status bar updates live ("1 of 2 submitted").
 5. When the last person submits, the three suggestions appear in both windows automatically. Tap 👍 or 👎 in either window and watch the bar update in both.
 
-To see elimination at work, tick **I need vegetarian options** in one window and **No fast food** in the other. The steakhouse and burger places disappear.
+To see elimination at work, tick **I need vegetarian options** in one window: the steakhouse and burger places disappear. **Rather not do fast food** is only a nice-to-have, so it moves fast-food places down the list instead of removing them.
 
 If someone never submits, the host can tap **Show results now**; that person's must-haves won't count.
 

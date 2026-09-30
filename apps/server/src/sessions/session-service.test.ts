@@ -30,7 +30,7 @@ async function setup(places: PlacesProvider = new FixturePlacesProvider([place('
     places,
     placesSource: 'sample',
     radiusMeters: 3000,
-    missingDataPolicy: { priceLevel: 'keep', servesVegetarian: 'eliminate', isFastFood: 'keep' }
+    missingDataPolicy: { priceLevel: 'keep', servesVegetarian: 'eliminate' }
   });
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;

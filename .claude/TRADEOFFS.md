@@ -17,11 +17,18 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
   - *"Why no time limit?"* Friends are usually in the same room; a countdown adds pressure without a benefit. It could be added later as an option.
 
 ### 2. Hard constraints are enforced silently; the strictest one wins (You, for budget)
-- **Choice:** if one person's max is $$ and another's is $$$$, the group max is $$. Same for distance. Vegetarian and no-fast-food apply if anyone sets them.
+- **Choice:** if one person's max is $$ and another's is $$$$, the group max is $$. Same for distance. Vegetarian applies if anyone sets it.
 - **Alternatives:** average the budgets; majority rule; let people argue.
 - **Why:** fairness is the product. Averaging means the person on a budget still ends up somewhere they can't afford. Quiet people's constraints shouldn't depend on speaking up.
 - **Cost:** one very strict person can shrink the options a lot, sometimes to zero ("nothing fits everyone" is still an open decision).
 - **Follow-ups:** *"What if nothing survives?"* Open. The recommendation is to tell the host and let them rescan with a bigger radius, rather than silently relaxing someone's constraint.
+
+### 2b. "Rather not do fast food" is a nice-to-have, not a must-have (You)
+- **Choice:** each person who ticks it lowers a known fast-food place's rank by one. It never removes the place.
+- **Alternatives:** a must-have that removes every fast-food place (how it worked at first).
+- **Why:** a fast-food place that fits everyone's budget, distance and cuisines is a better pick than a fancy place that fits nobody well. "No fast food" is a preference, not a need, unlike vegetarian or a budget.
+- **Cost:** someone who really never wants fast food can still see it suggested if the rest of the group likes it.
+- **Follow-up:** *"How do you decide what's a must-have?"* It's a must-have only if breaking it makes the outing impossible for someone: they can't eat there (vegetarian), can't afford it (budget) or can't get there (distance). Everything else only changes the order.
 
 ### 3. Preferences are private, and the app never says who eliminated a place (You, plus Proposed)
 - **Choice:** nobody sees anyone's preferences (you decided). The UI only says "6 didn't work for someone" and shows reaction totals, never names (proposed).

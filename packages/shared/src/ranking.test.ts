@@ -16,6 +16,14 @@ describe('softScore', () => {
     ]);
     expect(score).toBe(1);
   });
+
+  it('lowers a fast-food place once for each member who would rather skip it', () => {
+    const skip = { soft: { noFastFood: true } };
+    expect(softScore(makePlace({ id: 'p', isFastFood: true }), [skip, skip, { soft: {} }])).toBe(-2);
+    // Unknown or not fast food: no penalty.
+    expect(softScore(makePlace({ id: 'p', isFastFood: undefined }), [skip])).toBe(0);
+    expect(softScore(makePlace({ id: 'p', isFastFood: false }), [skip])).toBe(0);
+  });
 });
 
 describe('rankSuggestions', () => {
@@ -31,6 +39,19 @@ describe('rankSuggestions', () => {
     const result = rankSuggestions(places, [{ soft: { likedCuisines: ['thai'] } }]);
 
     expect(ids(result)).toEqual(['liked', 'best-rated', 'close']);
+  });
+
+  it('still suggests fast food when it suits the group better than the rest', () => {
+    const places = [
+      makePlace({ id: 'taco-stand', cuisines: ['mexican'], isFastFood: true }),
+      makePlace({ id: 'bistro', cuisines: ['french'], isFastFood: false })
+    ];
+    const members = [
+      { soft: { noFastFood: true, likedCuisines: ['mexican'] } },
+      { soft: { likedCuisines: ['mexican'], dislikedCuisines: ['french'] } }
+    ];
+
+    expect(ids(rankSuggestions(places, members, 1))).toEqual(['taco-stand']);
   });
 
   it('returns every place when fewer survive than the list size', () => {

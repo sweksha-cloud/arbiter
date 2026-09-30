@@ -52,7 +52,7 @@ Options that were considered: app picks a winner; group votes on everything left
 | Field | Kind | How the group combines it |
 | --- | --- | --- |
 | Vegetarian | Hard | If anyone needs it, every place must serve vegetarian food |
-| No fast food | Hard | If anyone sets it, fast-food places are removed |
+| Rather not do fast food | Soft (owner's decision) | Lowers a known fast-food place's rank once for each member who sets it. Never removes it: a fast-food place can still win if it suits everyone better |
 | Max budget | Hard | Lowest maximum in the group (decided) |
 | Max distance | Hard | Shortest maximum in the group. Choices: Don't care, 0.5, 1, 2, 5, 10 or 20 mi, or a custom distance from 0.1 to 31 mi |
 | Liked cuisines | Soft | Raises a place's rank for each member who likes one of its cuisines |
