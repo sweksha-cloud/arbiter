@@ -29,11 +29,19 @@ async function setup(
 ) {
   const guests = new InMemoryGuestStore();
   const historyErrors: { error: unknown; action: string }[] = [];
+  const logged: { details: Record<string, unknown>; message: string }[] = [];
   const service = new SessionService({
     rooms: new InMemoryRoomStore(),
     guests,
     history,
-    onHistoryError: (error, { action }) => historyErrors.push({ error, action }),
+    log: {
+      info: (details, message) => logged.push({ details: details as Record<string, unknown>, message }),
+      error: (details, message) => {
+        const { err, action } = details as { err: unknown; action?: string };
+        if (message === 'Could not save session history') historyErrors.push({ error: err, action: action! });
+        logged.push({ details: details as Record<string, unknown>, message });
+      }
+    },
     places,
     placesSource: 'sample',
     radiusMeters: 3000,
@@ -42,7 +50,7 @@ async function setup(
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;
   const sessionId = await service.create(host, center);
-  return { guests, history, historyErrors, service, host, friend, sessionId };
+  return { guests, history, historyErrors, logged, service, host, friend, sessionId };
 }
 
 /** Host and friend both in the lobby, nobody submitted yet. */
@@ -284,6 +292,26 @@ describe('SessionService', () => {
       const first = await service.react(sessionId, host, 'a', 'like');
       const second = await service.react(sessionId, host, 'a', null);
       expect(recordReaction.mock.calls.map((c) => c[4])).toEqual([first.version, second.version]);
+    });
+  });
+
+  describe('logs', () => {
+    it('logs each scan with counts and timing, and never anyone\'s preferences', async () => {
+      const { service, host, friend, sessionId, logged } = await lobbyOfTwo();
+      await service.submit(sessionId, host, { hard: { vegetarian: true, maxPriceLevel: 2 }, soft: { likedCuisines: ['thai'] } });
+      await service.submit(sessionId, friend, noPreferences);
+
+      const scan = logged.find((l) => l.message === 'Scan finished');
+      expect(scan?.details).toMatchObject({ sessionId, members: 2, submitted: 2, scanned: 4, suggested: 3 });
+      expect(scan?.details.durationMs).toEqual(expect.any(Number));
+      expect(JSON.stringify(logged)).not.toMatch(/vegetarian|maxPriceLevel|thai|likedCuisines/);
+    });
+
+    it('logs a failed scan with the session it belongs to', async () => {
+      const failing: PlacesProvider = { searchNearby: () => Promise.reject(new Error('network down')) };
+      const { service, host, sessionId, logged } = await setup(failing);
+      await expect(service.start(sessionId, host)).rejects.toThrow('network down');
+      expect(logged.find((l) => l.message.startsWith('Scan failed'))?.details).toMatchObject({ sessionId });
     });
   });
 });

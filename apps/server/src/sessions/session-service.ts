@@ -19,6 +19,12 @@ import type { GuestStore } from '../identity/guest-store.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
 
+/** The slice of a pino/Fastify logger the session rules use. */
+export interface SessionLog {
+  info(details: object, message: string): void;
+  error(details: object, message: string): void;
+}
+
 export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place';
 
 /** An action the caller isn't allowed to take. Its message is safe to show users. */
@@ -38,10 +44,10 @@ export interface SessionServiceOptions {
   /** The permanent record of each session, written alongside room state. */
   history: SessionHistory;
   /**
-   * Called when a history write fails after the live change succeeded. The
-   * live session carries on; see TRADEOFFS.md 16d.
+   * Structured logs for lifecycle events and failed history writes. Only IDs,
+   * counts and timings: never preferences (TRADEOFFS.md 3).
    */
-  onHistoryError?: (error: unknown, context: { sessionId: string; action: string }) => void;
+  log?: SessionLog;
   places: PlacesProvider;
   placesSource: SessionView['placesSource'];
   /** Search area when nobody in the group set a distance limit. */
@@ -96,6 +102,7 @@ export class SessionService {
           scannedCount: 0,
           eliminatedCount: 0
         });
+        this.options.log?.info({ sessionId, hostId: host.id }, 'Session created');
         return sessionId;
       } catch (error) {
         if (!(error instanceof RoomExistsError || error instanceof SessionCodeTakenError)) throw error;
@@ -186,6 +193,7 @@ export class SessionService {
       return { ...current, status: 'ended' };
     });
     await this.record(sessionId, 'end', () => this.options.history.end(sessionId));
+    this.options.log?.info({ sessionId, members: room.members.length }, 'Session ended');
     return room;
   }
 
@@ -228,6 +236,7 @@ export class SessionService {
       return { ...current, status: 'scanning' };
     });
     await onScanStarted?.();
+    const startedAt = performance.now();
 
     try {
       const preferences = Object.values(room.submissions);
@@ -241,6 +250,20 @@ export class SessionService {
       const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy);
       const suggestions = rankSuggestions(kept, preferences);
 
+      this.options.log?.info(
+        {
+          sessionId,
+          members: room.members.length,
+          submitted: preferences.length,
+          radiusMeters: group.maxDistanceMeters ?? this.options.radiusMeters,
+          scanned: scanned.length,
+          eliminated: eliminatedCount,
+          suggested: suggestions.length,
+          placesSource: this.options.placesSource,
+          durationMs: Math.round(performance.now() - startedAt)
+        },
+        'Scan finished'
+      );
       const voting = await this.update(sessionId, (current) => ({
         ...current,
         status: 'voting',
@@ -256,6 +279,10 @@ export class SessionService {
       );
       return voting;
     } catch (error) {
+      this.options.log?.error(
+        { err: error, sessionId, durationMs: Math.round(performance.now() - startedAt) },
+        'Scan failed; session is back in the lobby'
+      );
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
     }
@@ -279,7 +306,7 @@ export class SessionService {
     try {
       await write();
     } catch (error) {
-      this.options.onHistoryError?.(error, { sessionId, action });
+      this.options.log?.error({ err: error, sessionId, action }, 'Could not save session history');
     }
   }
 
