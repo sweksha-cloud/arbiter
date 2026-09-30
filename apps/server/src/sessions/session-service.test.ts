@@ -1,6 +1,7 @@
 import type { Guest, PlaceCandidate, Preferences } from '@arbiter/shared';
 import { describe, expect, it, vi } from 'vitest';
 
+import { InMemorySessionHistory, SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import { InMemoryGuestStore } from '../identity/guest-store.js';
 import { FixturePlacesProvider } from '../places/fixture-places-provider.js';
 import type { PlacesProvider } from '../places/places-provider.js';
@@ -22,11 +23,17 @@ const place = (id: string, overrides: Partial<PlaceCandidate> = {}) => ({
   ...overrides
 });
 
-async function setup(places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')])) {
+async function setup(
+  places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')]),
+  history: SessionHistory = new InMemorySessionHistory()
+) {
   const guests = new InMemoryGuestStore();
+  const historyErrors: { error: unknown; action: string }[] = [];
   const service = new SessionService({
     rooms: new InMemoryRoomStore(),
     guests,
+    history,
+    onHistoryError: (error, { action }) => historyErrors.push({ error, action }),
     places,
     placesSource: 'sample',
     radiusMeters: 3000,
@@ -35,12 +42,12 @@ async function setup(places: PlacesProvider = new FixturePlacesProvider([place('
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;
   const sessionId = await service.create(host, center);
-  return { guests, service, host, friend, sessionId };
+  return { guests, history, historyErrors, service, host, friend, sessionId };
 }
 
 /** Host and friend both in the lobby, nobody submitted yet. */
-async function lobbyOfTwo(places?: PlacesProvider) {
-  const ctx = await setup(places);
+async function lobbyOfTwo(places?: PlacesProvider, history?: SessionHistory) {
+  const ctx = await setup(places, history);
   await ctx.service.join(ctx.sessionId, ctx.friend);
   return ctx;
 }
@@ -219,5 +226,64 @@ describe('SessionService', () => {
   it('reports a missing session as not found', async () => {
     const { service, host } = await setup();
     await expect(service.join('NOPE22', host)).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  describe('history', () => {
+    it('records the session, its members, suggestions in ranked order, reactions and the end', async () => {
+      const { history, service, host, friend, sessionId } = await lobbyOfTwo();
+      await service.submit(sessionId, host, noPreferences);
+      const room = await service.submit(sessionId, friend, noPreferences);
+      await service.react(sessionId, host, 'a', 'like');
+      await service.react(sessionId, friend, 'a', 'like');
+      await service.react(sessionId, friend, 'b', 'dislike');
+      await service.end(sessionId, host);
+
+      const record = await history.get(sessionId);
+      expect(record).toMatchObject({ hostId: host.id, status: 'ended', placesSource: 'sample', members: [host, friend] });
+      expect(record!.places.map((p) => p.placeId)).toEqual(room.suggestions.map((p) => p.id));
+      expect(record!.places.slice(0, 2).map(({ likes, dislikes }) => ({ likes, dislikes }))).toEqual([
+        { likes: 2, dislikes: 0 },
+        { likes: 0, dislikes: 1 }
+      ]);
+    });
+
+    it('picks another code if one was used by any earlier session', async () => {
+      const history = new InMemorySessionHistory();
+      const create = vi
+        .spyOn(history, 'create')
+        .mockRejectedValueOnce(new SessionCodeTakenError('TAKEN2'))
+        .mockImplementation(InMemorySessionHistory.prototype.create.bind(history));
+      const { service, sessionId } = await setup(undefined, history);
+      expect(create).toHaveBeenCalledTimes(2);
+      expect((await service.get(sessionId)).status).toBe('lobby');
+    });
+
+    it('fails to create a session if history cannot be written, so codes stay unique', async () => {
+      const history = new InMemorySessionHistory();
+      vi.spyOn(history, 'create').mockRejectedValue(new Error('database down'));
+      await expect(setup(undefined, history)).rejects.toThrow('database down');
+    });
+
+    it('keeps the live session going when a later history write fails, and reports it', async () => {
+      const history = new InMemorySessionHistory();
+      vi.spyOn(history, 'recordReaction').mockRejectedValue(new Error('database down'));
+      const { service, host, sessionId, historyErrors } = await setup(undefined, history);
+      await service.start(sessionId, host);
+
+      const room = await service.react(sessionId, host, 'a', 'like');
+
+      expect(room.reactions[host.id]).toEqual({ a: 'like' });
+      expect(historyErrors).toEqual([{ error: new Error('database down'), action: 'react' }]);
+    });
+
+    it('records the room version with each reaction so late writes cannot win', async () => {
+      const history = new InMemorySessionHistory();
+      const recordReaction = vi.spyOn(history, 'recordReaction');
+      const { service, host, sessionId } = await setup(undefined, history);
+      await service.start(sessionId, host);
+      const first = await service.react(sessionId, host, 'a', 'like');
+      const second = await service.react(sessionId, host, 'a', null);
+      expect(recordReaction.mock.calls.map((c) => c[4])).toEqual([first.version, second.version]);
+    });
   });
 });

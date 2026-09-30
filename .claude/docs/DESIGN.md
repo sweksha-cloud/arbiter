@@ -110,14 +110,14 @@ Main flow (**Decided** by the owner: start a session first, everyone submits pre
 
 ## 8. Data model
 
-**Decided.** `users` and `preferences` are migrated and in use (`apps/server/src/db/schema.ts`, migrations in `apps/server/drizzle/`, applied on server start). The session tables are next.
+**Built.** All tables below are migrated and in use (`apps/server/src/db/schema.ts`, migrations in `apps/server/drizzle/`, applied on server start). History is written alongside the live session (`apps/server/src/history/`); nothing reads it yet, because viewing history needs login (section 2, open).
 
 - `users`: id, display name, token hash, is_guest, created_at. A guest is a real row with a server-issued token (only its SHA-256 hash is stored), so logging in later just attaches a login to the same row.
 - `preferences`: one row per user: user id, `data` (`jsonb`, the whole preferences object including its `version`), updated_at.
-- `sessions`: id, invite code, host user, status (open/ended), created_at, ended_at. No scan center: the search location stays in memory only (tradeoff (d)).
+- `sessions`: id (the invite code, never reused), host user, places source (sample/google), status (open/ended), created_at, ended_at. No scan center: the search location stays in memory only (tradeoff (d)).
 - `session_members`: session, user, joined_at.
-- `session_places`: session, Google place ID. Only IDs are stored; Google's terms allow keeping place IDs indefinitely but names, prices, hours and ratings only for the session.
-- `reactions`: session, user, place ID, like/dislike, updated_at.
+- `session_places`: session, Google place ID, rank. Only IDs are stored; Google's terms allow keeping place IDs indefinitely but names, prices, hours and ratings only for the session.
+- `reactions`: session, user, place ID, like/dislike (null once cleared), the room version that set it, updated_at. Foreign keys make sure only members react, and only to suggested places.
 
 Scan results (names, prices, etc.) live only in the in-memory room state for the life of the session.
 

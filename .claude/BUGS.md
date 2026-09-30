@@ -55,6 +55,14 @@ Every bug found so far: what went wrong, why, how it was fixed, and what now sto
 - **Fix:** give up after 10 s and use the default area (`apps/web/lib/use-start-session.ts`).
 - **Regression test:** `e2e/session.spec.ts`: "starting a session works even if the location prompt is never answered". It was verified to fail without the fix.
 
+### BUG-011: Postgres history could merge two sets of suggestions (Low, caught before release)
+- **Found:** the shared contract test "keeps the first set of suggestions if recorded twice" passed for the in-memory history and failed for Postgres, which returned `a, c, b`.
+- **Cause:** the Postgres version used `insert ... on conflict do nothing`. That only skips rows with the *same* place ID, so a second call added its new places alongside the first ones, with clashing ranks. The in-memory version ignored the second call entirely.
+- **Why it matters:** a session is scanned once, but if that ever broke (a retry, a bug in the scan guard), history would silently show a mix of two scans.
+- **Fix:** lock the session row (`select ... for update`), and insert only if the session has no suggestions yet (`apps/server/src/history/postgres-session-history.ts`).
+- **Regression test:** the same contract test, now run against both implementations (`session-history.contract.ts`).
+- **Lesson:** this is exactly what contract tests are for. A fake that behaves differently from production makes every test built on it pass for the wrong reason.
+
 ## Found in the original Copilot scaffold (fixed in the rewrite)
 
 ### BUG-006: Filtering on drive time the app can't get (Medium)
@@ -90,7 +98,7 @@ Not bugs in the code as written. These are gaps that exist on purpose for now, o
 
 | ID | Issue | Why it's open | Plan |
 | --- | --- | --- | --- |
-| OPEN-001 | Restarting the server forgets all guests and sessions | Storage is in memory until the data model is approved | Postgres (data model, `.claude/docs/DESIGN.md` section 8) |
+| OPEN-001 | Restarting the server ends every live session | Guests, preferences and session history are in Postgres now, but live room state (and the scan's place names) is in memory | Redis room state (Phase 7). Google's terms mean place names can't be saved, so a restart would need a fresh scan |
 | OPEN-002 | "Nothing fits everyone" is a dead end | Needs a product decision | Suggested: host gets "Try a bigger area" |
 | OPEN-003 | If the host leaves for good, nobody can show results early or end the session | Only the host can; handing over the host role is undecided | Pass the host role to the next person after a timeout, or let anyone end |
 | OPEN-004 | Someone who joins after results appear has no preferences counted | Preferences lock when results appear, by design | Acceptable; maybe show them "results were chosen before you joined" |

@@ -1,7 +1,7 @@
 # To do: Fairness over time
 
 **Status:** idea, not started.
-**Blocked on:** session history in Postgres, and login. Fairness needs to remember past sessions per person; guests and preferences are in Postgres now, but sessions are still in memory.
+**Blocked on:** login, and the owner's answers below. Session history is now saved in Postgres (members, ranked place IDs, reactions), which is what fairness reads. Whose must-haves were binding isn't recorded yet; that needs the privacy decision first.
 
 ## The idea
 

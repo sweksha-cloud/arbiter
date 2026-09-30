@@ -203,6 +203,32 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 - **When to switch back:** if we ever need fast reporting across users, or a question becomes a hard, stable filter we want the database to enforce. Switching is one migration: add the columns, copy from `data`, drop `data`.
 - **Interview angle:** "Aren't you giving up type safety?" Only at the database layer; the shared Zod schema checks every write, and the version number makes changing the format safe.
 
+### 16d. How session history is written (Proposed)
+Live sessions still run from in-memory room state (fast, and the only place Google's place names may live). History is a second copy in Postgres, written as things happen. Three choices shaped it.
+
+**(1) When to write: as each thing happens, or once at the end**
+- **Option A (chosen): write as it happens** (create, join, suggestions, each reaction, end)
+  - Pros: survives a crash or restart mid-session; history exists even for sessions nobody formally ends (most of them: people just put their phones away).
+  - Cons: a database write per reaction; more code paths touch the database.
+- **Option B: write everything when the host taps End**
+  - Pros: one write per session; simplest.
+  - Cons: sessions that are never ended (the common case) leave no history at all; a restart loses everything.
+
+**(2) What happens if a history write fails**
+- **Creating a session: the write is required.** If Postgres is down, you can't start a session. The history table is what guarantees an invite code is never reused (so an old link can only ever mean one session), and it's needed anyway to sign guests in.
+- **Everything after that: best effort.** The live change happens first; if the history write fails, it's logged (`Could not save session history`) and the group keeps voting.
+  - Pros: a database hiccup never interrupts a group mid-decision, which is the product's core moment.
+  - Cons: history can miss a reaction or two during an outage, with only a log line to show for it.
+- **Alternative: fail the action if history can't be written.** Pros: history is always complete. Cons: the database becomes a single point of failure for voting, and the user sees an error for a change that already happened in the room.
+
+**(3) Writes can land out of order**
+- Two quick taps (like, then clear) start two writes; the second can finish first. Each reaction row stores the **room version** that produced it, and the upsert only replaces a row with an older version (`... on conflict do update ... where reactions.room_version < excluded.room_version`).
+- **Alternative: a queue per session** so writes run one at a time. Pros: order is guaranteed without version numbers. Cons: more moving parts, and it wouldn't survive a second server; the version number already exists (BUG-002) and works across servers.
+- Cleared reactions keep their row with `reaction = null`, so the version still blocks an older "like" arriving late.
+
+**Also:** invite codes are the primary key of `sessions`, so Postgres itself refuses a reused code; creation just picks another. Place IDs are the only Google content stored, and an integration test lists the history tables' columns so adding one forces a check against Google's terms.
+- **Interview angle:** "What if the database is down mid-session?" Voting continues from room state; history misses those writes and logs them. "Why not make the write transactional with the room?" The room is in memory (later Redis), so there's no shared transaction; the room version is what keeps the two consistent in order.
+
 ### 17. A hard daily quota on the Google API (Spec)
 - **Why:** budget alerts only notify you *after* spending. A hard cap of about 30 calls per day in Google Cloud makes a bill impossible. When the cap is hit, the app shows "try again tomorrow" (`PlacesQuotaExceededError`) instead of failing silently.
 
@@ -229,7 +255,7 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 
 ## Things interviewers might poke at (weak spots, and honest answers)
 
-- **"Restart the server and all sessions vanish."** Half true now. Guests and their preferences are in Postgres and survive restarts. Live sessions are still in memory; saving session history (members, suggested place IDs, reactions) to Postgres is the next step, and Redis room state (Phase 7) makes live sessions survive too. The `GuestStore` and `RoomStore` interfaces are why this can happen without touching the session rules.
+- **"Restart the server and all sessions vanish."** Half true now. Guests and their preferences are in Postgres and survive restarts. Session history (members, suggested place IDs, reactions) is saved too (16d). Live sessions are still in memory; Redis room state (Phase 7) makes them survive, though the place names would need a fresh scan because Google's terms forbid saving them. The `GuestStore` and `RoomStore` interfaces are why this can happen without touching the session rules.
 - **"What if the host leaves?"** Not handled yet. Only the host can start or end a session. Options: pass the host role to the next person, or let anyone end the session.
 - **"A person who joins after results appear isn't counted in elimination."** True: preferences lock when results appear. Someone who joins *before* that holds up auto-results until they submit too, so they are counted.
 - **"How do you stop someone spamming session creation?"** No rate limiting yet. Worth adding before going public (for example, `@fastify/rate-limit` by IP).

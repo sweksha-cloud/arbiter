@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { Server } from 'socket.io';
 
 import type { Config } from './config.js';
+import { InMemorySessionHistory, type SessionHistory } from './history/session-history.js';
 import { InMemoryGuestStore, type GuestStore } from './identity/guest-store.js';
 import { DemoPlacesProvider } from './places/demo-places-provider.js';
 import type { PlacesProvider } from './places/places-provider.js';
@@ -17,6 +18,7 @@ export interface AppOptions {
   webOrigin: Config['WEB_ORIGIN'];
   logLevel: Config['LOG_LEVEL'];
   guests?: GuestStore;
+  history?: SessionHistory;
   rooms?: RoomStore;
   places?: PlacesProvider;
 }
@@ -45,6 +47,8 @@ export async function buildApp({ webOrigin, logLevel, ...deps }: AppOptions): Pr
   const sessions = new SessionService({
     rooms: deps.rooms ?? new InMemoryRoomStore(),
     guests,
+    history: deps.history ?? new InMemorySessionHistory(),
+    onHistoryError: (error, context) => http.log.error({ err: error, ...context }, 'Could not save session history'),
     // Sample data until the Google Places client is written.
     places: deps.places ?? new DemoPlacesProvider(),
     placesSource: 'sample',

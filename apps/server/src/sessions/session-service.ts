@@ -14,6 +14,7 @@ import {
   type SessionView
 } from '@arbiter/shared';
 
+import { SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import type { GuestStore } from '../identity/guest-store.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
@@ -34,6 +35,13 @@ export class SessionError extends Error {
 export interface SessionServiceOptions {
   rooms: RoomStore;
   guests: GuestStore;
+  /** The permanent record of each session, written alongside room state. */
+  history: SessionHistory;
+  /**
+   * Called when a history write fails after the live change succeeded. The
+   * live session carries on; see TRADEOFFS.md 16d.
+   */
+  onHistoryError?: (error: unknown, context: { sessionId: string; action: string }) => void;
   places: PlacesProvider;
   placesSource: SessionView['placesSource'];
   /** Search area when nobody in the group set a distance limit. */
@@ -73,6 +81,9 @@ export class SessionService {
     for (;;) {
       const sessionId = newSessionCode();
       try {
+        // History first: it remembers every code ever used, so this is what
+        // guarantees an old link can only ever mean one session.
+        await this.options.history.create(sessionId, host, this.options.placesSource);
         await this.options.rooms.create({
           sessionId,
           hostId: host.id,
@@ -87,7 +98,7 @@ export class SessionService {
         });
         return sessionId;
       } catch (error) {
-        if (!(error instanceof RoomExistsError)) throw error;
+        if (!(error instanceof RoomExistsError || error instanceof SessionCodeTakenError)) throw error;
       }
     }
   }
@@ -100,11 +111,13 @@ export class SessionService {
 
   /** Adds the guest. Joining again (a reconnect) changes nothing. */
   async join(sessionId: string, guest: Guest): Promise<RoomState> {
-    return this.update(sessionId, (room) =>
-      room.members.some((m) => m.id === guest.id)
-        ? room
-        : { ...room, members: [...room.members, { ...guest, submitted: false }] }
+    const room = await this.update(sessionId, (current) =>
+      current.members.some((m) => m.id === guest.id)
+        ? current
+        : { ...current, members: [...current.members, { ...guest, submitted: false }] }
     );
+    await this.record(sessionId, 'join', () => this.options.history.addMember(sessionId, guest));
+    return room;
   }
 
   /**
@@ -151,7 +164,7 @@ export class SessionService {
   }
 
   async react(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
-    return this.update(sessionId, (room) => {
+    const updated = await this.update(sessionId, (room) => {
       if (!room.members.some((m) => m.id === guest.id)) {
         throw new SessionError('forbidden', 'Join the session before reacting');
       }
@@ -161,13 +174,19 @@ export class SessionService {
       }
       return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
     });
+    await this.record(sessionId, 'react', () =>
+      this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
+    );
+    return updated;
   }
 
   async end(sessionId: string, guest: Guest): Promise<RoomState> {
-    return this.update(sessionId, (room) => {
-      this.requireHost(room, guest);
-      return { ...room, status: 'ended' };
+    const room = await this.update(sessionId, (current) => {
+      this.requireHost(current, guest);
+      return { ...current, status: 'ended' };
     });
+    await this.record(sessionId, 'end', () => this.options.history.end(sessionId));
+    return room;
   }
 
   /**
@@ -222,13 +241,20 @@ export class SessionService {
       const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy);
       const suggestions = rankSuggestions(kept, preferences);
 
-      return await this.update(sessionId, (current) => ({
+      const voting = await this.update(sessionId, (current) => ({
         ...current,
         status: 'voting',
         suggestions,
         scannedCount: scanned.length,
         eliminatedCount
       }));
+      await this.record(sessionId, 'suggestions', () =>
+        this.options.history.recordSuggestions(
+          sessionId,
+          suggestions.map((p) => p.id)
+        )
+      );
+      return voting;
     } catch (error) {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
@@ -242,6 +268,19 @@ export class SessionService {
       throw new SessionError('not_found', 'Session not found');
     }
     return { sessionId: room.sessionId, status: room.status, isHost: room.hostId === guest.id };
+  }
+
+  /**
+   * Writes to history after a live change has already succeeded. A failure is
+   * reported, not thrown: the group's session shouldn't break because the
+   * permanent record couldn't be written.
+   */
+  private async record(sessionId: string, action: string, write: () => Promise<void>) {
+    try {
+      await write();
+    } catch (error) {
+      this.options.onHistoryError?.(error, { sessionId, action });
+    }
   }
 
   private requireHost(room: RoomState, guest: Guest) {
