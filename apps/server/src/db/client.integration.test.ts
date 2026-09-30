@@ -3,10 +3,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { connectWithRetry, createDb, createPool } from './client.js';
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL must be set for integration tests (run `pnpm db:up` first)');
-}
+// DATABASE_URL is checked by test/integration-setup.ts.
+const databaseUrl = process.env.DATABASE_URL!;
 
 describe('database (real Postgres)', () => {
   const pool = createPool(databaseUrl);

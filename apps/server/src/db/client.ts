@@ -15,7 +15,8 @@ export function createPool(connectionString: string): pg.Pool {
 }
 
 export function createDb(pool: pg.Pool) {
-  return drizzle({ client: pool, schema });
+  // TypeScript uses camelCase; Postgres columns are snake_case.
+  return drizzle({ client: pool, schema, casing: 'snake_case' });
 }
 
 export type Db = ReturnType<typeof createDb>;

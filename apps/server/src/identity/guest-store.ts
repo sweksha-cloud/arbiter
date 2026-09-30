@@ -3,9 +3,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Guest, Preferences } from '@arbiter/shared';
 
 /**
- * Guest identities and their preferences. Async so a Postgres implementation
- * can replace the in-memory one once the data model is approved
- * (.claude/docs/DESIGN.md section 8).
+ * Guest identities and their preferences. The server uses the Postgres
+ * implementation (postgres-guest-store.ts); both pass the same contract tests.
  */
 export interface GuestStore {
   create(displayName: string): Promise<{ guest: Guest; token: string }>;
@@ -15,9 +14,9 @@ export interface GuestStore {
 }
 
 // Only a hash of each token is kept, so a leaked store can't be used to log in.
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-/** Temporary: everything is lost when the server restarts. */
+/** For unit tests and local runs without a database: everything is lost on restart. */
 export class InMemoryGuestStore implements GuestStore {
   private readonly guestsByTokenHash = new Map<string, Guest>();
   private readonly preferences = new Map<string, Preferences>();
