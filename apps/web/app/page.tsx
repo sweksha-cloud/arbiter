@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { NameForm } from '../components/NameForm';
+import { RejoinBanner } from '../components/RejoinBanner';
 import { useIdentity } from '../lib/identity';
 import { useStartSession } from '../lib/use-start-session';
 
@@ -22,6 +23,7 @@ export default function HomePage() {
         <NameForm />
       ) : (
         <>
+          <RejoinBanner token={identity.token} />
           <section className="card stack">
             <p>
               Hi <strong>{identity.guest.displayName}</strong>.

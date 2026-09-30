@@ -78,6 +78,19 @@ describe('session over Socket.IO', () => {
     return { sessionId, host, friend, hostClient, friendClient };
   }
 
+  it('disconnects everyone promptly when the server shuts down (deploys, restarts)', async () => {
+    const guest = await createGuest('Someone');
+    const client = connectClient(guest.token);
+    await new Promise<void>((resolve) => client.on('connect', () => resolve()));
+    const disconnected = new Promise<string>((resolve) => client.on('disconnect', resolve));
+
+    const closed = app.http.close().then(() => 'closed');
+    const timeout = new Promise((resolve) => setTimeout(() => resolve('timed out'), 3000));
+
+    expect(await Promise.race([closed, timeout])).toBe('closed');
+    expect(await disconnected).toBeTruthy();
+  });
+
   it('rejects connections without a valid token', async () => {
     const client = connectClient('not-a-token');
     const error = await new Promise<Error>((resolve) => client.on('connect_error', resolve));
@@ -112,6 +125,20 @@ describe('session over Socket.IO', () => {
     const guest = await createGuest('Lost');
     const client = connectClient(guest.token);
     expect(await join(client, 'NOPE22')).toEqual({ ok: false, error: 'Session not found', code: 'not_found' });
+  });
+
+  it('tells the others when someone leaves and when they come back', async () => {
+    const { sessionId, host, hostClient, friendClient } = await sessionWithTwoPeople();
+    const hostOnline = (v: SessionView) => v.members.find((m) => m.id === host.guest.id)?.online;
+
+    const friendSeesHostLeave = nextState(friendClient, (v) => hostOnline(v) === false);
+    hostClient.disconnect();
+    await friendSeesHostLeave;
+
+    const friendSeesHostReturn = nextState(friendClient, (v) => hostOnline(v) === true);
+    const rejoined = connectClient(host.token);
+    await join(rejoined, sessionId);
+    await friendSeesHostReturn;
   });
 
   it('refuses "show results now" from someone who is not the host', async () => {

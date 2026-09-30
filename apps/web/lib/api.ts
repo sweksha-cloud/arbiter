@@ -3,6 +3,7 @@ import {
   CreateSessionResponseSchema,
   ErrorResponseSchema,
   GetPreferencesResponseSchema,
+  SessionSummarySchema,
   type LatLng,
   type Preferences
 } from '@arbiter/shared';
@@ -59,6 +60,13 @@ export const api = {
 
   savePreferences: (token: string, preferences: Preferences) =>
     request(GetPreferencesResponseSchema, '/api/me/preferences', { method: 'PUT', token, body: preferences }),
+
+  /** `null` if the session is gone or you aren't in it. */
+  getSessionSummary: (token: string, sessionId: string) =>
+    request(SessionSummarySchema, `/api/sessions/${encodeURIComponent(sessionId)}`, { token }).catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }),
 
   createSession: (token: string, center: LatLng) =>
     request(CreateSessionResponseSchema, '/api/sessions', { method: 'POST', token, body: { center } }).then(

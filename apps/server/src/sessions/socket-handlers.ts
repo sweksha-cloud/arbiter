@@ -47,8 +47,9 @@ export function registerSocketHandlers(
     const sockets = await io.in(roomName(sessionId)).fetchSockets();
     const room = await sessions.get(sessionId).catch(() => undefined);
     if (!room) return;
+    const onlineIds = new Set(sockets.map((s) => s.data.guest.id));
     for (const socket of sockets) {
-      socket.emit('session:state', sessions.view(room, socket.data.guest.id));
+      socket.emit('session:state', sessions.view(room, socket.data.guest.id, onlineIds));
     }
   }
 
@@ -78,6 +79,12 @@ export function registerSocketHandlers(
 
   io.on('connection', (socket) => {
     const { guest } = socket.data;
+
+    // Tell the others this person went offline (tab closed, connection lost).
+    socket.on('disconnect', () => {
+      const { sessionId } = socket.data;
+      if (sessionId) void broadcast(sessionId).catch((error: unknown) => log.error({ err: error }, 'Broadcast failed'));
+    });
 
     socket.on('session:join', (payload, ack) =>
       respond(ack, async () => {
