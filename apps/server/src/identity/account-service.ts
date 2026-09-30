@@ -1,10 +1,17 @@
 import type { AuthResponse, Guest, MeResponse } from '@arbiter/shared';
 
 import { AccountExistsError, EmailTakenError, type GuestStore } from './guest-store.js';
+import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import type { Mailer } from './mailer.js';
 import { dummyPasswordHash, hashPassword, needsRehash, verifyPassword, type ScryptParams } from './passwords.js';
 
-export type AuthErrorCode = 'invalid_credentials' | 'email_taken' | 'already_registered' | 'name_required' | 'invalid_reset';
+export type AuthErrorCode =
+  | 'invalid_credentials'
+  | 'email_taken'
+  | 'already_registered'
+  | 'name_required'
+  | 'invalid_reset'
+  | 'too_many_attempts';
 
 /** A refused account action. `status` is the HTTP status; the message is safe to show. */
 export class AuthError extends Error {
@@ -30,6 +37,11 @@ export interface AccountServiceOptions {
   now?: () => Date;
   /** Reports email failures, which happen after the request has been answered. */
   onMailError?: (error: unknown) => void;
+  /**
+   * Wrong passwords per email address (15-minute window). Counts unknown
+   * emails too, so a pause never reveals whether an account exists.
+   */
+  loginFailures?: SlidingWindowLimiter;
 }
 
 const WRONG_CREDENTIALS = 'Wrong email or password';
@@ -90,10 +102,15 @@ export class AccountService {
    * (its token is revoked); its preferences don't move to the account.
    */
   async login(current: { token: string } | undefined, { email, password }: { email: string; password: string }) {
+    this.checkNotPaused(email);
     const account = await this.guests.findAccountByEmail(email);
     // Check a password either way, so "no such email" takes as long as "wrong password".
     const valid = await verifyPassword(password, account?.passwordHash ?? (await dummyPasswordHash(this.options.passwordParams)));
-    if (!account || !valid) throw new AuthError('invalid_credentials', 401, WRONG_CREDENTIALS);
+    if (!account || !valid) {
+      this.options.loginFailures?.record(email);
+      throw new AuthError('invalid_credentials', 401, WRONG_CREDENTIALS);
+    }
+    this.options.loginFailures?.reset(email);
 
     if (needsRehash(account.passwordHash, this.options.passwordParams)) {
       await this.guests.setPasswordHash(account.userId, await hashPassword(password, this.options.passwordParams));
@@ -143,6 +160,8 @@ export class AccountService {
     }
     await this.guests.setPasswordHash(account.userId, await hashPassword(password, this.options.passwordParams));
     await this.guests.revokeAllTokens(account.userId);
+    // Proving you own the email ends any pause from wrong guesses.
+    this.options.loginFailures?.reset(account.email);
     const guest = (await this.guests.getGuest(account.userId))!;
     return { guest, email: account.email, token: await this.guests.issueToken(account.userId) };
   }
@@ -150,11 +169,25 @@ export class AccountService {
   /** Needs the current password. Keeps this device signed in; signs out the others. */
   async changePassword(guest: Guest, token: string, currentPassword: string, newPassword: string) {
     const account = await this.guests.getAccount(guest.id);
+    if (account) this.checkNotPaused(account.email);
     if (!account || !(await verifyPassword(currentPassword, account.passwordHash))) {
+      if (account) this.options.loginFailures?.record(account.email);
       throw new AuthError('invalid_credentials', 401, 'Your current password is wrong');
     }
     await this.guests.setPasswordHash(account.userId, await hashPassword(newPassword, this.options.passwordParams));
     await this.guests.revokeAllTokens(account.userId, token);
+  }
+
+  /** Refuses password checks for an email that had too many wrong guesses lately. */
+  private checkNotPaused(email: string) {
+    const wait = this.options.loginFailures?.retryAfterMs(email) ?? 0;
+    if (wait > 0) {
+      throw new AuthError(
+        'too_many_attempts',
+        429,
+        `Too many wrong passwords for this email. Try again in ${describeWait(wait)}, or reset your password.`
+      );
+    }
   }
 
   /**

@@ -17,6 +17,7 @@ import {
 import { SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import type { GuestStore } from '../identity/guest-store.js';
 import type { PlacesProvider } from '../places/places-provider.js';
+import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
 
 /** The slice of a pino/Fastify logger the session rules use. */
@@ -25,7 +26,7 @@ export interface SessionLog {
   error(details: object, message: string): void;
 }
 
-export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place';
+export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place' | 'quota';
 
 /** An action the caller isn't allowed to take. Its message is safe to show users. */
 export class SessionError extends Error {
@@ -48,6 +49,11 @@ export interface SessionServiceOptions {
    * counts and timings: never preferences (TRADEOFFS.md 3).
    */
   log?: SessionLog;
+  /**
+   * Google scans per network a day, keyed by the host's IP. Without it, one
+   * person starting sessions alone could use up everyone's daily quota.
+   */
+  scanBudget?: SlidingWindowLimiter;
   places: PlacesProvider;
   placesSource: SessionView['placesSource'];
   /** Search area when nobody in the group set a distance limit. */
@@ -83,7 +89,8 @@ export function everyoneSubmitted(room: RoomState): boolean {
 export class SessionService {
   constructor(private readonly options: SessionServiceOptions) {}
 
-  async create(host: Guest, center: LatLng): Promise<string> {
+  /** `hostIp` is the network scans are charged to (see scanBudget); it stays in memory only. */
+  async create(host: Guest, center: LatLng, hostIp?: string): Promise<string> {
     for (;;) {
       const sessionId = newSessionCode();
       try {
@@ -93,6 +100,7 @@ export class SessionService {
         await this.options.rooms.create({
           sessionId,
           hostId: host.id,
+          hostIp,
           status: 'lobby',
           center,
           members: [{ ...host, submitted: false }],
@@ -235,6 +243,17 @@ export class SessionService {
       if (current.status !== 'lobby') throw new SessionError('invalid_state', 'This session has already started');
       return { ...current, status: 'scanning' };
     });
+    // Charged only once this request has won the move to 'scanning', so a
+    // refused duplicate never uses up the budget.
+    const wait = this.options.scanBudget?.take(room.hostIp ?? 'unknown') ?? 0;
+    if (wait > 0) {
+      await this.update(sessionId, (current) => ({ ...current, status: 'lobby' }));
+      this.options.log?.info({ sessionId }, 'Scan refused: daily scan limit for this network');
+      throw new SessionError(
+        'quota',
+        `This network has used today's searches. Try again in ${describeWait(wait)}, or start from another network.`
+      );
+    }
     await onScanStarted?.();
     const startedAt = performance.now();
 
