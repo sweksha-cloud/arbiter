@@ -1,49 +1,49 @@
 :root {
-  --bg: #fce4d8;
+  --bg: #ffc1cf;
   --surface: #ffffff;
-  --surface-warm: #fbd87f;
-  --surface-cool: #b5f8fe;
-  --surface-lilac: #f75590;
-  --text: #241d27;
-  --muted: #685c62;
-  --border: #e7c8c3;
-  --accent: #f75590;
+  --surface-warm: #e8ffb7;
+  --surface-cool: #c4f5fc;
+  --surface-lilac: #e2a0ff;
+  --text: #292333;
+  --muted: #665c6c;
+  --border: #e1c9df;
+  --accent: #a64cc4;
   --accent-text: #ffffff;
-  --like: #10ffcb;
-  --dislike: #f75590;
-  --notice-bg: #fbd87f;
-  --notice-text: #5c4500;
+  --like: #2bbd91;
+  --dislike: #e66d8c;
+  --notice-bg: #e8ffb7;
+  --notice-text: #4a5b25;
   --radius: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #3b2030;
-    --surface: #4a2d3d;
-    --surface-warm: #6a5428;
-    --surface-cool: #205a64;
-    --surface-lilac: #a93668;
-    --text: #fff5ef;
-    --muted: #e7cbd0;
-    --border: #7e4d63;
-    --accent: #ff75a9;
-    --accent-text: #3b2030;
-    --like: #54f5cf;
-    --dislike: #ff75a9;
-    --notice-bg: #6a5428;
-    --notice-text: #fff0ad;
+    --bg: #342638;
+    --surface: #45364b;
+    --surface-warm: #52632d;
+    --surface-cool: #285967;
+    --surface-lilac: #754c8e;
+    --text: #fff3fa;
+    --muted: #e2cde1;
+    --border: #735a78;
+    --accent: #d990ef;
+    --accent-text: #342638;
+    --like: #79e0bd;
+    --dislike: #f39ab1;
+    --notice-bg: #52632d;
+    --notice-text: #edffbd;
   }
 
   .page > section.card {
-    border-color: #a17a3d;
+    border-color: #879e4e;
   }
 
   .page > form.card {
-    border-color: #3a8e9a;
+    border-color: #4d9eae;
   }
 
   .rejoin {
-    border-color: #e15d91;
+    border-color: #b477d2;
   }
 }
 
@@ -126,17 +126,17 @@ a {
 
 .page > section.card {
   background: var(--surface-warm);
-  border-color: #e7bd55;
+  border-color: #c4e57b;
 }
 
 .page > form.card {
   background: var(--surface-cool);
-  border-color: #70dce5;
+  border-color: #82dce9;
 }
 
 .rejoin {
   background: var(--surface-lilac);
-  border-color: #e0447b;
+  border-color: #c77be6;
 }
 
 .muted {
