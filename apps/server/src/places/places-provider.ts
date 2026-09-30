@@ -6,9 +6,9 @@ export interface NearbySearchRequest {
 }
 
 /**
- * Source of nearby places. The Google Places implementation will be added once
- * the scan settings are decided (.claude/docs/DESIGN.md section 4). One call to
- * `searchNearby` must cost at most one paid API request.
+ * Source of nearby places: Google (google-places-provider.ts) when an API key
+ * is configured, sample places otherwise. One call to `searchNearby` must cost
+ * at most one paid API request.
  */
 export interface PlacesProvider {
   searchNearby(request: NearbySearchRequest): Promise<PlaceCandidate[]>;

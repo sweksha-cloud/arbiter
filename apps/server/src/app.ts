@@ -1,3 +1,4 @@
+import type { SessionView } from '@arbiter/shared';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Server } from 'socket.io';
@@ -21,6 +22,8 @@ export interface AppOptions {
   history?: SessionHistory;
   rooms?: RoomStore;
   places?: PlacesProvider;
+  /** Tells clients whether places are real. Defaults to 'sample' (the demo provider). */
+  placesSource?: SessionView['placesSource'];
 }
 
 export interface App {
@@ -49,9 +52,8 @@ export async function buildApp({ webOrigin, logLevel, ...deps }: AppOptions): Pr
     guests,
     history: deps.history ?? new InMemorySessionHistory(),
     onHistoryError: (error, context) => http.log.error({ err: error, ...context }, 'Could not save session history'),
-    // Sample data until the Google Places client is written.
     places: deps.places ?? new DemoPlacesProvider(),
-    placesSource: 'sample',
+    placesSource: deps.placesSource ?? 'sample',
     radiusMeters: SCAN_RADIUS_METERS,
     missingDataPolicy: MISSING_DATA_POLICY
   });

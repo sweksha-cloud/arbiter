@@ -4,6 +4,7 @@ import { connectWithRetry, createDb, createPool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
+import { GooglePlacesProvider } from './places/google-places-provider.js';
 
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);
@@ -12,8 +13,15 @@ const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
   guests: new PostgresGuestStore(db),
-  history: new PostgresSessionHistory(db)
+  history: new PostgresSessionHistory(db),
+  ...(config.GOOGLE_PLACES_API_KEY
+    ? { places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }), placesSource: 'google' as const }
+    : {})
 });
+http.log.info(
+  { placesSource: config.GOOGLE_PLACES_API_KEY ? 'google' : 'sample' },
+  config.GOOGLE_PLACES_API_KEY ? 'Using Google Places' : 'No GOOGLE_PLACES_API_KEY: using sample places'
+);
 http.addHook('onClose', async () => {
   await pool.end();
 });
