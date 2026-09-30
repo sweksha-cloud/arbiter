@@ -7,7 +7,8 @@
   --text: #241d27;
   --muted: #685c62;
   --border: #e7c8c3;
-  --accent: #f75590;
+  /* Deep enough for white text on it and for pink text on the peach background (WCAG AA, 4.5:1). */
+  --accent: #cd0a51;
   --accent-text: #ffffff;
   --like: #10cfa5;
   --dislike: #f75590;

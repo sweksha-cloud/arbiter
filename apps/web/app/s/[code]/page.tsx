@@ -198,7 +198,15 @@ function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
         </strong>
         <span className="muted small">{alone ? 'Waiting for friends to join' : 'Results appear when everyone submits'}</span>
       </div>
-      <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={submitted}>
+      <div
+        className="progress"
+        role="progressbar"
+        aria-label="Preferences submitted"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={submitted}
+        aria-valuetext={`${submitted} of ${total} submitted`}
+      >
         <div className="progress-fill" style={{ width: `${total === 0 ? 0 : (submitted / total) * 100}%` }} />
       </div>
       <ul className="members">
