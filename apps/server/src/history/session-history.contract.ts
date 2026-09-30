@@ -123,5 +123,22 @@ export function describeSessionHistory(name: string, makeContext: () => HistoryT
       await history.end(code);
       expect((await history.get(code))!.endedAt).toEqual(first.endedAt);
     });
+
+    it("lists a member's sessions, newest first, and nobody else's", async () => {
+      const ctx = makeContext();
+      const me = await ctx.newGuest('Me');
+      const other = await ctx.newGuest('Other');
+      const [first, second, notMine] = [newCode(), newCode(), newCode()];
+      await ctx.history.create(first, me, 'google');
+      await new Promise((r) => setTimeout(r, 5));
+      await ctx.history.create(second, other, 'google');
+      await ctx.history.addMember(second, me);
+      await ctx.history.create(notMine, other, 'google');
+
+      const mine = await ctx.history.listForMember(me.id, 10);
+      expect(mine.map((r) => r.sessionId)).toEqual([second, first]);
+      expect(mine[0]!.members).toEqual([other, me]);
+      expect(await ctx.history.listForMember(me.id, 1)).toHaveLength(1);
+    });
   });
 }

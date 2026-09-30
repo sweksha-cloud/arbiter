@@ -1,9 +1,15 @@
 'use client';
 
-import { CreateGuestResponseSchema, type CreateGuestResponse } from '@arbiter/shared';
+import { CreateGuestResponseSchema } from '@arbiter/shared';
 import { useMemo, useSyncExternalStore } from 'react';
+import { z } from 'zod';
 
-export type Identity = CreateGuestResponse;
+/**
+ * Who is signed in on this device. `email` is null for a guest, and missing
+ * for identities saved before accounts existed (AccountSync fills it in).
+ */
+const IdentitySchema = CreateGuestResponseSchema.extend({ email: z.string().nullable().optional() });
+export type Identity = z.infer<typeof IdentitySchema>;
 
 const KEY = 'arbiter.identity';
 const listeners = new Set<() => void>();
@@ -31,17 +37,26 @@ export function clearIdentity() {
   notify();
 }
 
+/** The identity saved right now, read directly (outside React rendering). */
+export function loadIdentity(): Identity | null {
+  return parse(localStorage.getItem(KEY));
+}
+
 function parse(raw: string | null): Identity | null {
   if (!raw) return null;
   try {
-    return CreateGuestResponseSchema.parse(JSON.parse(raw));
+    return IdentitySchema.parse(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
+/** True if this device is signed in to an account (not just a guest). */
+export const hasAccount = (identity: Identity | null | undefined): identity is Identity & { email: string } =>
+  typeof identity?.email === 'string';
+
 /**
- * The guest identity saved on this device.
+ * The identity saved on this device.
  * `undefined` while rendering on the server (not known yet), `null` if there is none.
  */
 export function useIdentity(): Identity | null | undefined {

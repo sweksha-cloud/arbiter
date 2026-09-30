@@ -50,3 +50,33 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await expect(host.getByText(/can.t find session/i)).toBeVisible();
   await expectNoViolations(host, 'session not found');
 });
+
+test('the account pages pass automated WCAG 2.1 AA checks', async ({ newPhone }) => {
+  const phone = await newPhone();
+  for (const [url, heading] of [
+    ['/login', 'Log in'],
+    ['/signup', 'Make an account'],
+    ['/forgot-password', 'Reset your password'],
+    ['/reset-password#token=example', 'Choose a new password'],
+    ['/history', 'Past sessions']
+  ] as const) {
+    await phone.goto(url);
+    await expect(phone.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
+    await expectNoViolations(phone, url);
+  }
+
+  await phone.goto('/signup');
+  await phone.getByLabel('What should your friends call you?').fill('Sam');
+  await phone.getByLabel('Email').fill(`a11y-${Date.now()}@example.com`);
+  await phone.getByLabel('Password').fill('correct horse battery');
+  await phone.getByRole('button', { name: 'Make my account' }).click();
+  await expect(phone.getByText('Hi Sam.')).toBeVisible();
+  for (const [url, heading] of [
+    ['/account', 'Your account'],
+    ['/history', 'Past sessions']
+  ] as const) {
+    await phone.goto(url);
+    await expect(phone.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
+    await expectNoViolations(phone, `${url} (logged in)`);
+  }
+});

@@ -1,4 +1,5 @@
 export * from './api.js';
+export * from './auth.js';
 export * from './elimination.js';
 export * from './geo.js';
 export * from './maps.js';

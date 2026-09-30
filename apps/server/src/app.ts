@@ -1,12 +1,15 @@
 import type { SessionView } from '@arbiter/shared';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { Server } from 'socket.io';
 
 import type { Config } from './config.js';
 import { InMemorySessionHistory, type SessionHistory } from './history/session-history.js';
+import { AccountService } from './identity/account-service.js';
 import { InMemoryGuestStore, type GuestStore } from './identity/guest-store.js';
+import { LogMailer, type Mailer } from './identity/mailer.js';
+import type { ScryptParams } from './identity/passwords.js';
 import { DemoPlacesProvider } from './places/demo-places-provider.js';
 import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
@@ -29,6 +32,10 @@ export interface AppOptions {
   rateLimits?: RateLimits;
   /** See Config.TRUST_PROXY. */
   trustProxy?: boolean;
+  /** Builds the mailer from the app's logger. Defaults to printing emails to the log (development). */
+  mailer?: (log: FastifyBaseLogger) => Mailer;
+  /** For tests: faster password hashing. */
+  passwordParams?: ScryptParams;
 }
 
 export interface App {
@@ -70,10 +77,18 @@ export async function buildApp({
   });
 
   const guests = deps.guests ?? new InMemoryGuestStore();
+  const history = deps.history ?? new InMemorySessionHistory();
+  const accounts = new AccountService({
+    guests,
+    mailer: deps.mailer?.(http.log) ?? new LogMailer(http.log),
+    webOrigin,
+    passwordParams: deps.passwordParams,
+    onMailError: (error) => http.log.error({ err: error }, 'Could not send email')
+  });
   const sessions = new SessionService({
     rooms: deps.rooms ?? new InMemoryRoomStore(),
     guests,
-    history: deps.history ?? new InMemorySessionHistory(),
+    history,
     log: http.log,
     places: deps.places ?? new DemoPlacesProvider(),
     placesSource: deps.placesSource ?? 'sample',
@@ -85,7 +100,7 @@ export async function buildApp({
   // from ever suspending (see .claude/docs/TECH_DECISIONS.md).
   http.get('/health', async () => ({ status: 'ok' }));
 
-  registerRoutes(http, { guests, sessions, rateLimits });
+  registerRoutes(http, { guests, sessions, accounts, history, rateLimits });
   registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits });
 
   return { http, io };

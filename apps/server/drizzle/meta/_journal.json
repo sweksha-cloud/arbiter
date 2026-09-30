@@ -15,6 +15,20 @@
       "when": 1790778094762,
       "tag": "0001_session_history",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790780338153,
+      "tag": "0002_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790780338548,
+      "tag": "0003_move_tokens_to_auth_tokens",
+      "breakpoints": true
     }
   ]
 }

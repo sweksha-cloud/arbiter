@@ -1,7 +1,8 @@
 import type { Guest, Reaction } from '@arbiter/shared';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
 import type { Db } from '../db/client.js';
+import { isUniqueViolation } from '../db/errors.js';
 import { reactions, sessionMembers, sessionPlaces, sessions, users } from '../db/schema.js';
 import {
   mapsUrlFor,
@@ -10,14 +11,6 @@ import {
   type SessionHistory,
   type SessionRecord
 } from './session-history.js';
-
-const UNIQUE_VIOLATION = '23505';
-
-/** Drizzle wraps driver errors; the Postgres error code is on the error or its cause. */
-function isUniqueViolation(error: unknown): boolean {
-  const codeOf = (e: unknown) => (e && typeof e === 'object' && 'code' in e ? e.code : undefined);
-  return codeOf(error) === UNIQUE_VIOLATION || (error instanceof Error && codeOf(error.cause) === UNIQUE_VIOLATION);
-}
 
 export class PostgresSessionHistory implements SessionHistory {
   constructor(private readonly db: Db) {}
@@ -70,6 +63,19 @@ export class PostgresSessionHistory implements SessionHistory {
       .update(sessions)
       .set({ status: 'ended', endedAt: sql`now()` })
       .where(and(eq(sessions.id, sessionId), eq(sessions.status, 'open')));
+  }
+
+  async listForMember(userId: string, limit: number): Promise<SessionRecord[]> {
+    const rows = await this.db
+      .select({ id: sessions.id })
+      .from(sessionMembers)
+      .innerJoin(sessions, eq(sessions.id, sessionMembers.sessionId))
+      .where(eq(sessionMembers.userId, userId))
+      .orderBy(desc(sessions.createdAt))
+      .limit(limit);
+    // One query per session: fine for a page of 20; a single join would be the next step.
+    const records = await Promise.all(rows.map((r) => this.get(r.id)));
+    return records.filter((r): r is SessionRecord => r !== undefined);
   }
 
   async get(sessionId: string): Promise<SessionRecord | undefined> {

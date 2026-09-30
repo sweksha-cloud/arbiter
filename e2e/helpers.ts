@@ -1,6 +1,9 @@
 import { test as base, devices, expect, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 
-import { WEB_URL } from './api-server';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { OUTBOX_DIR, WEB_URL } from './api-server';
 
 export { expect };
 
@@ -59,4 +62,18 @@ export async function hostSession(page: Page, name: string): Promise<{ invite: s
 export async function joinSession(page: Page, invite: string, name: string): Promise<void> {
   await page.goto(invite);
   await enterName(page, name);
+}
+
+/** The newest email the server "sent" to this address (written to OUTBOX_DIR). */
+export async function lastEmailTo(address: string): Promise<{ to: string; subject: string; text: string }> {
+  let found: { to: string; subject: string; text: string } | undefined;
+  await expect
+    .poll(async () => {
+      const files = (await readdir(OUTBOX_DIR).catch(() => [])).filter((f) => f.includes(address)).sort();
+      const newest = files.at(-1);
+      found = newest ? JSON.parse(await readFile(path.join(OUTBOX_DIR, newest), 'utf8')) : undefined;
+      return found;
+    })
+    .toBeTruthy();
+  return found!;
 }

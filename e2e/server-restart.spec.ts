@@ -11,9 +11,11 @@ test('a server restart shows the lost-connection banner, then reconnects (BUG-00
   const lost = host.getByText('Lost connection to Arbiter. Reconnecting…');
   await expect(lost).toBeVisible();
 
-  // Guests and sessions are still kept in memory, so the restarted server
-  // doesn't know this phone's session. Checking that is future work once
-  // storage moves to Postgres; here the phone only has to reconnect.
+  // Guests are in Postgres, so the phone is still recognised after the
+  // restart; live sessions are in memory, so this one is gone and the page
+  // says so instead of spinning.
   await startApiServer();
   await expect(lost).toBeHidden({ timeout: 30_000 });
+  await expect(host.getByRole('heading', { name: /We can.t find session/ })).toBeVisible();
+  await expect(host.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
 });
