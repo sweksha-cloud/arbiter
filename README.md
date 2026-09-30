@@ -9,6 +9,7 @@ Project docs live in `.claude/` for now:
 - Bug log: [`.claude/BUGS.md`](.claude/BUGS.md)
 - Design tradeoffs: [`.claude/TRADEOFFS.md`](.claude/TRADEOFFS.md)
 - Tech stack review: [`.claude/TECH_STACK_REVIEW.md`](.claude/TECH_STACK_REVIEW.md)
+- Project assessment and roadmap: [`.claude/PROJECT_ASSESSMENT.md`](.claude/PROJECT_ASSESSMENT.md)
 
 ## Status
 
