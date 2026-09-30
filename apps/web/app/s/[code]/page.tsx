@@ -15,13 +15,17 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 import { normalizeSessionCode } from '../../../components/JoinCodeForm';
+import { ConnectionBanner } from '../../../components/ConnectionBanner';
 import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
+import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
 import { clearIdentity, useIdentity, type Identity } from '../../../lib/identity';
+import { useDelayedFlag } from '../../../lib/use-delayed-flag';
 import { usePreferences } from '../../../lib/use-preferences';
+import { useStartSession } from '../../../lib/use-start-session';
 
 type ArbiterSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -55,19 +59,29 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
     socket.on('connect', () => {
       setConnected(true);
       socket.emit('session:join', { sessionId: code }, (ack) => {
-        if (ack.ok) setNotFound(false);
-        else if (ack.code === 'not_found') setNotFound(true);
-        else setError(ack.error);
+        if (ack.ok) {
+          setNotFound(false);
+          rememberActiveSession(code);
+        } else if (ack.code === 'not_found') {
+          setNotFound(true);
+          forgetActiveSession(code);
+        } else setError(ack.error);
       });
     });
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('disconnect', (reason) => {
+      setConnected(false);
+      // Socket.IO only retries on its own after network drops. When the server
+      // closes the connection itself (a restart or deploy), reconnect manually.
+      if (reason === 'io server disconnect') socket.connect();
+    });
+    // Other connection failures show the connection banner and retry on their own.
     socket.on('connect_error', (err) => {
       if (err.message === 'unauthorized') clearIdentity();
-      else setError("Can't reach the Arbiter server. Retrying…");
     });
     socket.on('session:state', (next) => {
       setView((current) => newerView(current, next));
       setError(undefined);
+      if (next.status === 'ended') forgetActiveSession(next.sessionId);
     });
 
     return () => {
@@ -92,7 +106,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   if (notFound) return <SessionNotFound code={code} token={identity.token} />;
 
   if (!view) {
-    return error ? <p className="error">{error}</p> : <p className="muted">Joining session {code}…</p>;
+    return (
+      <>
+        <ConnectionBanner connected={connected} />
+        {error ? <p className="error">{error}</p> : <p className="muted">Joining session {code}…</p>}
+      </>
+    );
   }
 
   const isHost = view.hostId === identity.guest.id;
@@ -100,10 +119,11 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
 
   return (
     <>
+      <ConnectionBanner connected={connected} />
+      <HostLeftNotice view={view} isHost={isHost} />
       <header className="stack tight">
         <p className="muted small">Session</p>
         <h1 className="code">{view.sessionId}</h1>
-        {!connected && <p className="warning small">Reconnecting…</p>}
       </header>
 
       {error && <p className="error">{error}</p>}
@@ -128,7 +148,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for someone in the group
           </p>
 
-          {view.status === 'ended' && <p className="notice">This session has ended.</p>}
+          {view.status === 'ended' && <SessionEnded token={identity.token} />}
 
           {view.suggestions.length === 0 ? (
             <div className="card stack">
@@ -183,7 +203,7 @@ function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
       </div>
       <ul className="members">
         {view.members.map((m) => (
-          <li key={m.id}>
+          <li key={m.id} className={m.online ? undefined : 'offline'} title={m.online ? undefined : 'Not here right now'}>
             {m.displayName}
             {m.id === myId && ' (you)'}
             {m.id === view.hostId && <span className="badge">host</span>}
@@ -297,13 +317,40 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => v
   );
 }
 
+/** Gently tells everyone else when the host has closed the session and hasn't come back. */
+function HostLeftNotice({ view, isHost }: { view: SessionView; isHost: boolean }) {
+  const host = view.members.find((m) => m.id === view.hostId);
+  const hostGone = !isHost && view.status !== 'ended' && host !== undefined && !host.online;
+  // A few seconds' grace so a quick reload doesn't look like leaving.
+  const show = useDelayedFlag(hostGone, 5000);
+  if (!show || !host) return null;
+  return (
+    <p className="notice small" role="status">
+      {host.displayName} (the host) has left the session for now. You can keep going; they can rejoin anytime.
+    </p>
+  );
+}
+
+function SessionEnded({ token }: { token: string }) {
+  const { start, busy, error } = useStartSession(token);
+  return (
+    <section className="notice stack">
+      <p>This session has ended. The results stay here for you to look at.</p>
+      <button className="button primary" onClick={start} disabled={busy}>
+        {busy ? 'Starting…' : 'Start a new session'}
+      </button>
+      {error && <p className="error">{error}</p>}
+    </section>
+  );
+}
+
 function Members({ view, myId }: { view: SessionView; myId: string }) {
   return (
     <section className="stack tight">
       <h2 className="small muted">Who&apos;s here</h2>
       <ul className="members">
         {view.members.map((m) => (
-          <li key={m.id}>
+          <li key={m.id} className={m.online ? undefined : 'offline'} title={m.online ? undefined : 'Not here right now'}>
             {m.displayName}
             {m.id === myId && ' (you)'}
             {m.id === view.hostId && <span className="badge">host</span>}

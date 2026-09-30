@@ -34,8 +34,11 @@ export async function buildApp({ webOrigin, logLevel, ...deps }: AppOptions): Pr
   await http.register(cors, { origin: webOrigin, methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'] });
 
   const io: ArbiterServer = new Server(http.server, { cors: { origin: webOrigin } });
-  http.addHook('onClose', async () => {
-    await io.close();
+  // Live sockets never go idle, so the HTTP server would wait on them forever
+  // and shutdown (every deploy) would hang. Drop them first; clients reconnect
+  // to the new server on their own.
+  http.addHook('preClose', async () => {
+    io.disconnectSockets(true);
   });
 
   const guests = deps.guests ?? new InMemoryGuestStore();

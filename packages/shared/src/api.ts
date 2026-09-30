@@ -20,9 +20,10 @@ export type Guest = z.infer<typeof GuestSchema>;
 
 /**
  * A person in a session. `submitted` says they have submitted preferences for
- * this session; what they chose is never shared.
+ * this session (what they chose is never shared); `online` says they have the
+ * session open right now.
  */
-export const SessionMemberSchema = GuestSchema.extend({ submitted: z.boolean() });
+export const SessionMemberSchema = GuestSchema.extend({ submitted: z.boolean(), online: z.boolean() });
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
 
 export const CreateGuestRequestSchema = z.object({ displayName: DisplayNameSchema });
@@ -33,6 +34,14 @@ export const GetPreferencesResponseSchema = z.object({ preferences: PreferencesS
 
 export const CreateSessionRequestSchema = z.object({ center: LatLngSchema });
 export const CreateSessionResponseSchema = z.object({ sessionId: z.string() });
+
+/** A member's quick check on a session, e.g. to offer "Rejoin" on the home page. */
+export const SessionSummarySchema = z.object({
+  sessionId: z.string(),
+  status: z.enum(['lobby', 'scanning', 'voting', 'ended']),
+  isHost: z.boolean()
+});
+export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 
 export const ErrorResponseSchema = z.object({ error: z.string() });
 

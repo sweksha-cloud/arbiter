@@ -169,8 +169,11 @@ export class SessionService {
     });
   }
 
-  /** What one person sees: totals and their own reactions, never anyone's preferences. */
-  view(room: RoomState, viewerId: string): SessionView {
+  /**
+   * What one person sees: totals and their own reactions, never anyone's
+   * preferences. `onlineIds` are the members with the session open right now.
+   */
+  view(room: RoomState, viewerId: string, onlineIds: ReadonlySet<string> = new Set()): SessionView {
     const tally = tallyReactions(
       room.reactions,
       room.suggestions.map((p) => p.id)
@@ -181,7 +184,7 @@ export class SessionService {
       version: room.version,
       status: room.status,
       hostId: room.hostId,
-      members: room.members,
+      members: room.members.map((m) => ({ ...m, online: onlineIds.has(m.id) })),
       suggestions: room.suggestions.map((place) => ({
         place,
         likes: tally[place.id]?.likes ?? 0,
@@ -230,6 +233,15 @@ export class SessionService {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
     }
+  }
+
+  /** For members only: anyone else gets not_found, so codes can't be probed. */
+  async summary(sessionId: string, guest: Guest) {
+    const room = await this.options.rooms.get(sessionId);
+    if (!room || !room.members.some((m) => m.id === guest.id)) {
+      throw new SessionError('not_found', 'Session not found');
+    }
+    return { sessionId: room.sessionId, status: room.status, isHost: room.hostId === guest.id };
   }
 
   private requireHost(room: RoomState, guest: Guest) {
