@@ -1,7 +1,7 @@
 # To do: Fairness over time
 
 **Status:** idea, not started.
-**Blocked on:** Postgres storage and login with session history. Fairness needs to remember past sessions per person, and today everything lives in memory.
+**Blocked on:** session history in Postgres, and login. Fairness needs to remember past sessions per person; guests and preferences are in Postgres now, but sessions are still in memory.
 
 ## The idea
 

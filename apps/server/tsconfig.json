@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "*.config.ts", "vitest.shared-alias.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts", "vitest.shared-alias.ts"]
 }

@@ -154,6 +154,27 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 - **The subtle part:** Neon suspends when idle to save free compute hours. If `/health` queried the database, the deploy system's health checks would keep it awake forever. So `/health` only reports that the process is up.
 - **Cold start:** the first query after a suspend can take about a second, so the connection has a 10 s timeout and one retry.
 
+### 15b. Migrations run when the server starts (Proposed)
+- **Decision:** `runMigrations()` applies any pending Drizzle migrations right after the server connects to Postgres, before it starts listening. Migration files are generated from `schema.ts` and committed.
+- **Option A (chosen): run on startup**
+  - Pros: nothing to forget; a deploy can't ship code that expects a table the database doesn't have; local dev, CI, E2E and production all take the same path.
+  - Cons: with several servers starting at once, two could try to migrate at the same moment; a slow migration delays startup (and could fail the deploy's health check); a bad migration stops the server from starting at all.
+- **Option B: a separate deploy step** (e.g. a one-off task before new containers start)
+  - Pros: runs exactly once per deploy; a failed migration stops the deploy before any traffic moves; startup stays fast.
+  - Cons: one more step in the pipeline to build and keep working; easy to forget locally.
+- **Why A for now:** there's one server (spec), and the pipeline (Phase 4) doesn't exist yet. Revisit when Phase 7 adds a second container: move migrations into the CodeDeploy pipeline, or take a Postgres advisory lock around them.
+- **Interview angle:** "What happens if a migration fails halfway?" Each migration runs in a transaction, so Postgres rolls it back and the server refuses to start. Once the Phase 4 pipeline exists, the failed health check rolls the deploy back and the old version keeps serving.
+
+### 15c. One contract test suite for every store implementation (Proposed)
+- **Decision:** `guest-store.contract.ts` describes how any `GuestStore` must behave. The in-memory store runs it as a unit test; the Postgres store runs it against real Postgres, plus Postgres-only checks (survives a restart, token stored only as a hash, database refuses unversioned preferences).
+- **Option A (chosen): shared contract tests**
+  - Pros: proves the two stores are interchangeable, so unit tests that use the fast in-memory store stay trustworthy; a new store (Redis, say) gets the whole suite for free.
+  - Cons: a little indirection (a function that defines tests); implementation-specific behavior still needs its own tests.
+- **Option B: separate tests per store**
+  - Pros: each file is plain and self-contained.
+  - Cons: the two drift apart; the in-memory store could quietly behave differently from production, and tests built on it would pass for the wrong reasons.
+- **Interview angle:** this is the Liskov substitution principle, tested.
+
 ### 16. Cache only what Google's terms allow (Spec)
 - Place IDs may be kept forever and coordinates for 30 days. Names, prices, hours and ratings are kept only for the session, in memory.
 - **Why it shapes the schema:** the proposed database stores only place IDs and reactions. Everything else lives in room state and disappears when the session ends.
@@ -208,7 +229,7 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 
 ## Things interviewers might poke at (weak spots, and honest answers)
 
-- **"Everything is in memory: restart the server and all sessions vanish."** True for now, on purpose: the data model waits on product decisions. The interfaces (`GuestStore`, `RoomStore`) exist so Postgres and Redis replace them without touching the rules.
+- **"Restart the server and all sessions vanish."** Half true now. Guests and their preferences are in Postgres and survive restarts. Live sessions are still in memory; saving session history (members, suggested place IDs, reactions) to Postgres is the next step, and Redis room state (Phase 7) makes live sessions survive too. The `GuestStore` and `RoomStore` interfaces are why this can happen without touching the session rules.
 - **"What if the host leaves?"** Not handled yet. Only the host can start or end a session. Options: pass the host role to the next person, or let anyone end the session.
 - **"A person who joins after results appear isn't counted in elimination."** True: preferences lock when results appear. Someone who joins *before* that holds up auto-results until they submit too, so they are counted.
 - **"How do you stop someone spamming session creation?"** No rate limiting yet. Worth adding before going public (for example, `@fastify/rate-limit` by IP).

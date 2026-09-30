@@ -110,9 +110,9 @@ Main flow (**Decided** by the owner: start a session first, everyone submits pre
 
 ## 8. Data model
 
-**Proposed, not migrated yet.** No tables are created until the tradeoffs below are answered.
+**Decided.** `users` and `preferences` are migrated and in use (`apps/server/src/db/schema.ts`, migrations in `apps/server/drizzle/`, applied on server start). The session tables are next.
 
-- `users`: id, display name, is_guest, created_at. A guest is a real row with a server-issued token, so logging in later just attaches a login to the same row.
+- `users`: id, display name, token hash, is_guest, created_at. A guest is a real row with a server-issued token (only its SHA-256 hash is stored), so logging in later just attaches a login to the same row.
 - `preferences`: one row per user: user id, `data` (`jsonb`, the whole preferences object including its `version`), updated_at.
 - `sessions`: id, invite code, host user, status (open/ended), created_at, ended_at. No scan center: the search location stays in memory only (tradeoff (d)).
 - `session_members`: session, user, joined_at.
