@@ -35,7 +35,9 @@ export const authTokens = pgTable('auth_tokens', {
   userId: uuid()
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  /** A token unused for TOKEN_IDLE_TTL stops working. Updated at most daily. */
+  lastUsedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
 });
 
 /** Single-use, short-lived password reset links. Only hashes are stored. */

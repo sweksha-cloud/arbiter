@@ -47,6 +47,21 @@ export interface GuestStore {
    * expired or already used. Two simultaneous uses: exactly one succeeds.
    */
   consumePasswordReset(token: string, now: Date): Promise<string | undefined>;
+
+  /** Deletes expired sign-in tokens and finished or expired reset links. Returns how many of each. */
+  purgeExpired(): Promise<{ tokens: number; resets: number }>;
+}
+
+/** A sign-in unused for this long stops working (SECURITY.md). Each use pushes it back. */
+export const TOKEN_IDLE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+/** How stale `last used` may get before a use rewrites it: one write a day per device, not per request. */
+export const TOKEN_TOUCH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Used or expired reset links are kept this long (for investigating abuse), then deleted. */
+export const RESET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface GuestStoreOptions {
+  /** For tests. */
+  now?: () => Date;
 }
 
 export class EmailTakenError extends Error {
@@ -78,10 +93,15 @@ interface StoredUser extends Guest {
 /** For unit tests and local runs without a database: everything is lost on restart. */
 export class InMemoryGuestStore implements GuestStore {
   private readonly users = new Map<string, StoredUser>();
-  /** token hash -> user id */
-  private readonly tokens = new Map<string, string>();
-  private readonly resets = new Map<string, { userId: string; expiresAt: Date; used: boolean }>();
+  /** token hash -> owner and last use */
+  private readonly tokens = new Map<string, { userId: string; lastUsedAt: Date }>();
+  private readonly resets = new Map<string, { userId: string; expiresAt: Date; usedAt?: Date }>();
   private readonly preferences = new Map<string, Preferences>();
+  private readonly now: () => Date;
+
+  constructor({ now = () => new Date() }: GuestStoreOptions = {}) {
+    this.now = now;
+  }
 
   async create(displayName: string) {
     const guest: Guest = { id: randomUUID(), displayName };
@@ -95,8 +115,11 @@ export class InMemoryGuestStore implements GuestStore {
   }
 
   async findByToken(token: string) {
-    const userId = this.tokens.get(hashToken(token));
-    return userId === undefined ? undefined : this.getGuest(userId);
+    const entry = this.tokens.get(hashToken(token));
+    const now = this.now();
+    if (!entry || now.getTime() - entry.lastUsedAt.getTime() >= TOKEN_IDLE_TTL_MS) return undefined;
+    if (now.getTime() - entry.lastUsedAt.getTime() >= TOKEN_TOUCH_INTERVAL_MS) entry.lastUsedAt = now;
+    return this.getGuest(entry.userId);
   }
 
   async getPreferences(guestId: string) {
@@ -134,7 +157,7 @@ export class InMemoryGuestStore implements GuestStore {
 
   async issueToken(userId: string) {
     const token = newToken();
-    this.tokens.set(hashToken(token), userId);
+    this.tokens.set(hashToken(token), { userId, lastUsedAt: this.now() });
     return token;
   }
 
@@ -144,21 +167,41 @@ export class InMemoryGuestStore implements GuestStore {
 
   async revokeAllTokens(userId: string, except?: string) {
     const keep = except === undefined ? undefined : hashToken(except);
-    for (const [hash, owner] of this.tokens) {
-      if (owner === userId && hash !== keep) this.tokens.delete(hash);
+    for (const [hash, entry] of this.tokens) {
+      if (entry.userId === userId && hash !== keep) this.tokens.delete(hash);
     }
   }
 
   async createPasswordReset(userId: string, expiresAt: Date) {
     const token = newToken();
-    this.resets.set(hashToken(token), { userId, expiresAt, used: false });
+    this.resets.set(hashToken(token), { userId, expiresAt });
     return token;
   }
 
   async consumePasswordReset(token: string, now: Date) {
     const reset = this.resets.get(hashToken(token));
-    if (!reset || reset.used || reset.expiresAt <= now) return undefined;
-    reset.used = true;
+    if (!reset || reset.usedAt || reset.expiresAt <= now) return undefined;
+    reset.usedAt = now;
     return reset.userId;
+  }
+
+  async purgeExpired() {
+    const now = this.now().getTime();
+    let tokens = 0;
+    let resets = 0;
+    for (const [hash, entry] of this.tokens) {
+      if (now - entry.lastUsedAt.getTime() >= TOKEN_IDLE_TTL_MS) {
+        this.tokens.delete(hash);
+        tokens++;
+      }
+    }
+    for (const [hash, reset] of this.resets) {
+      const finishedAt = reset.usedAt ?? reset.expiresAt;
+      if (now - finishedAt.getTime() >= RESET_RETENTION_MS) {
+        this.resets.delete(hash);
+        resets++;
+      }
+    }
+    return { tokens, resets };
   }
 }
