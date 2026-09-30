@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import { SiteHeader } from '../components/SiteHeader';
@@ -18,7 +19,9 @@ export const viewport: Viewport = {
   ]
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Render per request, so each page gets its own CSP nonce (proxy.ts).
+  await connection();
   return (
     <html lang="en">
       <body>
