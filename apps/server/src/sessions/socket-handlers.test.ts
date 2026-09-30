@@ -5,6 +5,7 @@ import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApp, type App } from '../app.js';
+import { DEFAULT_RATE_LIMITS } from '../rate-limits.js';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -89,6 +90,20 @@ describe('session over Socket.IO', () => {
 
     expect(await Promise.race([closed, timeout])).toBe('closed');
     expect(await disconnected).toBeTruthy();
+  });
+
+  it('answers events over the per-connection limit with rate_limited instead of hanging', async () => {
+    await app.http.close();
+    app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, socketEventsPer10Seconds: 2 } });
+    await app.http.listen({ host: '127.0.0.1', port: 0 });
+    url = `http://127.0.0.1:${(app.http.server.address() as AddressInfo).port}`;
+
+    const guest = await createGuest('Spammer');
+    const client = connectClient(guest.token);
+    const acks = [];
+    for (let i = 0; i < 3; i++) acks.push(await join(client, 'NOPE22'));
+
+    expect(acks.map((a) => (a.ok ? 'ok' : a.code))).toEqual(['not_found', 'not_found', 'rate_limited']);
   });
 
   it('rejects connections without a valid token', async () => {

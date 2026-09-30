@@ -5,6 +5,7 @@ import { runMigrations } from './db/migrate.js';
 import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
+import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
 
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);
@@ -12,6 +13,8 @@ const db = createDb(pool);
 const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
+  trustProxy: config.TRUST_PROXY,
+  rateLimits: config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS,
   guests: new PostgresGuestStore(db),
   history: new PostgresSessionHistory(db),
   ...(config.GOOGLE_PLACES_API_KEY

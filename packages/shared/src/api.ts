@@ -91,7 +91,15 @@ export const SubmitPreferencesPayloadSchema = z.object({ preferences: Preference
 export const ReactPayloadSchema = z.object({ placeId: z.string().min(1), reaction: ReactionSchema.nullable() });
 
 /** Why an action failed, for clients that react differently (e.g. show a "session not found" screen). */
-export type AckErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place' | 'invalid_request' | 'quota' | 'internal';
+export type AckErrorCode =
+  | 'not_found'
+  | 'forbidden'
+  | 'invalid_state'
+  | 'invalid_place'
+  | 'invalid_request'
+  | 'quota'
+  | 'rate_limited'
+  | 'internal';
 
 export type Ack = { ok: true } | { ok: false; error: string; code: AckErrorCode };
 
