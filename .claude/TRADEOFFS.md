@@ -35,12 +35,30 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 - **Cost:** guest identity lives on one device. Clear the browser and your saved preferences are gone until login exists.
 
 ### 4b. Logged-in users can revisit past sessions: results and who was there (You)
-- **Choice:** history is a reason to log in. Guests get the live session only; logged-in people can reopen any past session and see its results and members.
+- **Choice:** history is a reason to log in. Guests get the live session only; logged-in people can reopen any past session and see who was there, how everyone reacted, and a Google Maps link for every place that was suggested.
 - **Alternatives:** no history (simplest); history for guests too, tied to the device.
 - **Why:** gives "log in to save" a concrete benefit, and it's what a friend group actually wants ("where did we go last time, and who came?").
-- **The hard part, and a good interview answer:** Google's terms only allow storing place IDs indefinitely. Names, prices and ratings must be dropped after the session. So history stores *our* data (members, which place IDs were suggested, reaction totals), and place names are fetched fresh from Google when someone opens history. That costs API calls, so it goes through the same hard daily quota.
+- **The hard part, and a good interview answer:** Google's terms only allow storing place IDs indefinitely. Names, prices and ratings must be dropped after the session. So history stores *our* data (members, which place IDs were suggested, reaction totals) and shows each place as a Google Maps link built from its stored ID. Tapping the link opens the place in Google Maps, which shows its name and details there.
+- **Alternatives for showing past places:** look the names up from Google again whenever someone opens history (nicer to read, but every view costs API calls against the free allowance); a second API that allows storage (see 4d, ruled out).
+- **Why links instead of a fresh lookup (You):** history is free to open, can never use up the Google quota, and there's no extra API code to maintain.
+- **Cost:** a past session doesn't show place names in the app, only its reactions and a link per place. You have to tap through to Google Maps to see what the place was.
 - **What it changes:** reactions and members must be in Postgres (the data model tradeoff decided itself), and an old link opened by a logged-in member shows results instead of "session not found".
-- **Follow-up:** *"Why not just cache the names?"* It's against Google's Places API policy, and violating it risks losing API access. Designing around a provider's data terms is part of the job.
+- **Follow-ups:**
+  - *"Why not just cache the names?"* It's against Google's Places API policy, and violating it risks losing API access. Designing around a provider's data terms is part of the job.
+  - *"Isn't a list of links bad UX?"* It's the tradeoff for zero cost and no terms risk. If people wanted names, a cached lookup (once per place per history view, under the daily cap) could be added without changing the stored data.
+
+### 4c. Sessions only, no long-lived groups (You)
+- **Choice:** everything is a one-off session with its own invite link. There's no "group" object that a set of friends belongs to over time.
+- **Alternatives:** persistent groups, so a friend group reuses one link and the app knows who "the group" is.
+- **Why:** it matches the core promise ("anyone can start a session and send a link"), and the data model is simpler: sessions, their members, and reactions.
+- **Cost:** no group-level features for now, such as a shared history for the same friends or fairness tracked across a group's outings. Those would need a group concept added later.
+- **Follow-up:** *"How would you add groups later?"* A `groups` table plus a nullable `group_id` on sessions. Existing sessions stay valid as groupless.
+
+### 4d. One places provider; Google data is never used to build another dataset (You)
+- **Idea considered:** find places with Google, then look each one up in an API that allows storage (like Geoapify / OpenStreetMap) and store that version instead.
+- **Why not:** Google's terms forbid "creating other datasets based on Google Maps Content". Using Google's results to find and save matching records elsewhere is exactly that, and the penalty is losing the API key.
+- **What stays possible:** switching providers entirely. Places come through one `PlacesProvider` interface, so Geoapify (free, storable, but no ratings and few prices) could replace Google without touching the rest of the app.
+- **Follow-up:** *"Why not just use the free API?"* The budget filter and rating-based ranking need data OpenStreetMap mostly doesn't have. Google gives better results within a free allowance that's plenty for friend groups.
 
 ### 5. Straight-line distance instead of drive time (Proposed)
 - **Alternatives:** Google Routes / Distance Matrix API for real drive times.
