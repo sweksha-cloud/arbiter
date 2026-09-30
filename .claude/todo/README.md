@@ -5,7 +5,6 @@ Ideas that are planned but **not built yet**. One file per item. When an item is
 | Item | Why it matters | Blocked on |
 | --- | --- | --- |
 | [Nutrition preferences](nutrition.md) | Optional calories, protein and allergies in preferences; data from chain nutrition datasets, no ML | Owner's answers to its open questions; Postgres storage |
-| [Preferences: columns or JSON](preferences-columns-or-json.md) | Decides how easily new preferences (like nutrition) can be added later | Nothing; decide before adding a batch of new preference questions |
 | [Fairness over time](fairness-over-time.md) | The most original feature: turns "restaurant picker" into "provably fair group decisions" | Postgres storage, login, session history |
 
 [`basic.md`](basic.md) lists broader directions for making Arbiter more than a basic project.

@@ -113,8 +113,8 @@ Main flow (**Decided** by the owner: start a session first, everyone submits pre
 **Proposed, not migrated yet.** No tables are created until the tradeoffs below are answered.
 
 - `users`: id, display name, is_guest, created_at. A guest is a real row with a server-issued token, so logging in later just attaches a login to the same row.
-- `preferences`: one row per user.
-- `sessions`: id, invite code, host user, scan center, status (open/ended), created_at, ended_at.
+- `preferences`: one row per user: user id, `data` (`jsonb`, the whole preferences object including its `version`), updated_at.
+- `sessions`: id, invite code, host user, status (open/ended), created_at, ended_at. No scan center: the search location stays in memory only (tradeoff (d)).
 - `session_members`: session, user, joined_at.
 - `session_places`: session, Google place ID. Only IDs are stored; Google's terms allow keeping place IDs indefinitely but names, prices, hours and ratings only for the session.
 - `reactions`: session, user, place ID, like/dislike, updated_at.
@@ -127,9 +127,9 @@ History requirement (section 2) means past sessions must outlive the live room: 
 
 Tradeoffs for the owner:
 - **(a) Groups or sessions only.** Decided: sessions only.
-- **(b) Preferences as columns or as one JSON column.** Columns for now (owner's decision). The final choice is still open: see `.claude/todo/preferences-columns-or-json.md`.
+- **(b) Preferences as columns or as one JSON column.** Decided: one `jsonb` column holding the whole preferences object, with a schema version number, checked by the shared Zod schema on every save and upgraded on read. Nutrition (calories, protein, allergies) is planned soon, so the questions will keep changing. See `TRADEOFFS.md` 16c.
 - **(c) Reactions in Postgres or only in room state.** Now decided by the history requirement: Postgres.
-- **(d) Scan center coordinates.** Google allows keeping coordinates up to 30 days. Store them on the session and clear them with a cleanup job, or keep them only in memory. Recommendation: store and clear after 30 days.
+- **(d) Scan center coordinates.** Decided (owner): keep the recommended restaurants (`session_places`: Google place IDs), never the person's location. The scan center lives only in room memory for the session. No coordinates reach Postgres, so there's no 30-day cleanup job. Cost: a server restart mid-session can't recompute distances; Redis room state (Phase 7) is the fix if that matters.
 
 ## 9. Real-time events
 

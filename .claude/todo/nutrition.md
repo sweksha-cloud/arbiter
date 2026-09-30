@@ -43,4 +43,4 @@ Local independent restaurants have no structured nutrition data anywhere. Gettin
    - (c) Leave allergies out until there's a data source.
    Recommendation: (a). Suggesting a place as "allergy-safe" without data would be dangerous.
 3. **Allergy input:** a fixed list (the 9 major US allergens: milk, eggs, fish, shellfish, tree nuts, peanuts, wheat, soy, sesame) or free text? A fixed list is easier to match against data later.
-4. **Storage:** this is the "new batch of preference questions" that `preferences-columns-or-json.md` says to decide on first. Columns would add three: `max_calories`, `min_protein_grams`, `allergies` (a list).
+4. ~~**Storage.**~~ Decided: preferences are one versioned `jsonb` object (`TRADEOFFS.md` 16c), so adding `maxCalories`, `minProteinGrams` and `allergies` is a Zod schema change plus a version bump, with no migration.

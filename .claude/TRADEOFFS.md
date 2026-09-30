@@ -158,6 +158,30 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 - Place IDs may be kept forever and coordinates for 30 days. Names, prices, hours and ratings are kept only for the session, in memory.
 - **Why it shapes the schema:** the proposed database stores only place IDs and reactions. Everything else lives in room state and disappears when the session ends.
 
+### 16b. Store the recommended restaurants, never the person's location (You)
+- **Decision:** Postgres keeps each session's suggested places as Google place IDs (allowed indefinitely). The scan center, which is usually where someone is standing, stays only in memory for the session.
+- **Option A: store the scan center in Postgres, delete it after 30 days (Google's limit)**
+  - Pros: a session could survive a server restart or deploy (look places up again by ID and recompute distances); enables later features like "search near the same spot again" or distance-travelled stats for fairness; a scheduled cleanup job is a good compliance story.
+  - Cons: holds personal location data (Privacy Policy must mention it; a database leak exposes where people were); the cleanup job becomes a compliance duty that needs scheduling, tests and an alarm, and if it silently stops we break Google's terms; more to build.
+- **Option B (chosen): keep the scan center in memory only**
+  - Pros: simplest (no column, job or alarm); most private, since no location ever reaches the database; can't violate the 30-day rule by accident; history still works because it only needs place IDs (shown as Google Maps links).
+  - Cons: a restart mid-session loses the scan center, so distances can't be recomputed from stored data; a feature that needs it later means a migration.
+- **Why B:** A's main benefit (surviving restarts) is really room-state durability, which Redis handles in Phase 7, and a Redis TTL would expire the data with no cleanup job. Until then A adds privacy and compliance work for almost no current benefit.
+- **Interview angle:** the cheapest way to stay compliant is to not keep the data in the first place.
+
+### 16c. Preferences stored as one versioned JSON object, not one column per question (You, on Claude's recommendation)
+- **Decision:** the `preferences` table has one `jsonb` column holding a person's whole preferences object, including a `version` number. The shared Zod schema checks it on every save, and older versions are upgraded in code when read.
+- **Option A: one column per question** (`vegetarian`, `max_price_level`, `liked_cuisines`, ...)
+  - Pros: Postgres itself rejects bad values (types, NOT NULL, CHECK); queries across users ("how many are vegetarian?") are easy and fast; nothing to explain in an interview, it's the default.
+  - Cons: every new question needs a migration; list-shaped or nested answers (allergy lists, "calories under 700") are awkward; renaming a question means a migration plus moving data.
+- **Option B (chosen): one `jsonb` column**
+  - Pros: adding a question is a code change (Zod schema + version bump), no migration; lists and nested answers fit naturally; the same Zod schema already validates the browser form, the API request, and now the stored row, so there's one definition of "valid".
+  - Cons: the database no longer enforces types, only the app does; old rows must be upgraded when read, which needs a version number and tests; queries across users are clunkier (`data->>'vegetarian'`, needs an index to be fast).
+- **Why B:** nutrition (calories, protein, allergies) is planned soon, so the questions will keep changing. The app only ever reads one person's preferences at a time (their form, or elimination), so columns' query advantage barely matters. Preferences are private, so there's no cross-user reporting to support.
+- **Guardrails:** a Postgres `CHECK` that `data` is an object with a `version`, so the database still refuses obvious garbage; tests that save an old-version row and read it back upgraded.
+- **When to switch back:** if we ever need fast reporting across users, or a question becomes a hard, stable filter we want the database to enforce. Switching is one migration: add the columns, copy from `data`, drop `data`.
+- **Interview angle:** "Aren't you giving up type safety?" Only at the database layer; the shared Zod schema checks every write, and the version number makes changing the format safe.
+
 ### 17. A hard daily quota on the Google API (Spec)
 - **Why:** budget alerts only notify you *after* spending. A hard cap of about 30 calls per day in Google Cloud makes a bill impossible. When the cap is hit, the app shows "try again tomorrow" (`PlacesQuotaExceededError`) instead of failing silently.
 
