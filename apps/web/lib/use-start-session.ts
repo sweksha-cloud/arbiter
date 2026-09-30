@@ -29,7 +29,7 @@ export function useStartSession(token: string | undefined) {
     setBusy(true);
     setError(undefined);
     try {
-      // How the scan center is chosen is still open (docs/DESIGN.md section 4);
+      // How the scan center is chosen is still open (.claude/docs/DESIGN.md section 4);
       // the host's location is the simplest option for now.
       const center = (await currentLocation()) ?? FALLBACK_CENTER;
       const sessionId = await api.createSession(token, center);

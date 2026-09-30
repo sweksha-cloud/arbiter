@@ -7,7 +7,7 @@ export interface NearbySearchRequest {
 
 /**
  * Source of nearby places. The Google Places implementation will be added once
- * the scan settings are decided (docs/DESIGN.md section 4). One call to
+ * the scan settings are decided (.claude/docs/DESIGN.md section 4). One call to
  * `searchNearby` must cost at most one paid API request.
  */
 export interface PlacesProvider {
