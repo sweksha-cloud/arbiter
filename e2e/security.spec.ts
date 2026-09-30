@@ -16,7 +16,7 @@ test('pages send a Content Security Policy and other security headers', async ({
   expect(again).not.toBe(csp);
 });
 
-test('injected HTML can't run code, so it can't read the saved sign-in', async ({ newPhone }) => {
+test("injected HTML can't run code, so it can't read the saved sign-in", async ({ newPhone }) => {
   const phone = await newPhone();
   // The guard in helpers.ts fails a test on CSP reports; this one expects exactly one.
   phone.removeAllListeners('console');
