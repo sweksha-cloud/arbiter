@@ -6,4 +6,5 @@ coverage/
 .env.*
 !.env.example
 
-.claude
+# Claude Code personal settings (per machine)
+.claude/settings.local.json

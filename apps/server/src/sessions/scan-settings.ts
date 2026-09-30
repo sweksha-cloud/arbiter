@@ -1,7 +1,7 @@
 import type { MissingDataPolicy } from '@arbiter/shared';
 
 // Provisional values so the app runs. The real ones are open product decisions
-// (docs/DESIGN.md section 4); change them here when decided.
+// (.claude/docs/DESIGN.md section 4); change them here when decided.
 
 export const SCAN_RADIUS_METERS = 3_000;
 

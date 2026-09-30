@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { PriceLevelSchema } from './place.js';
 
-// Field list is a proposal awaiting approval; see docs/DESIGN.md section 3.
+// Field list is a proposal awaiting approval; see .claude/docs/DESIGN.md section 3.
 
 export const HardConstraintsSchema = z.object({
   vegetarian: z.boolean().optional(),

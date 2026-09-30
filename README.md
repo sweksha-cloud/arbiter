@@ -2,14 +2,19 @@
 
 Arbiter helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
 
-- Product decisions: [`docs/DESIGN.md`](docs/DESIGN.md)
-- Technical decisions: [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md)
+Project docs live in `.claude/` for now:
+
+- Product decisions: [`.claude/docs/DESIGN.md`](.claude/docs/DESIGN.md)
+- Technical decisions: [`.claude/docs/TECH_DECISIONS.md`](.claude/docs/TECH_DECISIONS.md)
+- Bug log: [`.claude/BUGS.md`](.claude/BUGS.md)
+- Design tradeoffs: [`.claude/TRADEOFFS.md`](.claude/TRADEOFFS.md)
+- Tech stack review: [`.claude/TECH_STACK_REVIEW.md`](.claude/TECH_STACK_REVIEW.md)
 
 ## Status
 
 The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live.
 
-Still temporary until the open decisions in `docs/DESIGN.md` are made:
+Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
 
 - **Places are sample data.** The server places 12 made-up restaurants around wherever the session starts. No Google API is called yet.
 - **Guests, preferences and sessions live in server memory.** Restarting the server forgets them; the app then asks for your name again. Postgres storage comes once the data model is approved.
