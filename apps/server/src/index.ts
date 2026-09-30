@@ -1,17 +1,25 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { connectWithRetry, createPool } from './db/client.js';
+import { connectWithRetry, createDb, createPool } from './db/client.js';
+import { runMigrations } from './db/migrate.js';
+import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 
 const config = loadConfig();
-const { http } = await buildApp({ webOrigin: config.WEB_ORIGIN, logLevel: config.LOG_LEVEL });
-
 const pool = createPool(config.DATABASE_URL);
-await connectWithRetry(pool, {
-  onRetry: (error, attempt) => http.log.warn({ err: error, attempt }, 'Database connection failed, retrying')
+const db = createDb(pool);
+const { http } = await buildApp({
+  webOrigin: config.WEB_ORIGIN,
+  logLevel: config.LOG_LEVEL,
+  guests: new PostgresGuestStore(db)
 });
 http.addHook('onClose', async () => {
   await pool.end();
 });
+
+await connectWithRetry(pool, {
+  onRetry: (error, attempt) => http.log.warn({ err: error, attempt }, 'Database connection failed, retrying')
+});
+await runMigrations(db);
 
 await http.listen({ host: config.HOST, port: config.PORT });
 
