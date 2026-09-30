@@ -4,11 +4,10 @@ import { eliminate, type MissingDataPolicy } from './elimination.js';
 import { combineHardConstraints } from './preferences.js';
 import { makePlace } from './test-helpers.js';
 
-const keepMissing: MissingDataPolicy = { priceLevel: 'keep', servesVegetarian: 'keep', isFastFood: 'keep' };
+const keepMissing: MissingDataPolicy = { priceLevel: 'keep', servesVegetarian: 'keep' };
 const eliminateMissing: MissingDataPolicy = {
   priceLevel: 'eliminate',
-  servesVegetarian: 'eliminate',
-  isFastFood: 'eliminate'
+  servesVegetarian: 'eliminate'
 };
 
 const ids = (places: { id: string }[]) => places.map((p) => p.id);
@@ -26,11 +25,11 @@ describe('combineHardConstraints', () => {
 
   it('turns on a boolean constraint if any one member sets it', () => {
     const group = combineHardConstraints([{ hard: {} }, { hard: { vegetarian: true } }, { hard: { vegetarian: false } }]);
-    expect(group).toEqual({ vegetarian: true, noFastFood: false, maxPriceLevel: undefined, maxDistanceMeters: undefined });
+    expect(group).toEqual({ vegetarian: true, maxPriceLevel: undefined, maxDistanceMeters: undefined });
   });
 
   it('has no constraints for an empty group', () => {
-    expect(combineHardConstraints([])).toEqual({ vegetarian: false, noFastFood: false });
+    expect(combineHardConstraints([])).toEqual({ vegetarian: false });
   });
 });
 
@@ -44,14 +43,14 @@ describe('eliminate', () => {
     ];
     const group = combineHardConstraints([
       { hard: { vegetarian: true } },
-      { hard: { noFastFood: true } },
       { hard: { maxDistanceMeters: 5000 } }
     ]);
 
     const result = eliminate(places, group, keepMissing);
 
-    expect(ids(result.kept)).toEqual(['green-bowl']);
-    expect(result.eliminatedCount).toBe(3);
+    // Fast food is only a nice-to-have, so the burger chain survives elimination.
+    expect(ids(result.kept)).toEqual(['green-bowl', 'burger-chain']);
+    expect(result.eliminatedCount).toBe(2);
   });
 
   it('removes places above the group budget and keeps places at it', () => {
@@ -70,13 +69,11 @@ describe('eliminate', () => {
     const unknown = makePlace({
       id: 'unknown',
       priceLevel: undefined,
-      servesVegetarian: undefined,
-      isFastFood: undefined
+      servesVegetarian: undefined
     });
     const cases = [
       { field: 'priceLevel', hard: { maxPriceLevel: 2 } },
-      { field: 'servesVegetarian', hard: { vegetarian: true } },
-      { field: 'isFastFood', hard: { noFastFood: true } }
+      { field: 'servesVegetarian', hard: { vegetarian: true } }
     ] as const;
 
     for (const { field, hard } of cases) {

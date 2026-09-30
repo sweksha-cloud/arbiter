@@ -11,7 +11,6 @@ export type MissingDataAction = 'keep' | 'eliminate';
 export interface MissingDataPolicy {
   priceLevel: MissingDataAction;
   servesVegetarian: MissingDataAction;
-  isFastFood: MissingDataAction;
 }
 
 export interface EliminationResult {
@@ -37,14 +36,6 @@ function passes(place: PlaceCandidate, group: GroupConstraints, policy: MissingD
     if (place.servesVegetarian === undefined) {
       if (policy.servesVegetarian === 'eliminate') return false;
     } else if (!place.servesVegetarian) {
-      return false;
-    }
-  }
-
-  if (group.noFastFood) {
-    if (place.isFastFood === undefined) {
-      if (policy.isFastFood === 'eliminate') return false;
-    } else if (place.isFastFood) {
       return false;
     }
   }
