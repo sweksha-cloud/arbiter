@@ -100,7 +100,10 @@ pnpm typecheck
 pnpm test                                                                             # unit tests, no services needed
 DATABASE_URL=postgres://arbiter:arbiter@localhost:5432/arbiter pnpm test:integration  # needs `pnpm db:up`
 pnpm build
+pnpm test:e2e                                                                         # browser tests; needs `pnpm db:up`
 ```
+
+`pnpm test:e2e` builds everything, then drives real phone-sized browsers through whole sessions (`e2e/`). It starts its own server on port 4000 and web app on port 3000, so stop `dev:server` and `dev:web` first. The first time, run `pnpm exec playwright install chromium`. When a test fails, `pnpm exec playwright show-report` shows a screenshot and step-by-step trace. Every bug a user could see in the browser gets a test here, the same way server bugs get unit tests.
 
 ## Troubleshooting
 

@@ -7,12 +7,23 @@ import { useState } from 'react';
 import { api } from './api';
 import { FALLBACK_CENTER } from './config';
 
+// Chrome only starts getCurrentPosition's own timeout once permission is
+// granted, so a location prompt nobody answers would otherwise wait forever.
+const LOCATION_WAIT_MS = 10_000;
+
 function currentLocation(): Promise<LatLng | undefined> {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) return resolve(undefined);
+    const giveUp = setTimeout(() => resolve(undefined), LOCATION_WAIT_MS);
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
-      () => resolve(undefined),
+      ({ coords }) => {
+        clearTimeout(giveUp);
+        resolve({ lat: coords.latitude, lng: coords.longitude });
+      },
+      () => {
+        clearTimeout(giveUp);
+        resolve(undefined);
+      },
       { timeout: 8000, maximumAge: 5 * 60_000 }
     );
   });

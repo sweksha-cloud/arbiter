@@ -8,3 +8,7 @@ coverage/
 
 # Claude Code personal settings (per machine)
 .claude/settings.local.json
+
+# Playwright
+test-results/
+playwright-report/
