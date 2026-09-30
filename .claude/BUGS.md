@@ -37,7 +37,7 @@ Every bug found so far: what went wrong, why, how it was fixed, and what now sto
 - **Found:** together with BUG-003.
 - **Cause:** Socket.IO clients automatically retry after *network* drops, but not when the *server* ends the connection (reason `io server disconnect`), which is exactly what a restart or deploy does.
 - **Fix:** the session page calls `socket.connect()` when it sees that reason (`apps/web/app/s/[code]/page.tsx`).
-- **Verified by:** stopping the server during a browser session; the "Lost connection" banner appears and the client retries.
+- **Regression test:** `e2e/server-restart.spec.ts` stops the server with SIGTERM mid-session, checks the "Lost connection" banner, restarts it and checks the phone reconnects.
 - **Commit:** `338928f`
 
 ### BUG-005: Integration tests ran the unit tests instead (Low)
@@ -48,6 +48,12 @@ Every bug found so far: what went wrong, why, how it was fixed, and what now sto
 - **Commit:** `4de38b9`
 
 ---
+
+### BUG-010: Start a session hung if the location prompt was never answered (Medium)
+- **Found:** turning the browser scripts into an end-to-end suite. A browser with no location settings clicked **Start a session** and nothing happened, forever.
+- **Cause:** `getCurrentPosition`'s `timeout` only starts counting once permission is granted. While the "share your location?" prompt is open and unanswered, it never fires, so the button stayed busy.
+- **Fix:** give up after 10 s and use the default area (`apps/web/lib/use-start-session.ts`).
+- **Regression test:** `e2e/session.spec.ts`: "starting a session works even if the location prompt is never answered". It was verified to fail without the fix.
 
 ## Found in the original Copilot scaffold (fixed in the rewrite)
 

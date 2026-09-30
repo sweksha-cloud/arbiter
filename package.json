@@ -17,14 +17,17 @@
     "dev:server": "pnpm --filter @arbiter/server dev",
     "dev:web": "pnpm --filter @arbiter/shared build && pnpm --filter @arbiter/web dev",
     "lint": "eslint .",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
     "db:up": "docker compose up -d --wait postgres",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "test:e2e": "pnpm build && playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
     "typescript": "^5.9.3",
