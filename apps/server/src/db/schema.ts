@@ -18,6 +18,8 @@ export const users = pgTable(
     email: text().unique('users_email_unique'),
     /** scrypt; see identity/passwords.ts. */
     passwordHash: text(),
+    /** Set when the owner opens the link emailed to this address. Cleared if the email changes. */
+    emailVerifiedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
@@ -71,6 +73,21 @@ export const preferences = pgTable(
     check('preferences_data_is_versioned_object', sql`jsonb_typeof(${table.data}) = 'object' and ${table.data} ? 'version'`)
   ]
 );
+
+/**
+ * Single-use links proving someone controls an email address. `email` is the
+ * address the link was sent to, so a link can't verify a different one.
+ */
+export const emailVerifications = pgTable('email_verifications', {
+  tokenHash: text().primaryKey(),
+  userId: uuid()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  email: text().notNull(),
+  expiresAt: timestamp({ withTimezone: true }).notNull(),
+  usedAt: timestamp({ withTimezone: true }),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+});
 
 // ---- Session history (TRADEOFFS.md 4b) ----
 // Live sessions run from in-memory room state; these tables are the permanent

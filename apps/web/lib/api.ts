@@ -95,6 +95,12 @@ export const api = {
   resetPassword: (resetToken: string, password: string) =>
     request(AuthResponseSchema, '/api/auth/reset-password', { method: 'POST', body: { token: resetToken, password } }),
 
+  verifyEmail: (verifyToken: string) =>
+    request(NoContent, '/api/auth/verify-email', { method: 'POST', body: { token: verifyToken } }),
+
+  resendVerification: (token: string) =>
+    request(z.object({ ok: z.literal(true) }), '/api/auth/resend-verification', { method: 'POST', token }),
+
   changePassword: (token: string, currentPassword: string, newPassword: string) =>
     request(NoContent, '/api/auth/change-password', { method: 'POST', token, body: { currentPassword, newPassword } }),
 

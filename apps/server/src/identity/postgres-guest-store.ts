@@ -5,7 +5,7 @@ import { and, eq, gt, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 
 import type { Db } from '../db/client.js';
 import { isUniqueViolation } from '../db/errors.js';
-import { authTokens, passwordResets, preferences, users } from '../db/schema.js';
+import { authTokens, emailVerifications, passwordResets, preferences, users } from '../db/schema.js';
 import {
   AccountExistsError,
   EmailTakenError,
@@ -83,10 +83,12 @@ export class PostgresGuestStore implements GuestStore {
 
   private async findAccount(where: ReturnType<typeof eq>): Promise<Account | undefined> {
     const [row] = await this.db
-      .select({ userId: users.id, email: users.email, passwordHash: users.passwordHash })
+      .select({ userId: users.id, email: users.email, passwordHash: users.passwordHash, verifiedAt: users.emailVerifiedAt })
       .from(users)
       .where(and(where, isNotNull(users.email)));
-    return row?.email && row.passwordHash ? { userId: row.userId, email: row.email, passwordHash: row.passwordHash } : undefined;
+    return row?.email && row.passwordHash
+      ? { userId: row.userId, email: row.email, passwordHash: row.passwordHash, emailVerified: row.verifiedAt !== null }
+      : undefined;
   }
 
   getAccount(userId: string) {
@@ -167,6 +169,44 @@ export class PostgresGuestStore implements GuestStore {
     return row?.userId;
   }
 
+  async createEmailVerification(userId: string, email: string, expiresAt: Date) {
+    const token = newToken();
+    await this.db.insert(emailVerifications).values({ tokenHash: hashToken(token), userId, email, expiresAt });
+    return token;
+  }
+
+  async consumeEmailVerification(token: string, now: Date) {
+    return this.db.transaction(async (tx) => {
+      // Use up the link first (one conditional update, so it works only once)...
+      const [link] = await tx
+        .update(emailVerifications)
+        .set({ usedAt: now })
+        .where(
+          and(
+            eq(emailVerifications.tokenHash, hashToken(token)),
+            isNull(emailVerifications.usedAt),
+            gt(emailVerifications.expiresAt, now)
+          )
+        )
+        .returning({ userId: emailVerifications.userId, email: emailVerifications.email });
+      if (!link) return undefined;
+      // ...then verify, but only if the account still has the address the link went to.
+      const [verified] = await tx
+        .update(users)
+        .set({ emailVerifiedAt: now })
+        .where(and(eq(users.id, link.userId), eq(users.email, link.email)))
+        .returning({ id: users.id });
+      return verified?.id;
+    });
+  }
+
+  async markEmailVerified(userId: string, email: string, at: Date) {
+    await this.db
+      .update(users)
+      .set({ emailVerifiedAt: at })
+      .where(and(eq(users.id, userId), eq(users.email, email), isNull(users.emailVerifiedAt)));
+  }
+
   async purgeExpired() {
     const now = this.now();
     const tokens = await this.db
@@ -177,6 +217,9 @@ export class PostgresGuestStore implements GuestStore {
       .delete(passwordResets)
       .where(lte(sql`coalesce(${passwordResets.usedAt}, ${passwordResets.expiresAt})`, ago(now, RESET_RETENTION_MS)))
       .returning({ tokenHash: passwordResets.tokenHash });
+    await this.db
+      .delete(emailVerifications)
+      .where(lte(sql`coalesce(${emailVerifications.usedAt}, ${emailVerifications.expiresAt})`, ago(now, RESET_RETENTION_MS)));
     return { tokens: tokens.length, resets: resets.length };
   }
 }

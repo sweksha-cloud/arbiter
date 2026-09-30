@@ -7,6 +7,8 @@ export interface Account {
   userId: string;
   email: string;
   passwordHash: string;
+  /** The owner has opened a verification link sent to `email`. */
+  emailVerified: boolean;
 }
 
 /**
@@ -48,7 +50,18 @@ export interface GuestStore {
    */
   consumePasswordReset(token: string, now: Date): Promise<string | undefined>;
 
-  /** Deletes expired sign-in tokens and finished or expired reset links. Returns how many of each. */
+  // ---- Email verification ----
+  createEmailVerification(userId: string, email: string, expiresAt: Date): Promise<string>;
+  /**
+   * Uses up a verification link and marks the account verified, if the link
+   * is known, unexpired and unused, and the account still has the email it
+   * was sent to. Returns the user, or undefined.
+   */
+  consumeEmailVerification(token: string, now: Date): Promise<string | undefined>;
+  /** Marks the account verified if it still has this email (e.g. after a reset link sent to it was used). */
+  markEmailVerified(userId: string, email: string, at: Date): Promise<void>;
+
+  /** Deletes expired sign-in tokens and finished or expired reset and verification links. */
   purgeExpired(): Promise<{ tokens: number; resets: number }>;
 }
 
@@ -88,6 +101,13 @@ export const newToken = () => randomBytes(32).toString('base64url');
 interface StoredUser extends Guest {
   email?: string;
   passwordHash?: string;
+  emailVerified?: boolean;
+}
+
+interface SingleUseLink {
+  userId: string;
+  expiresAt: Date;
+  usedAt?: Date;
 }
 
 /** For unit tests and local runs without a database: everything is lost on restart. */
@@ -95,7 +115,8 @@ export class InMemoryGuestStore implements GuestStore {
   private readonly users = new Map<string, StoredUser>();
   /** token hash -> owner and last use */
   private readonly tokens = new Map<string, { userId: string; lastUsedAt: Date }>();
-  private readonly resets = new Map<string, { userId: string; expiresAt: Date; usedAt?: Date }>();
+  private readonly resets = new Map<string, SingleUseLink>();
+  private readonly verifications = new Map<string, SingleUseLink & { email: string }>();
   private readonly preferences = new Map<string, Preferences>();
   private readonly now: () => Date;
 
@@ -132,7 +153,9 @@ export class InMemoryGuestStore implements GuestStore {
 
   async getAccount(userId: string) {
     const user = this.users.get(userId);
-    return user?.email && user.passwordHash ? { userId, email: user.email, passwordHash: user.passwordHash } : undefined;
+    return user?.email && user.passwordHash
+      ? { userId, email: user.email, passwordHash: user.passwordHash, emailVerified: user.emailVerified ?? false }
+      : undefined;
   }
 
   async findAccountByEmail(email: string) {
@@ -185,6 +208,27 @@ export class InMemoryGuestStore implements GuestStore {
     return reset.userId;
   }
 
+  async createEmailVerification(userId: string, email: string, expiresAt: Date) {
+    const token = newToken();
+    this.verifications.set(hashToken(token), { userId, email, expiresAt });
+    return token;
+  }
+
+  async consumeEmailVerification(token: string, now: Date) {
+    const link = this.verifications.get(hashToken(token));
+    if (!link || link.usedAt || link.expiresAt <= now) return undefined;
+    link.usedAt = now;
+    const user = this.users.get(link.userId);
+    if (user?.email !== link.email) return undefined;
+    user.emailVerified = true;
+    return link.userId;
+  }
+
+  async markEmailVerified(userId: string, email: string) {
+    const user = this.users.get(userId);
+    if (user?.email === email) user.emailVerified = true;
+  }
+
   async purgeExpired() {
     const now = this.now().getTime();
     let tokens = 0;
@@ -195,11 +239,13 @@ export class InMemoryGuestStore implements GuestStore {
         tokens++;
       }
     }
-    for (const [hash, reset] of this.resets) {
-      const finishedAt = reset.usedAt ?? reset.expiresAt;
-      if (now - finishedAt.getTime() >= RESET_RETENTION_MS) {
-        this.resets.delete(hash);
-        resets++;
+    for (const links of [this.resets, this.verifications] as Map<string, SingleUseLink>[]) {
+      for (const [hash, link] of links) {
+        const finishedAt = link.usedAt ?? link.expiresAt;
+        if (now - finishedAt.getTime() >= RESET_RETENTION_MS) {
+          links.delete(hash);
+          if (links === this.resets) resets++;
+        }
       }
     }
     return { tokens, resets };

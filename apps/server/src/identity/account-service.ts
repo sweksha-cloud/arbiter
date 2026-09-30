@@ -11,7 +11,8 @@ export type AuthErrorCode =
   | 'already_registered'
   | 'name_required'
   | 'invalid_reset'
-  | 'too_many_attempts';
+  | 'too_many_attempts'
+  | 'invalid_link';
 
 /** A refused account action. `status` is the HTTP status; the message is safe to show. */
 export class AuthError extends Error {
@@ -46,6 +47,7 @@ export interface AccountServiceOptions {
 
 const WRONG_CREDENTIALS = 'Wrong email or password';
 const RESET_LINK_TTL_MS = 60 * 60 * 1000;
+const VERIFY_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Account rules: sign up, log in and out, reset or change a password. Every
@@ -65,7 +67,7 @@ export class AccountService {
 
   async me(guest: Guest): Promise<MeResponse> {
     const account = await this.guests.getAccount(guest.id);
-    return { guest, email: account?.email ?? null };
+    return { guest, email: account?.email ?? null, emailVerified: account?.emailVerified ?? false };
   }
 
   /**
@@ -94,7 +96,22 @@ export class AccountService {
       }
       throw error;
     }
-    return this.signInFresh(guest, email, current?.token);
+    await this.sendVerification(guest.id, email);
+    return this.signInFresh(guest, email, false, current?.token);
+  }
+
+  /** Emails a new verification link, if the account's email isn't verified yet. */
+  async resendVerification(guest: Guest): Promise<void> {
+    const account = await this.guests.getAccount(guest.id);
+    if (account && !account.emailVerified) await this.sendVerification(account.userId, account.email);
+  }
+
+  /** Marks the email verified from a link. Works whether or not you're signed in. */
+  async verifyEmail(token: string): Promise<void> {
+    const userId = await this.guests.consumeEmailVerification(token, this.now());
+    if (!userId) {
+      throw new AuthError('invalid_link', 400, 'This link has expired or was already used. You can send a new one from your account page.');
+    }
   }
 
   /**
@@ -116,7 +133,7 @@ export class AccountService {
       await this.guests.setPasswordHash(account.userId, await hashPassword(password, this.options.passwordParams));
     }
     const guest = (await this.guests.getGuest(account.userId))!;
-    return this.signInFresh(guest, account.email, current?.token);
+    return this.signInFresh(guest, account.email, account.emailVerified, current?.token);
   }
 
   async logout(token: string) {
@@ -160,10 +177,12 @@ export class AccountService {
     }
     await this.guests.setPasswordHash(account.userId, await hashPassword(password, this.options.passwordParams));
     await this.guests.revokeAllTokens(account.userId);
+    // The reset link went to this address, so using it proves the address too.
+    await this.guests.markEmailVerified(account.userId, account.email, this.now());
     // Proving you own the email ends any pause from wrong guesses.
     this.options.loginFailures?.reset(account.email);
     const guest = (await this.guests.getGuest(account.userId))!;
-    return { guest, email: account.email, token: await this.guests.issueToken(account.userId) };
+    return { guest, email: account.email, emailVerified: true, token: await this.guests.issueToken(account.userId) };
   }
 
   /** Needs the current password. Keeps this device signed in; signs out the others. */
@@ -195,9 +214,34 @@ export class AccountService {
    * belongs to (guest → account) without replacing it would let anyone who
    * had copied the old token ride along into the account.
    */
-  private async signInFresh(guest: Guest, email: string, previousToken: string | undefined): Promise<AuthResponse> {
+  private async signInFresh(
+    guest: Guest,
+    email: string,
+    emailVerified: boolean,
+    previousToken: string | undefined
+  ): Promise<AuthResponse> {
     const token = await this.guests.issueToken(guest.id);
     if (previousToken) await this.guests.revokeToken(previousToken);
-    return { guest, email, token };
+    return { guest, email, emailVerified, token };
+  }
+
+  /** Sends the link without waiting, like reset emails; a failure is reported, not thrown. */
+  private async sendVerification(userId: string, email: string) {
+    const ttl = VERIFY_LINK_TTL_MS;
+    const token = await this.guests.createEmailVerification(userId, email, new Date(this.now().getTime() + ttl));
+    const link = `${this.options.webOrigin}/verify-email#token=${encodeURIComponent(token)}`;
+    void this.options.mailer
+      .send({
+        to: email,
+        subject: 'Confirm your email for Arbiter',
+        text: [
+          'Thanks for making an Arbiter account.',
+          '',
+          `Confirm this is your email: ${link}`,
+          '',
+          `The link works once, for ${Math.round(ttl / 3_600_000)} hours. If you didn't sign up, ignore this email.`
+        ].join('\n')
+      })
+      .catch((error: unknown) => this.options.onMailError?.(error));
   }
 }

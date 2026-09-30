@@ -2,19 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSyncExternalStore } from 'react';
-
 import { api } from '../../lib/api';
 import { saveIdentity } from '../../lib/identity';
+import { useLinkToken } from '../../lib/use-link-token';
 import { useSubmit } from '../../lib/use-submit';
 
-// The token is in the fragment (#token=…), which browsers never send to
-// servers, so it can't end up in access logs or Referer headers.
-const readToken = () => new URLSearchParams(window.location.hash.slice(1)).get('token');
-const noSubscribe = () => () => {};
-
 export default function ResetPasswordPage() {
-  const token = useSyncExternalStore(noSubscribe, readToken, () => undefined);
+  const token = useLinkToken();
   const router = useRouter();
   const { handle, busy, error } = useSubmit();
 
