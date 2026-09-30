@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+import { execSync } from 'node:child_process';
+const out = process.argv[2];
+const browser = await chromium.launch();
+const p = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage();
+await p.goto('http://localhost:3000');
+await p.fill('input', 'Sweksha');
+await p.click('text=Continue');
+await p.click('text=Start a session');
+await p.getByText('Invite your friends').waitFor();
+execSync("lsof -ti:4000 -sTCP:LISTEN | xargs kill");
+await p.getByText('Lost connection to Arbiter. Reconnecting…').waitFor({ timeout: 15000 });
+console.log('server-down banner shown');
+await p.screenshot({ path: `${out}/4-server-down.png` });
+await browser.close();
