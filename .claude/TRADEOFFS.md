@@ -24,10 +24,10 @@ The format for each: **Choice → Alternatives → Why → Cost (what you gave u
 - **Follow-ups:** *"What if nothing survives?"* Open. The recommendation is to tell the host and let them rescan with a bigger radius, rather than silently relaxing someone's constraint.
 
 ### 2b. "Rather not do fast food" is a nice-to-have, not a must-have (You)
-- **Choice:** each person who ticks it lowers a known fast-food place's rank by one. It never removes the place.
-- **Alternatives:** a must-have that removes every fast-food place (how it worked at first).
-- **Why:** a fast-food place that fits everyone's budget, distance and cuisines is a better pick than a fancy place that fits nobody well. "No fast food" is a preference, not a need, unlike vegetarian or a budget.
-- **Cost:** someone who really never wants fast food can still see it suggested if the rest of the group likes it.
+- **Choice:** it never removes a place. If **more than half** the group ticks it, every fast-food place ranks below every other place, however well it matches. If fewer do, each one only lowers a fast-food place's score by one, so a great fast-food match can still win.
+- **Alternatives:** a must-have that removes every fast-food place (how it worked at first); a flat penalty per person with no majority rule (the second version, where enough cuisine likes could beat a majority that wanted to skip fast food).
+- **Why:** "no fast food" is a preference, not a need, unlike vegetarian or a budget, so it shouldn't empty the list. But when most of the group doesn't want fast food, that should decide it; one person's openness to fast food shouldn't beat the rest.
+- **Cost:** when most of the group ticks it, the one or two people who'd happily have fast food rarely see it suggested. At exactly half, it's only a nudge, which is a judgment call.
 - **Follow-up:** *"How do you decide what's a must-have?"* It's a must-have only if breaking it makes the outing impossible for someone: they can't eat there (vegetarian), can't afford it (budget) or can't get there (distance). Everything else only changes the order.
 
 ### 3. Preferences are private, and the app never says who eliminated a place (You, plus Proposed)
