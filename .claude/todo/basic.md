@@ -1,4 +1,6 @@
-o move Arbiter beyond a basic SWE project, it would need meaningful complexity in product behavior, scale, reliability, and engineering depth—not just more screens.
+# To do: Going beyond a basic project
+
+To move Arbiter beyond a basic SWE project, it would need meaningful complexity in product behavior, scale, reliability, and engineering depth—not just more screens.
 
 Strong directions:
 
@@ -19,14 +21,14 @@ Strong directions:
 • Rate limiting and abuse prevention
 4. Real user and group features
 • Accounts and authentication
-• Saved groups, recurring lunch teams, history, favorites, and invitations
+• ~~Saved groups, recurring lunch teams~~ (ruled out for now: sessions only, see `TRADEOFFS.md` 4c), history (decided: Google Maps links per place, see 4b), favorites, and invitations
 • Roles such as host, moderator, and participant
 • Shareable links with expiration and access controls
 5. Operational maturity
 • Background jobs for place refreshes and cleanup
 • Structured logging, metrics, tracing, and error monitoring
 • Automated migrations, CI/CD, preview deployments, and rollback strategy
-• Load tests and end-to-end browser tests
+• Load tests, and end-to-end browser tests (done: `e2e/`, run in CI)
 6. Accessibility and UX quality
 • Full keyboard and screen-reader support
 • Mobile-first interaction design
