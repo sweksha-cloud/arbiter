@@ -11,6 +11,8 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 // Global setup and the tests run in different processes, so the running
 // server's PID is shared through a file.
 const PID_FILE = path.join(os.tmpdir(), 'arbiter-e2e-api-server.pid');
+/** The server writes emails here instead of sending them (MAIL_OUTBOX_DIR). */
+export const OUTBOX_DIR = path.join(os.tmpdir(), 'arbiter-e2e-outbox');
 
 /**
  * Starts the built API server as its own process (not a Playwright webServer)
@@ -26,7 +28,8 @@ export async function startApiServer(): Promise<void> {
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://arbiter:arbiter@localhost:5432/arbiter',
       LOG_LEVEL: 'warn',
       // The suite creates dozens of guests from one machine in seconds.
-      RATE_LIMITS: 'off'
+      RATE_LIMITS: 'off',
+      MAIL_OUTBOX_DIR: OUTBOX_DIR
     },
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: true

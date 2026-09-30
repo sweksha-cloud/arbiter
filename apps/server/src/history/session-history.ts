@@ -50,6 +50,8 @@ export interface SessionHistory {
   recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number): Promise<void>;
   end(sessionId: string): Promise<void>;
   get(sessionId: string): Promise<SessionRecord | undefined>;
+  /** Sessions this user was a member of, newest first. */
+  listForMember(userId: string, limit: number): Promise<SessionRecord[]>;
 }
 
 export class SessionCodeTakenError extends Error {
@@ -136,6 +138,15 @@ export class InMemorySessionHistory implements SessionHistory {
         mapsUrl: mapsUrlFor(placeId, record.placesSource)
       }))
     };
+  }
+
+  async listForMember(userId: string, limit: number): Promise<SessionRecord[]> {
+    const ids = [...this.sessions.values()]
+      .filter((r) => r.members.some((m) => m.id === userId))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => r.sessionId);
+    return Promise.all(ids.map(async (id) => (await this.get(id))!));
   }
 
   private require(sessionId: string): InMemoryRecord {

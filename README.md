@@ -47,13 +47,14 @@ Project docs live in `.claude/` for now:
 
 ## Status
 
-The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. Every session is saved (who came, which places were suggested, how people reacted), ready for a history page once login exists.
+The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. Make an account (or log in) from the top of any page to keep your preferences and see past sessions on any device.
 
 Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
 
 - **Places are sample data unless you add a Google API key.** Without one, the server places 12 made-up restaurants around wherever the session starts (see "Real places" below).
 - **Live sessions live in server memory.** Guests, preferences and session history are saved in Postgres, but a server restart ends any session in progress.
-- **No login, ratings, Terms or Privacy pages yet.**
+- **Password reset emails are only printed to the server log** until an email provider is set up.
+- **No ratings, Terms or Privacy pages yet.**
 
 ## Run it locally
 
@@ -157,6 +158,7 @@ pnpm test:e2e                                                                   
 | Web app says "Can't reach the Arbiter server" | `pnpm dev:server` isn't running, or `NEXT_PUBLIC_SERVER_URL` points to the wrong place. |
 | Buttons do nothing when opened from a phone | `WEB_ORIGIN` in `apps/server/.env` must exactly match the address in the phone's browser. |
 | Asked for your name again | Your browser's site data was cleared, or the local database was wiped (`docker compose down -v`). Guests are saved in Postgres, so a server restart alone doesn't cause this. |
+| Where's my password reset email? | Locally, emails aren't sent: the reset link is printed in the `pnpm dev:server` terminal (`Email (development: not actually sent)`). |
 | Port 3000 or 4000 already in use | `lsof -ti:3000 -sTCP:LISTEN \| xargs kill` (same for 4000). |
 
 ## Layout

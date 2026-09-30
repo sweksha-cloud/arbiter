@@ -17,6 +17,11 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  /**
+   * E2E only: write emails to this folder instead of sending them, so tests
+   * can follow reset links.
+   */
+  MAIL_OUTBOX_DIR: z.string().min(1).optional(),
   /** 'off' only for the E2E suite. */
   RATE_LIMITS: z.enum(['on', 'off']).default('on'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')

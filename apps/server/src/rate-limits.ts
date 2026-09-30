@@ -10,6 +10,10 @@ export interface RateLimits {
   guestsPerMinute: number;
   /** Starting a session, per IP per minute. */
   sessionsPerMinute: number;
+  /** Signing up, logging in, resetting or changing a password, per IP per minute: slows password guessing. */
+  authPerMinute: number;
+  /** Asking for a reset email, per IP per minute: each one sends an email. */
+  passwordResetsPerMinute: number;
   /** Live events (join, submit, react…) per connection, per 10 seconds. */
   socketEventsPer10Seconds: number;
 }
@@ -18,6 +22,8 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
   requestsPerMinute: 120,
   guestsPerMinute: 20,
   sessionsPerMinute: 10,
+  authPerMinute: 10,
+  passwordResetsPerMinute: 5,
   socketEventsPer10Seconds: 30
 };
 
@@ -26,6 +32,8 @@ export const NO_RATE_LIMITS: RateLimits = {
   requestsPerMinute: 1_000_000,
   guestsPerMinute: 1_000_000,
   sessionsPerMinute: 1_000_000,
+  authPerMinute: 1_000_000,
+  passwordResetsPerMinute: 1_000_000,
   socketEventsPer10Seconds: 1_000_000
 };
 

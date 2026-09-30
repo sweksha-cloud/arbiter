@@ -1,13 +1,26 @@
+import type { FastifyBaseLogger } from 'fastify';
+
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { connectWithRetry, createDb, createPool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
+import { LogMailer, OutboxMailer, UnconfiguredMailer, type Mailer } from './identity/mailer.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
 import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
 
 const config = loadConfig();
+
+/**
+ * Tests write to a folder; development prints to the log. Production has no
+ * provider yet (BUGS.md OPEN-007), and must never print reset links to logs.
+ */
+function mailer(log: FastifyBaseLogger): Mailer {
+  if (config.MAIL_OUTBOX_DIR) return new OutboxMailer(config.MAIL_OUTBOX_DIR);
+  return config.NODE_ENV === 'production' ? new UnconfiguredMailer(log) : new LogMailer(log);
+}
+
 const pool = createPool(config.DATABASE_URL);
 const db = createDb(pool);
 const { http } = await buildApp({
@@ -17,6 +30,7 @@ const { http } = await buildApp({
   rateLimits: config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS,
   guests: new PostgresGuestStore(db),
   history: new PostgresSessionHistory(db),
+  mailer,
   ...(config.GOOGLE_PLACES_API_KEY
     ? { places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }), placesSource: 'google' as const }
     : {})

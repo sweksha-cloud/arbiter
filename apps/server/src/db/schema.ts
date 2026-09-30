@@ -4,13 +4,48 @@ import { boolean, check, foreignKey, integer, jsonb, pgTable, primaryKey, text, 
 // Data model: .claude/docs/DESIGN.md section 8. After changing this file, run
 // `pnpm --filter @arbiter/server db:generate` and commit the new migration.
 
-/** A guest is a real row, so logging in later just attaches a login to it. */
-export const users = pgTable('users', {
-  id: uuid().primaryKey(),
-  displayName: text().notNull(),
-  // Only a hash of the login token, so a leaked database can't be used to log in.
-  tokenHash: text().notNull().unique('users_token_hash_unique'),
-  isGuest: boolean().notNull().default(true),
+/**
+ * A guest is a real row, so signing up just attaches an email and password to
+ * it: their preferences and past sessions come along (TRADEOFFS.md 4e).
+ */
+export const users = pgTable(
+  'users',
+  {
+    id: uuid().primaryKey(),
+    displayName: text().notNull(),
+    isGuest: boolean().notNull().default(true),
+    /** Lowercased (EmailSchema), so a plain unique index is case-insensitive. */
+    email: text().unique('users_email_unique'),
+    /** scrypt; see identity/passwords.ts. */
+    passwordHash: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check('users_account_complete', sql`(${table.email} is null) = (${table.passwordHash} is null)`),
+    check('users_guest_means_no_account', sql`${table.isGuest} = (${table.email} is null)`)
+  ]
+);
+
+/**
+ * One row per signed-in device. Several per user, so logging in on a phone
+ * doesn't sign out the laptop. Only hashes are stored.
+ */
+export const authTokens = pgTable('auth_tokens', {
+  tokenHash: text().primaryKey(),
+  userId: uuid()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+});
+
+/** Single-use, short-lived password reset links. Only hashes are stored. */
+export const passwordResets = pgTable('password_resets', {
+  tokenHash: text().primaryKey(),
+  userId: uuid()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp({ withTimezone: true }).notNull(),
+  usedAt: timestamp({ withTimezone: true }),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow()
 });
 

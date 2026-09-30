@@ -1,13 +1,17 @@
 import {
+  AuthResponseSchema,
   CreateGuestResponseSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
   GetPreferencesResponseSchema,
+  MeResponseSchema,
+  PastSessionSchema,
+  PastSessionsResponseSchema,
   SessionSummarySchema,
   type LatLng,
   type Preferences
 } from '@arbiter/shared';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import { SERVER_URL } from './config';
 import { clearIdentity } from './identity';
@@ -43,13 +47,19 @@ async function request<T extends z.ZodType>(
   }
 
   if (!response.ok) {
-    // An unknown token (e.g. the database was reset): start fresh rather than get stuck.
-    if (response.status === 401) clearIdentity();
-    const parsed = ErrorResponseSchema.safeParse(await response.json().catch(() => null));
+    const parsed = ErrorResponseWithCodeSchema.safeParse(await response.json().catch(() => null));
+    // This device's token is no longer valid (logged out elsewhere, password
+    // reset, database reset): start fresh rather than get stuck. A wrong
+    // password is also a 401, but it has a code and must keep you signed in.
+    if (response.status === 401 && token && !(parsed.success && parsed.data.code)) clearIdentity();
     throw new ApiError(response.status, parsed.success ? parsed.data.error : 'Something went wrong');
   }
+  if (response.status === 204) return schema.parse(undefined);
   return schema.parse(await response.json());
 }
+
+const ErrorResponseWithCodeSchema = ErrorResponseSchema.extend({ code: z.string().optional() });
+const NoContent = z.undefined();
 
 export const api = {
   createGuest: (displayName: string) =>
@@ -64,6 +74,36 @@ export const api = {
   /** `null` if the session is gone or you aren't in it. */
   getSessionSummary: (token: string, sessionId: string) =>
     request(SessionSummarySchema, `/api/sessions/${encodeURIComponent(sessionId)}`, { token }).catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }),
+
+  me: (token: string) => request(MeResponseSchema, '/api/me', { token }),
+
+  /** `token` (optional) is this device's guest, who keeps their preferences and past sessions. */
+  signup: (token: string | undefined, body: { displayName?: string; email: string; password: string }) =>
+    request(AuthResponseSchema, '/api/auth/signup', { method: 'POST', token, body }),
+
+  login: (token: string | undefined, body: { email: string; password: string }) =>
+    request(AuthResponseSchema, '/api/auth/login', { method: 'POST', token, body }),
+
+  logout: (token: string) => request(NoContent, '/api/auth/logout', { method: 'POST', token }),
+
+  forgotPassword: (email: string) =>
+    request(z.object({ ok: z.literal(true) }), '/api/auth/forgot-password', { method: 'POST', body: { email } }),
+
+  resetPassword: (resetToken: string, password: string) =>
+    request(AuthResponseSchema, '/api/auth/reset-password', { method: 'POST', body: { token: resetToken, password } }),
+
+  changePassword: (token: string, currentPassword: string, newPassword: string) =>
+    request(NoContent, '/api/auth/change-password', { method: 'POST', token, body: { currentPassword, newPassword } }),
+
+  pastSessions: (token: string) =>
+    request(PastSessionsResponseSchema, '/api/me/sessions', { token }).then((r) => r.sessions),
+
+  /** `null` if you weren't in it (or it never existed). */
+  pastSession: (token: string, sessionId: string) =>
+    request(PastSessionSchema, `/api/me/sessions/${encodeURIComponent(sessionId)}`, { token }).catch((e: unknown) => {
       if (e instanceof ApiError && e.status === 404) return null;
       throw e;
     }),
