@@ -54,11 +54,12 @@ Options that were considered: app picks a winner; group votes on everything left
 | Vegetarian | Hard | If anyone needs it, every place must serve vegetarian food |
 | No fast food | Hard | If anyone sets it, fast-food places are removed |
 | Max budget | Hard | Lowest maximum in the group (decided) |
-| Max distance | Hard | Shortest maximum in the group |
+| Max distance | Hard | Shortest maximum in the group. Choices: Don't care, 0.5, 1, 2, 5, 10 or 20 mi, or a custom distance from 0.1 to 31 mi |
 | Liked cuisines | Soft | Raises a place's rank for each member who likes one of its cuisines |
 | Disliked cuisines | Soft | Lowers a place's rank for each member who dislikes one of its cuisines |
 
 - Distance is straight-line distance from the scan center, not drive time. Drive time would need a second paid Google API call per session.
+- The scan searches exactly as far as the group's shortest maximum, so far limits can find far places and close limits spend the scan's results on nearby ones. If everyone picks "Don't care", it uses the default radius (section 4). 31 mi is the cap because 50 km is the largest radius Google's Nearby Search accepts.
 - Per-session overrides: not in v1. Preferences are edited in one place and apply to every session.
 
 **Open**

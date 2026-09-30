@@ -281,6 +281,18 @@ input:not([type='checkbox']) {
   border-left: 0;
 }
 
+/* Too many choices for one row: a grid, with the gaps drawn as dividers. */
+.segmented.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+
+.segmented.grid button {
+  border-left: 0;
+}
+
 .segmented button[aria-pressed='true'] {
   background: var(--accent);
   color: var(--accent-text);
