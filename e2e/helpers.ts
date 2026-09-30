@@ -33,10 +33,14 @@ export const test = base.extend<{ newPhone: (options?: PhoneOptions) => Promise<
       contexts.push(context);
       const page = await context.newPage();
       page.on('pageerror', (error) => errors.push(error.message));
+      // The Content Security Policy must never block anything the app itself needs.
+      page.on('console', (message) => {
+        if (/Content Security Policy/i.test(message.text())) errors.push(message.text());
+      });
       return page;
     });
     await Promise.all(contexts.map((context) => context.close()));
-    expect(errors, 'uncaught errors in the page').toEqual([]);
+    expect(errors, 'uncaught errors or blocked content in the page').toEqual([]);
   }
 });
 

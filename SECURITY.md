@@ -33,11 +33,12 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | Flooding live events | 30 events per 10 s per connection; extra events get a `rate_limited` reply rather than silence. | `socket-handlers.ts` |
 | Oversized requests | 16 KB limit on REST bodies and on each live event (Socket.IO's default is 1 MB). | `app.ts` |
 | Malformed input | Every request body and live event is checked with the shared Zod schemas before use. Google's responses are checked too. | `packages/shared`, `google-places-provider.ts` |
+| Injected scripts stealing the saved sign-in (XSS) | Sign-in tokens live in `localStorage`, so a Content Security Policy only lets the app's own scripts run: each page load gets a random nonce that Next.js puts on its scripts, and injected markup (like an `onerror` handler) is blocked. The page may only connect to itself and the Arbiter server, and can't be framed. React also escapes all output. A browser test injects HTML and checks it can't read the token, and every test fails if the policy blocks anything the app needs. | `apps/web/proxy.ts`, `lib/security-headers.ts`, `e2e/security.spec.ts` |
 | Other websites calling the API | CORS allows exactly one origin. Auth uses the `Authorization` header, not cookies, so there's no CSRF. | `app.ts` |
 | A surprise Google bill | A hard daily quota in Google Cloud (~30 calls), so exceeding the free tier is impossible. One call per session. | Google Cloud console, `README.md` |
 | Leaking the API key | Only the server calls Google; the browser never sees the key. Errors from Google are logged without it (tested). | `google-places-provider.ts` |
 | Rate limits seeing the proxy's IP, not visitors' | `TRUST_PROXY=true` behind Caddy, so limits use each visitor's IP. | `config.ts` |
-| Vulnerable dependencies | CI fails on high or critical advisories (`pnpm audit`); Dependabot opens weekly update PRs. | `.github/` |
+| Vulnerable dependencies | CI fails on high or critical advisories (`pnpm audit`); Dependabot opens weekly update PRs. `drizzle-kit`'s outdated esbuild is overridden to a patched version, so the audit is clean. | `.github/`, `package.json` (`pnpm.overrides`) |
 
 ## Known gaps
 
@@ -48,10 +49,8 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | **Signup reveals whether an email has an account** | "That email already has an account" is the only useful signup answer. | Verify email addresses before creating the account. |
 | **No email verification** | Someone could sign up with an address that isn't theirs (that person could then reset the password and take the account). | A verification email once a provider exists (OPEN-007). |
 | **No per-account lockout** | Per-IP limits don't stop a guesser spread over many IPs. | Lockouts let attackers lock people out, so prefer a CAPTCHA or slowing after failures per account. |
-| **Tokens live in `localStorage`** | Readable by any script on the page, so an XSS bug would expose them. React escapes output and nothing renders raw HTML, which keeps XSS unlikely. | A Content Security Policy on the web app. |
 | **Many connections from one IP** | The live-event limit is per connection, so opening many connections multiplies it. | A per-IP connection limit in Caddy, or in the server with Redis (Phase 7). |
 | **Rate-limit counters are per server** | With two servers (Phase 7), each counts separately. | Move counters to Redis, which `@fastify/rate-limit` supports. |
-| **Accepted: a moderate advisory in `esbuild`** | Comes from `drizzle-kit`, a dev-only tool; it affects esbuild's dev server, which Arbiter never runs. | Clears when `drizzle-kit` updates. |
 
 ## Secrets
 
