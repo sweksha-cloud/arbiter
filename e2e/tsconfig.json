@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true,
+    // Playwright compiles these files itself, so imports don't need .js extensions.
+    "module": "Preserve",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
