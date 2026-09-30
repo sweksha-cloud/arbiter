@@ -14,7 +14,7 @@ Project docs live in `.claude/` for now:
 
 ## Status
 
-The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live.
+The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. You can also login to save or access past sessions.
 
 Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
 
