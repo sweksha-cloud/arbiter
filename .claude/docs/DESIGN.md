@@ -127,7 +127,7 @@ History requirement (section 2) means past sessions must outlive the live room: 
 
 Tradeoffs for the owner:
 - **(a) Groups or sessions only.** Decided: sessions only.
-- **(b) Preferences as columns or as one JSON column.** Columns are validated by Postgres and easy to query; JSON is easier to change while fields are still being decided. Recommendation: columns, once section 3 is approved.
+- **(b) Preferences as columns or as one JSON column.** Columns for now (owner's decision). The final choice is still open: see `.claude/todo/preferences-columns-or-json.md`.
 - **(c) Reactions in Postgres or only in room state.** Now decided by the history requirement: Postgres.
 - **(d) Scan center coordinates.** Google allows keeping coordinates up to 30 days. Store them on the session and clear them with a cleanup job, or keep them only in memory. Recommendation: store and clear after 30 days.
 
