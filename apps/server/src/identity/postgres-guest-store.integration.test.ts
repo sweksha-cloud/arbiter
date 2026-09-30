@@ -11,7 +11,7 @@ const pool = createPool(process.env.DATABASE_URL!);
 const db = createDb(pool);
 afterAll(() => pool.end());
 
-describeGuestStore('PostgresGuestStore', () => new PostgresGuestStore(db));
+describeGuestStore('PostgresGuestStore', (options) => new PostgresGuestStore(db, options));
 
 describe('PostgresGuestStore (real Postgres)', () => {
   it('keeps guests and preferences across a restart', async () => {

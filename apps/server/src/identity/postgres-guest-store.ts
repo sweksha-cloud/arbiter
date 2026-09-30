@@ -1,24 +1,42 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Guest, Preferences } from '@arbiter/shared';
-import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 
 import type { Db } from '../db/client.js';
 import { isUniqueViolation } from '../db/errors.js';
 import { authTokens, passwordResets, preferences, users } from '../db/schema.js';
-import { AccountExistsError, EmailTakenError, hashToken, newToken, type Account, type GuestStore } from './guest-store.js';
+import {
+  AccountExistsError,
+  EmailTakenError,
+  hashToken,
+  newToken,
+  RESET_RETENTION_MS,
+  TOKEN_IDLE_TTL_MS,
+  TOKEN_TOUCH_INTERVAL_MS,
+  type Account,
+  type GuestStore,
+  type GuestStoreOptions
+} from './guest-store.js';
 import { fromStored, toStored } from './stored-preferences.js';
 
 /** Guests, accounts, tokens and preferences, kept across restarts. */
 export class PostgresGuestStore implements GuestStore {
-  constructor(private readonly db: Db) {}
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly db: Db,
+    { now = () => new Date() }: GuestStoreOptions = {}
+  ) {
+    this.now = now;
+  }
 
   async create(displayName: string) {
     const guest: Guest = { id: randomUUID(), displayName };
     const token = newToken();
     await this.db.transaction(async (tx) => {
       await tx.insert(users).values(guest);
-      await tx.insert(authTokens).values({ tokenHash: hashToken(token), userId: guest.id });
+      await tx.insert(authTokens).values({ tokenHash: hashToken(token), userId: guest.id, lastUsedAt: this.now() });
     });
     return { guest, token };
   }
@@ -32,12 +50,19 @@ export class PostgresGuestStore implements GuestStore {
   }
 
   async findByToken(token: string) {
+    const now = this.now();
+    const tokenHash = hashToken(token);
     const [row] = await this.db
-      .select({ id: users.id, displayName: users.displayName })
+      .select({ id: users.id, displayName: users.displayName, lastUsedAt: authTokens.lastUsedAt })
       .from(authTokens)
       .innerJoin(users, eq(users.id, authTokens.userId))
-      .where(eq(authTokens.tokenHash, hashToken(token)));
-    return row;
+      .where(and(eq(authTokens.tokenHash, tokenHash), gt(authTokens.lastUsedAt, ago(now, TOKEN_IDLE_TTL_MS))));
+    if (!row) return undefined;
+    // Keep the token alive, but write at most once a day, not on every request.
+    if (now.getTime() - row.lastUsedAt.getTime() >= TOKEN_TOUCH_INTERVAL_MS) {
+      await this.db.update(authTokens).set({ lastUsedAt: now }).where(eq(authTokens.tokenHash, tokenHash));
+    }
+    return { id: row.id, displayName: row.displayName };
   }
 
   async getPreferences(guestId: string) {
@@ -102,7 +127,7 @@ export class PostgresGuestStore implements GuestStore {
 
   async issueToken(userId: string) {
     const token = newToken();
-    await this.db.insert(authTokens).values({ tokenHash: hashToken(token), userId });
+    await this.db.insert(authTokens).values({ tokenHash: hashToken(token), userId, lastUsedAt: this.now() });
     return token;
   }
 
@@ -141,4 +166,19 @@ export class PostgresGuestStore implements GuestStore {
       .returning({ userId: passwordResets.userId });
     return row?.userId;
   }
+
+  async purgeExpired() {
+    const now = this.now();
+    const tokens = await this.db
+      .delete(authTokens)
+      .where(lte(authTokens.lastUsedAt, ago(now, TOKEN_IDLE_TTL_MS)))
+      .returning({ tokenHash: authTokens.tokenHash });
+    const resets = await this.db
+      .delete(passwordResets)
+      .where(lte(sql`coalesce(${passwordResets.usedAt}, ${passwordResets.expiresAt})`, ago(now, RESET_RETENTION_MS)))
+      .returning({ tokenHash: passwordResets.tokenHash });
+    return { tokens: tokens.length, resets: resets.length };
+  }
 }
+
+const ago = (now: Date, ms: number) => new Date(now.getTime() - ms);

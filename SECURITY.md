@@ -27,7 +27,7 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | Finding out who has an account | Login gives one message for a wrong password and an unknown email, and takes the same time for both (a dummy hash is checked). "Forgot password" answers the same way either way and doesn't wait for the email. | `account-service.ts` |
 | Reset links being intercepted or reused | Random, hashed at rest, single use (atomic), one hour. Sent in the URL fragment, so it never reaches server logs or Referer headers. A reset signs out every device. | `account-service.ts`, `postgres-guest-store.ts` |
 | A copied guest token riding into an account | Every sign-in (signup, login, reset) issues a new token and revokes the old one. | `account-service.ts` |
-| A stolen token | Changing your password signs out every other device; a reset signs out all of them. | `account-service.ts` |
+| A stolen or forgotten token | A sign-in unused for 90 days stops working (each use pushes it back, written at most daily). Changing your password signs out every other device; a reset signs out all of them. Expired sign-ins and old reset links are deleted daily. | `guest-store.ts`, `postgres-guest-store.ts`, `index.ts` |
 | Guessing session codes | Codes are 6 characters from a 31-letter alphabet (~887 million). Live events are limited per connection. Only members get a session's summary; everyone else gets the same "not found", so codes can't be probed over REST. | `session-service.ts`, `rate-limits.ts` |
 | Spamming guests or sessions | Per-IP limits: 20 guests and 10 sessions a minute, 120 requests a minute overall. Sized so a group on one Wi-Fi network never notices. | `rate-limits.ts`, `routes.ts` |
 | Flooding live events | 30 events per 10 s per connection; extra events get a `rate_limited` reply rather than silence. | `socket-handlers.ts` |
@@ -45,7 +45,6 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | Gap | Risk | Plan |
 | --- | --- | --- |
 | **One person can use up the day's Google quota** | Starting sessions alone and pressing "Show results now" runs a scan each time; ~30 in a few minutes stops real groups for the day ("try again tomorrow"). | A per-guest daily scan limit, counted from session history. |
-| **Sign-in tokens never expire** | A token copied from a device works until that person logs out or changes their password. | Expire tokens unused for, say, 90 days. |
 | **Signup reveals whether an email has an account** | "That email already has an account" is the only useful signup answer. | Verify email addresses before creating the account. |
 | **No email verification** | Someone could sign up with an address that isn't theirs (that person could then reset the password and take the account). | A verification email once a provider exists (OPEN-007). |
 | **No per-account lockout** | Per-IP limits don't stop a guesser spread over many IPs. | Lockouts let attackers lock people out, so prefer a CAPTCHA or slowing after failures per account. |

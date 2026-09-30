@@ -3,10 +3,16 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { AccountExistsError, EmailTakenError, type GuestStore } from './guest-store.js';
+import {
+  AccountExistsError,
+  EmailTakenError,
+  TOKEN_IDLE_TTL_MS,
+  type GuestStore,
+  type GuestStoreOptions
+} from './guest-store.js';
 
 /** Behavior every GuestStore must have. Run against each implementation. */
-export function describeGuestStore(name: string, makeStore: () => GuestStore) {
+export function describeGuestStore(name: string, makeStore: (options?: GuestStoreOptions) => GuestStore) {
   describe(`${name} (GuestStore contract)`, () => {
     const prefs: Preferences = {
       hard: { vegetarian: true, maxPriceLevel: 2, maxDistanceMeters: 1_500 },
@@ -146,6 +152,54 @@ export function describeGuestStore(name: string, makeStore: () => GuestStore) {
       const token = await store.createPasswordReset(guest.id, new Date('2026-01-01T13:00:00Z'));
       expect(await store.consumePasswordReset(token, new Date('2026-01-01T13:00:00Z'))).toBeUndefined();
       expect(await store.consumePasswordReset('not-a-token', new Date('2026-01-01T12:00:00Z'))).toBeUndefined();
+    });
+
+    describe('sign-in expiry', () => {
+      const DAY = 24 * 60 * 60 * 1000;
+      function clock() {
+        let now = new Date('2026-01-01T00:00:00Z').getTime();
+        return { now: () => new Date(now), advance: (ms: number) => void (now += ms) };
+      }
+
+      it('stops accepting a token left unused for 90 days', async () => {
+        const time = clock();
+        const store = makeStore({ now: time.now });
+        const { guest, token } = await store.create('Ada');
+        time.advance(TOKEN_IDLE_TTL_MS - DAY);
+        // Not used in between: one day short of the limit, it still works...
+        const other = await store.issueToken(guest.id);
+        time.advance(DAY);
+        // ...and at the limit it doesn't. The token issued later still does.
+        expect(await store.findByToken(token)).toBeUndefined();
+        expect(await store.findByToken(other)).toEqual(guest);
+      });
+
+      it('keeps a token that keeps being used', async () => {
+        const time = clock();
+        const store = makeStore({ now: time.now });
+        const { guest, token } = await store.create('Ada');
+        for (let i = 0; i < 4; i++) {
+          time.advance(60 * DAY);
+          expect(await store.findByToken(token)).toEqual(guest);
+        }
+      });
+
+      it('purges expired tokens and old reset links, and nothing else', async () => {
+        const time = clock();
+        const store = makeStore({ now: time.now });
+        const { guest, token: stale } = await store.create('Ada');
+        const reset = await store.createPasswordReset(guest.id, new Date(time.now().getTime() + 60 * 60 * 1000));
+        time.advance(TOKEN_IDLE_TTL_MS);
+        const fresh = await store.issueToken(guest.id);
+
+        const purged = await store.purgeExpired();
+
+        expect(purged.tokens).toBeGreaterThanOrEqual(1);
+        expect(purged.resets).toBeGreaterThanOrEqual(1);
+        expect(await store.findByToken(fresh)).toEqual(guest);
+        expect(await store.findByToken(stale)).toBeUndefined();
+        expect(await store.consumePasswordReset(reset, time.now())).toBeUndefined();
+      });
     });
   });
 }

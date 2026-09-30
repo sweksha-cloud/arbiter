@@ -23,12 +23,13 @@ function mailer(log: FastifyBaseLogger): Mailer {
 
 const pool = createPool(config.DATABASE_URL);
 const db = createDb(pool);
+const guests = new PostgresGuestStore(db);
 const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
   trustProxy: config.TRUST_PROXY,
   rateLimits: config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS,
-  guests: new PostgresGuestStore(db),
+  guests,
   history: new PostgresSessionHistory(db),
   mailer,
   ...(config.GOOGLE_PLACES_API_KEY
@@ -49,6 +50,16 @@ await connectWithRetry(pool, {
 await runMigrations(db);
 
 await http.listen({ host: config.HOST, port: config.PORT });
+
+// Daily cleanup of expired sign-ins and old reset links. In-process is fine
+// for one server; with several, each would run it (harmless: deletes are idempotent).
+const purge = () =>
+  guests.purgeExpired().then(
+    (counts) => http.log.info(counts, 'Purged expired sign-ins and reset links'),
+    (error: unknown) => http.log.error({ err: error }, 'Could not purge expired sign-ins')
+  );
+void purge();
+setInterval(() => void purge(), 24 * 60 * 60 * 1000).unref();
 
 // Docker sends SIGTERM on stop and deploys; close connections cleanly.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
