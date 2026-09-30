@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildApp, type App } from './app.js';
+import { DEFAULT_RATE_LIMITS } from './rate-limits.js';
 
 const webOrigin = 'https://arbiter.example';
 
@@ -103,5 +104,48 @@ describe('app', () => {
       headers: { authorization: `Bearer ${outsider}` }
     });
     expect(theirs.statusCode).toBe(404);
+  });
+
+  describe('abuse limits', () => {
+    it('limits creating guests per IP, with a message people can act on', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, guestsPerMinute: 2 } });
+      const create = () => app!.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: 'Sam' } });
+      expect((await create()).statusCode).toBe(201);
+      expect((await create()).statusCode).toBe(201);
+      const refused = await create();
+      expect(refused.statusCode).toBe(429);
+      expect(refused.json<{ error: string }>().error).toMatch(/^Too many requests\. Try again in \d+ seconds\.$/);
+    });
+
+    it('counts each visitor separately behind a trusted proxy', async () => {
+      app = await buildApp({
+        webOrigin,
+        logLevel: 'silent',
+        trustProxy: true,
+        rateLimits: { ...DEFAULT_RATE_LIMITS, guestsPerMinute: 1 }
+      });
+      const createFrom = (ip: string) =>
+        app!.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: 'Sam' }, headers: { 'x-forwarded-for': ip } });
+      expect((await createFrom('203.0.113.1')).statusCode).toBe(201);
+      expect((await createFrom('203.0.113.2')).statusCode).toBe(201);
+      expect((await createFrom('203.0.113.1')).statusCode).toBe(429);
+    });
+
+    it('never limits the health check', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, requestsPerMinute: 1 } });
+      for (let i = 0; i < 5; i++) {
+        expect((await app.http.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+      }
+    });
+
+    it('refuses oversized request bodies', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent' });
+      const response = await app.http.inject({
+        method: 'POST',
+        url: '/api/guests',
+        payload: { displayName: 'x'.repeat(20_000) }
+      });
+      expect(response.statusCode).toBe(413);
+    });
   });
 });

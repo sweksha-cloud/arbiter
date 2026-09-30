@@ -43,7 +43,7 @@ async function request<T extends z.ZodType>(
   }
 
   if (!response.ok) {
-    // The server forgets guests when it restarts; start fresh rather than get stuck.
+    // An unknown token (e.g. the database was reset): start fresh rather than get stuck.
     if (response.status === 401) clearIdentity();
     const parsed = ErrorResponseSchema.safeParse(await response.json().catch(() => null));
     throw new ApiError(response.status, parsed.success ? parsed.data.error : 'Something went wrong');

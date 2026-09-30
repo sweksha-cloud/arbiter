@@ -24,7 +24,9 @@ export async function startApiServer(): Promise<void> {
       PORT: '4000',
       WEB_ORIGIN: WEB_URL,
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://arbiter:arbiter@localhost:5432/arbiter',
-      LOG_LEVEL: 'warn'
+      LOG_LEVEL: 'warn',
+      // The suite creates dozens of guests from one machine in seconds.
+      RATE_LIMITS: 'off'
     },
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: true
