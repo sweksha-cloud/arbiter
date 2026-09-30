@@ -5,6 +5,7 @@ import { InMemorySessionHistory, SessionCodeTakenError, type SessionHistory } fr
 import { InMemoryGuestStore } from '../identity/guest-store.js';
 import { FixturePlacesProvider } from '../places/fixture-places-provider.js';
 import type { PlacesProvider } from '../places/places-provider.js';
+import { SlidingWindowLimiter } from '../rate-limits.js';
 import { InMemoryRoomStore } from '../rooms/in-memory-room-store.js';
 import { SessionService } from './session-service.js';
 
@@ -25,7 +26,8 @@ const place = (id: string, overrides: Partial<PlaceCandidate> = {}) => ({
 
 async function setup(
   places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')]),
-  history: SessionHistory = new InMemorySessionHistory()
+  history: SessionHistory = new InMemorySessionHistory(),
+  scanBudget?: SlidingWindowLimiter
 ) {
   const guests = new InMemoryGuestStore();
   const historyErrors: { error: unknown; action: string }[] = [];
@@ -34,6 +36,7 @@ async function setup(
     rooms: new InMemoryRoomStore(),
     guests,
     history,
+    scanBudget,
     log: {
       info: (details, message) => logged.push({ details: details as Record<string, unknown>, message }),
       error: (details, message) => {
@@ -49,7 +52,7 @@ async function setup(
   });
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;
-  const sessionId = await service.create(host, center);
+  const sessionId = await service.create(host, center, '203.0.113.1');
   return { guests, history, historyErrors, logged, service, host, friend, sessionId };
 }
 
@@ -312,6 +315,37 @@ describe('SessionService', () => {
       const { service, host, sessionId, logged } = await setup(failing);
       await expect(service.start(sessionId, host)).rejects.toThrow('network down');
       expect(logged.find((l) => l.message.startsWith('Scan failed'))?.details).toMatchObject({ sessionId });
+    });
+  });
+
+  describe('daily scan limit per network', () => {
+    it("refuses a scan once the host's network has used its budget, and leaves the session usable", async () => {
+      const budget = new SlidingWindowLimiter(1, 24 * 60 * 60_000);
+      const first = await setup(undefined, undefined, budget);
+      expect((await first.service.start(first.sessionId, first.host)).status).toBe('voting');
+
+      const second = await setup(undefined, undefined, budget);
+      const error = await second.service.start(second.sessionId, second.host).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: 'quota' });
+      expect((error as Error).message).toMatch(/This network has used today's searches\. Try again in/);
+      expect((await second.service.get(second.sessionId)).status).toBe('lobby');
+    });
+
+    it('charges each network separately', async () => {
+      const budget = new SlidingWindowLimiter(1, 24 * 60 * 60_000);
+      const a = await setup(undefined, undefined, budget);
+      await a.service.start(a.sessionId, a.host);
+      const b = await setup(undefined, undefined, budget);
+      const otherNetwork = await b.service.create(b.host, center, '198.51.100.7');
+      expect((await b.service.start(otherNetwork, b.host)).status).toBe('voting');
+    });
+
+    it('never charges a duplicate request that was refused anyway', async () => {
+      const budget = new SlidingWindowLimiter(1, 24 * 60 * 60_000);
+      const { service, host, sessionId } = await setup(undefined, undefined, budget);
+      const results = await Promise.allSettled([service.start(sessionId, host), service.start(sessionId, host)]);
+      expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+      expect(results.find((r) => r.status === 'rejected')).toMatchObject({ reason: { code: 'invalid_state' } });
     });
   });
 });

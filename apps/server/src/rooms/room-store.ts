@@ -12,6 +12,8 @@ export interface RoomState {
   /** Set by the store: starts at 0 and goes up by one on every update. */
   version: number;
   hostId: string;
+  /** The network scans are charged to. Memory only: IPs are never stored in the database. */
+  hostIp?: string;
   status: SessionStatus;
   center: LatLng;
   members: RoomMember[];

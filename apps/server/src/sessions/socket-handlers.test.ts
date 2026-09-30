@@ -106,6 +106,30 @@ describe('session over Socket.IO', () => {
     expect(acks.map((a) => (a.ok ? 'ok' : a.code))).toEqual(['not_found', 'not_found', 'rate_limited']);
   });
 
+  it('caps live connections per IP, and frees a slot when one closes', async () => {
+    await app.http.close();
+    app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, socketConnectionsPerIp: 2 } });
+    await app.http.listen({ host: '127.0.0.1', port: 0 });
+    url = `http://127.0.0.1:${(app.http.server.address() as AddressInfo).port}`;
+    const guest = await createGuest('Many tabs');
+    const opened = (client: Client) =>
+      new Promise<string>((resolve) => {
+        client.on('connect', () => resolve('connected'));
+        client.on('connect_error', (error) => resolve(error.message));
+      });
+
+    // A refused sign-in never takes a slot.
+    expect(await opened(connectClient('not-a-token'))).toBe('unauthorized');
+    const first = connectClient(guest.token);
+    expect(await opened(first)).toBe('connected');
+    expect(await opened(connectClient(guest.token))).toBe('connected');
+    expect(await opened(connectClient(guest.token))).toBe('too_many_connections');
+
+    first.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(await opened(connectClient(guest.token))).toBe('connected');
+  });
+
   it('rejects connections without a valid token', async () => {
     const client = connectClient('not-a-token');
     const error = await new Promise<Error>((resolve) => client.on('connect_error', resolve));

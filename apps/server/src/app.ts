@@ -14,7 +14,7 @@ import { DemoPlacesProvider } from './places/demo-places-provider.js';
 import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
 import type { RoomStore } from './rooms/room-store.js';
-import { DEFAULT_RATE_LIMITS, MAX_BODY_BYTES, type RateLimits } from './rate-limits.js';
+import { DEFAULT_RATE_LIMITS, MAX_BODY_BYTES, SlidingWindowLimiter, type RateLimits } from './rate-limits.js';
 import { registerRoutes } from './routes.js';
 import { MISSING_DATA_POLICY, SCAN_RADIUS_METERS } from './sessions/scan-settings.js';
 import { SessionService } from './sessions/session-service.js';
@@ -101,13 +101,15 @@ export async function buildApp({
     mailer: deps.mailer?.(http.log) ?? new LogMailer(http.log),
     webOrigin,
     passwordParams: deps.passwordParams,
-    onMailError: (error) => http.log.error({ err: error }, 'Could not send email')
+    onMailError: (error) => http.log.error({ err: error }, 'Could not send email'),
+    loginFailures: new SlidingWindowLimiter(rateLimits.loginFailuresPerAccount, 15 * 60_000)
   });
   const sessions = new SessionService({
     rooms: deps.rooms ?? new InMemoryRoomStore(),
     guests,
     history,
     log: http.log,
+    scanBudget: new SlidingWindowLimiter(rateLimits.scansPerIpPerDay, 24 * 60 * 60_000),
     places: deps.places ?? new DemoPlacesProvider(),
     placesSource: deps.placesSource ?? 'sample',
     radiusMeters: SCAN_RADIUS_METERS,
@@ -119,7 +121,7 @@ export async function buildApp({
   http.get('/health', async () => ({ status: 'ok' }));
 
   registerRoutes(http, { guests, sessions, accounts, history, rateLimits });
-  registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits });
+  registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits, trustProxy });
 
   return { http, io };
 }

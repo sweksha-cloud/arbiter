@@ -13,7 +13,7 @@ import { ZodError } from 'zod';
 
 import type { GuestStore } from '../identity/guest-store.js';
 import { PlacesQuotaExceededError } from '../places/places-provider.js';
-import { WindowCounter, type RateLimits } from '../rate-limits.js';
+import { ConcurrencyLimiter, WindowCounter, type RateLimits } from '../rate-limits.js';
 import { SessionError, type SessionService } from './session-service.js';
 
 interface SocketData {
@@ -32,15 +32,37 @@ export function registerSocketHandlers(
     guests,
     sessions,
     log,
-    rateLimits
-  }: { guests: GuestStore; sessions: SessionService; log: FastifyBaseLogger; rateLimits: RateLimits }
+    rateLimits,
+    trustProxy = false
+  }: { guests: GuestStore; sessions: SessionService; log: FastifyBaseLogger; rateLimits: RateLimits; trustProxy?: boolean }
 ) {
+  const connectionsPerIp = new ConcurrencyLimiter(rateLimits.socketConnectionsPerIp);
+
+  /** The visitor's IP; behind a trusted proxy, the one it forwarded (same rule as the REST API). */
+  function clientIp(socket: ArbiterSocket): string {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+    return trustProxy && first ? first : socket.handshake.address;
+  }
+
   // Same token as the REST API, sent in the handshake instead of a header.
   io.use(async (socket, next) => {
     const token: unknown = socket.handshake.auth.token;
     const guest = typeof token === 'string' ? await guests.findByToken(token) : undefined;
     if (!guest) return next(new Error('unauthorized'));
     socket.data.guest = guest;
+    next();
+  });
+
+  // Last, after sign-in: a connection that passes here always connects, so
+  // its 'disconnect' (which frees the slot) is guaranteed to fire.
+  io.use((socket, next) => {
+    const ip = clientIp(socket);
+    if (!connectionsPerIp.acquire(ip)) {
+      log.warn({ ip }, 'Too many live connections from one IP');
+      return next(new Error('too_many_connections'));
+    }
+    socket.once('disconnect', () => connectionsPerIp.release(ip));
     next();
   });
 

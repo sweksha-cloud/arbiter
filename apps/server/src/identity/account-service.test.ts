@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AccountService, AuthError } from './account-service.js';
 import { InMemoryGuestStore } from './guest-store.js';
 import type { Email, Mailer } from './mailer.js';
+import { SlidingWindowLimiter } from '../rate-limits.js';
 import { hashPassword } from './passwords.js';
 
 // Fast hashing for tests; production settings are tested in passwords.test.ts.
@@ -19,10 +20,10 @@ class CapturingMailer implements Mailer {
   }
 }
 
-function setup(now = () => new Date('2026-09-30T12:00:00Z')) {
+function setup(now = () => new Date('2026-09-30T12:00:00Z'), loginFailures?: SlidingWindowLimiter) {
   const guests = new InMemoryGuestStore();
   const mailer = new CapturingMailer();
-  const accounts = new AccountService({ guests, mailer, webOrigin: 'https://arbiter.example', passwordParams: FAST, now });
+  const accounts = new AccountService({ guests, mailer, webOrigin: 'https://arbiter.example', passwordParams: FAST, now, loginFailures });
   return { guests, mailer, accounts };
 }
 
@@ -196,6 +197,54 @@ describe('AccountService', () => {
       expect(await guests.findByToken(here.token)).toEqual(here.guest);
       expect(await guests.findByToken(elsewhere.token)).toBeUndefined();
       await expect(accounts.login(undefined, { email, password: 'new password here' })).resolves.toBeTruthy();
+    });
+  });
+
+  describe('too many wrong passwords', () => {
+    const paused = { code: 'too_many_attempts', status: 429 };
+    const threeTries = () => new SlidingWindowLimiter(3, 15 * 60_000);
+
+    it('pauses an account after repeated wrong passwords, even for the right one', async () => {
+      const { accounts } = setup(undefined, threeTries());
+      await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      for (let i = 0; i < 3; i++) {
+        await expect(accounts.login(undefined, { email, password: `guess ${i}` })).rejects.toMatchObject({ code: 'invalid_credentials' });
+      }
+      const error = await accounts.login(undefined, { email, password }).catch((e: unknown) => e);
+      expect(error).toMatchObject(paused);
+      expect((error as Error).message).toMatch(/Try again in \d+ minutes, or reset your password\./);
+    });
+
+    it('pauses an unknown email the same way, so the pause reveals nothing', async () => {
+      const { accounts } = setup(undefined, threeTries());
+      for (let i = 0; i < 3; i++) await accounts.login(undefined, { email: 'who@example.com', password: 'x' }).catch(() => {});
+      await expect(accounts.login(undefined, { email: 'who@example.com', password: 'x' })).rejects.toMatchObject(paused);
+    });
+
+    it('forgets earlier wrong guesses after a successful login', async () => {
+      const { accounts } = setup(undefined, threeTries());
+      await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      for (let i = 0; i < 2; i++) await accounts.login(undefined, { email, password: 'nope' }).catch(() => {});
+      await accounts.login(undefined, { email, password });
+      for (let i = 0; i < 2; i++) await accounts.login(undefined, { email, password: 'nope' }).catch(() => {});
+      await expect(accounts.login(undefined, { email, password })).resolves.toBeTruthy();
+    });
+
+    it('lets a password reset end the pause', async () => {
+      const { mailer, accounts } = setup(undefined, threeTries());
+      await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      for (let i = 0; i < 3; i++) await accounts.login(undefined, { email, password: 'nope' }).catch(() => {});
+      await accounts.forgotPassword(email);
+      await vi.waitFor(() => expect(mailer.sent).toHaveLength(1));
+      await accounts.resetPassword(mailer.resetToken(), 'a brand new password');
+      await expect(accounts.login(undefined, { email, password: 'a brand new password' })).resolves.toBeTruthy();
+    });
+
+    it('counts wrong current passwords on the account page too', async () => {
+      const { accounts } = setup(undefined, threeTries());
+      const me = await accounts.signup(undefined, { displayName: 'Sam', email, password });
+      for (let i = 0; i < 3; i++) await accounts.changePassword(me.guest, me.token, 'nope', 'new password here').catch(() => {});
+      await expect(accounts.changePassword(me.guest, me.token, password, 'new password here')).rejects.toMatchObject(paused);
     });
   });
 });
