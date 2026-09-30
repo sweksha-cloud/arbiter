@@ -18,32 +18,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #342638;
-    --surface: #45364b;
-    --surface-warm: #52632d;
-    --surface-cool: #285967;
-    --surface-lilac: #754c8e;
+    --bg: #241b2b;
+    --surface: #30263a;
+    --surface-warm: #453044;
+    --surface-cool: #244650;
+    --surface-lilac: #4c3048;
     --text: #fff3fa;
-    --muted: #e2cde1;
-    --border: #735a78;
-    --accent: #d990ef;
-    --accent-text: #342638;
-    --like: #79e0bd;
+    --muted: #cdbbd0;
+    --border: #55445d;
+    --accent: #e2a0ff;
+    --accent-text: #241b2b;
+    --like: #8fe2c3;
     --dislike: #f39ab1;
-    --notice-bg: #52632d;
-    --notice-text: #edffbd;
+    --notice-bg: #53452d;
+    --notice-text: #f5dda0;
   }
 
   .page > section.card {
-    border-color: #879e4e;
+    border-color: #80546b;
   }
 
   .page > form.card {
-    border-color: #4d9eae;
+    border-color: #4d8490;
   }
 
   .rejoin {
-    border-color: #b477d2;
+    border-color: #98629a;
   }
 }
 
