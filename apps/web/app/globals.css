@@ -147,7 +147,7 @@ a {
 }
 
 .page > form.card {
-  background: var(--surface-cool);
+  background: var(--surface);
   border-color: #70dce5;
 }
 
