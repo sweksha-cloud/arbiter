@@ -36,6 +36,7 @@ export interface SessionServiceOptions {
   guests: GuestStore;
   places: PlacesProvider;
   placesSource: SessionView['placesSource'];
+  /** Search area when nobody in the group set a distance limit. */
   radiusMeters: number;
   missingDataPolicy: MissingDataPolicy;
 }
@@ -210,16 +211,15 @@ export class SessionService {
     await onScanStarted?.();
 
     try {
+      const preferences = Object.values(room.submissions);
+      const group = combineHardConstraints(preferences);
+      // Search exactly as far as the group will go, so a far limit finds far
+      // places and a close one spends the scan's results on nearby places.
       const scanned = await this.options.places.searchNearby({
         center: room.center,
-        radiusMeters: this.options.radiusMeters
+        radiusMeters: group.maxDistanceMeters ?? this.options.radiusMeters
       });
-      const preferences = Object.values(room.submissions);
-      const { kept, eliminatedCount } = eliminate(
-        scanned,
-        combineHardConstraints(preferences),
-        this.options.missingDataPolicy
-      );
+      const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy);
       const suggestions = rankSuggestions(kept, preferences);
 
       return await this.update(sessionId, (current) => ({

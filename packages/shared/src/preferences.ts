@@ -4,11 +4,18 @@ import { PriceLevelSchema } from './place.js';
 
 // Field list is a proposal awaiting approval; see .claude/docs/DESIGN.md section 3.
 
+/**
+ * The farthest anyone can ask for: the largest radius Google's Nearby Search
+ * accepts (50 km, about 31 miles). The scan covers the group's limit, so a
+ * larger one couldn't be honored.
+ */
+export const MAX_DISTANCE_METERS = 50_000;
+
 export const HardConstraintsSchema = z.object({
   vegetarian: z.boolean().optional(),
   noFastFood: z.boolean().optional(),
   maxPriceLevel: PriceLevelSchema.optional(),
-  maxDistanceMeters: z.number().int().positive().optional()
+  maxDistanceMeters: z.number().int().positive().max(MAX_DISTANCE_METERS).optional()
 });
 export type HardConstraints = z.infer<typeof HardConstraintsSchema>;
 
