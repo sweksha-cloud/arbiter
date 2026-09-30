@@ -34,6 +34,8 @@ Options that were considered: app picks a winner; group votes on everything left
 - Guests can choose to log in so their preferences are saved.
 - Anyone can create a session and send an invite link.
 
+- **Session history for logged-in users:** people who log in can go back to their past sessions and see the results and who took part. Guests can't; history is part of what logging in gives you.
+
 **Built (temporary)**
 - A guest is a name plus a random token the server issues. The browser keeps it in `localStorage` and sends it in the `Authorization` header and the Socket.IO handshake. Guests live in server memory until the data model is approved.
 
@@ -118,10 +120,14 @@ Main flow (**Decided** by the owner: start a session first, everyone submits pre
 
 Scan results (names, prices, etc.) live only in the in-memory room state for the life of the session.
 
+History requirement (section 2) means past sessions must outlive the live room: members, the suggested place IDs, and reaction totals all go in Postgres, and an old link opened by a logged-in member shows that session's results instead of "not found".
+
+**Conflict with Google's terms to resolve:** only place IDs (forever) and coordinates (30 days) may be stored. Names, prices and ratings may not be kept after the session. So history can store *which* places were suggested and how people reacted, but showing their names later needs either a fresh Google lookup per place when someone opens history (costs calls against the free allowance) or showing only a Google Maps link per place. Recommendation: look up names on demand, with the same hard daily quota.
+
 Tradeoffs for the owner:
 - **(a) Groups or sessions only.** Sessions only is simpler and matches "anyone can create a session and send an invite link". Persistent groups would let a friend group reuse an invite link. Recommendation: sessions only for v1.
 - **(b) Preferences as columns or as one JSON column.** Columns are validated by Postgres and easy to query; JSON is easier to change while fields are still being decided. Recommendation: columns, once section 3 is approved.
-- **(c) Reactions in Postgres or only in room state.** Postgres keeps them if the server restarts mid-session and is needed later for "what did we pick last time". Recommendation: Postgres.
+- **(c) Reactions in Postgres or only in room state.** Now decided by the history requirement: Postgres.
 - **(d) Scan center coordinates.** Google allows keeping coordinates up to 30 days. Store them on the session and clear them with a cleanup job, or keep them only in memory. Recommendation: store and clear after 30 days.
 
 ## 9. Real-time events
