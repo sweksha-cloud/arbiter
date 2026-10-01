@@ -151,5 +151,9 @@ describe('cuisinesFromTypes', () => {
 
   it('ignores types that say nothing about the food', () => {
     expect(cuisinesFromTypes(['restaurant', 'food', 'point_of_interest', 'establishment'])).toEqual([]);
+    // Found in the first real scan: "family" is a kind of restaurant, not a cuisine.
+    expect(cuisinesFromTypes(['family_restaurant', 'italian_restaurant', 'fine_dining_restaurant', 'buffet_restaurant'])).toEqual([
+      'italian'
+    ]);
   });
 });
