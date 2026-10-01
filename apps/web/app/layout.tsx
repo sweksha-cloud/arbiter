@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
@@ -33,6 +34,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Powered by fatsecret Platform API
           </a>
           . Nothing here is nutrition or medical advice.
+          <br />
+          <Link href="/terms">Terms of Use</Link> · <Link href="/privacy">Privacy Policy</Link>
         </footer>
       </body>
     </html>

@@ -82,6 +82,8 @@ test('the account pages pass automated WCAG 2.1 AA checks', async ({ newPhone })
     ['/forgot-password', 'Reset your password'],
     ['/reset-password#token=example', 'Choose a new password'],
     ['/verify-email#token=example', 'Confirm your email'],
+    ['/terms', 'Terms of Use'],
+    ['/privacy', 'Privacy Policy'],
     ['/history', 'Past sessions']
   ] as const) {
     await phone.goto(url);

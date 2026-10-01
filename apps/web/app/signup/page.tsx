@@ -80,6 +80,10 @@ export default function SignupPage() {
             {error}
           </p>
         )}
+        <p className="muted small">
+          By making an account you agree to the <Link href="/terms">Terms of Use</Link> and{' '}
+          <Link href="/privacy">Privacy Policy</Link>.
+        </p>
         <p className="small">
           Already have one? <Link href="/login">Log in</Link>
         </p>

@@ -23,3 +23,19 @@ test('invite links work in lowercase', async ({ newPhone }) => {
   await joinSession(friend, `/s/${code.toLowerCase()}`, 'Kai');
   await expect(friend.getByText('0 of 2 submitted')).toBeVisible();
 });
+
+test("every page links to the Terms and Privacy pages, which link to Google's terms", async ({ newPhone }) => {
+  const phone = await newPhone();
+  await phone.goto('/');
+  await phone.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' }).click();
+  await expect(phone.getByRole('heading', { name: 'Privacy Policy', level: 1 })).toBeVisible();
+  await expect(phone.getByRole('link', { name: 'Google Privacy Policy' })).toHaveAttribute('href', 'https://policies.google.com/privacy');
+
+  await phone.getByRole('contentinfo').getByRole('link', { name: 'Terms of Use' }).click();
+  await expect(phone.getByRole('heading', { name: 'Terms of Use', level: 1 })).toBeVisible();
+  await expect(phone.getByRole('link', { name: 'Google Maps/Google Earth Additional Terms of Service' })).toHaveAttribute(
+    'href',
+    'https://maps.google.com/help/terms_maps/'
+  );
+  await expect(phone.getByRole('link', { name: 'fatsecret Platform API Terms of Use' })).toBeVisible();
+});
