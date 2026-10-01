@@ -24,5 +24,8 @@
   },
   "volta": {
     "extends": "../../package.json"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
