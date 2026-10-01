@@ -67,6 +67,11 @@ html {
 body {
   position: relative;
   margin: 0;
+  /* Header, page, footer in a column: the page stretches so the footer sits at the bottom of short pages. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -566,10 +571,21 @@ input:not([type='checkbox']) {
   color: var(--text);
 }
 
+/* In the body's column, children would otherwise shrink to fit their content. */
+body > main,
+body > .site-header,
+body > .site-footer {
+  width: 100%;
+}
+
+body > main {
+  flex: 1;
+}
+
 .site-footer {
   max-width: 480px;
   margin: 0 auto;
-  padding: 0 16px 32px;
+  padding: 24px 16px 32px;
   text-align: center;
 }
 

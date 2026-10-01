@@ -39,3 +39,16 @@ test("every page links to the Terms and Privacy pages, which link to Google's te
   );
   await expect(phone.getByRole('link', { name: 'fatsecret Platform API Terms of Use' })).toBeVisible();
 });
+
+test('an unreachable server gives a clear message instead of spinning forever (BUG-018)', async ({ newPhone }) => {
+  test.setTimeout(40_000);
+  const phone = await newPhone();
+  // A server that never answers, like an address pointing at the wrong machine.
+  await phone.route('**/api/guests', () => new Promise(() => {}));
+  await phone.goto('/');
+  await phone.getByRole('textbox').fill('Angel');
+  await phone.getByRole('button', { name: 'Continue' }).click();
+  await expect(phone.getByRole('button', { name: 'One sec…' })).toBeVisible();
+  await expect(phone.locator('.error')).toHaveText("Can't reach the Arbiter server. Is it running?", { timeout: 20_000 });
+  await expect(phone.getByRole('button', { name: 'Continue' })).toBeEnabled();
+});

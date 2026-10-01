@@ -26,6 +26,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Long enough for a slow phone network, short enough that people aren't left waiting. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function request<T extends z.ZodType>(
   schema: T,
   path: string,
@@ -40,7 +43,10 @@ async function request<T extends z.ZodType>(
     response = await fetch(`${SERVER_URL}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      // A server that silently drops requests would otherwise leave buttons on
+      // "One sec…" forever (BUG-018).
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
   } catch {
     throw new ApiError(0, "Can't reach the Arbiter server. Is it running?");
