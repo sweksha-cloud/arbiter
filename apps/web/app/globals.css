@@ -590,3 +590,17 @@ details > summary {
   min-height: 32px;
   padding: 4px 0;
 }
+
+/* Long-form pages (Terms, Privacy): readable lists and spacing. */
+.legal ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.legal li + li {
+  margin-top: 6px;
+}
+
+.legal h3 {
+  margin-top: 4px;
+}
