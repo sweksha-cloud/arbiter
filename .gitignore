@@ -6,8 +6,8 @@ coverage/
 .env.*
 !.env.example
 
-# Claude Code personal settings (per machine)
-.claude/settings.local.json
+# Project notes and Claude Code settings: local only, never pushed
+.claude/
 
 # Playwright
 test-results/

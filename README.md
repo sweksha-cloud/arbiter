@@ -6,7 +6,7 @@ Arbiter quickly helps a friend group decide where to eat. Everyone sets their pr
 
 ## Hard problems
 
-The idea is simple; making it correct with several phones at once isn't. Each has tests, and the reasoning is in [`TRADEOFFS.md`](.claude/TRADEOFFS.md).
+The idea is simple; making it correct with several phones at once isn't. Each of these has tests.
 
 - **The server is the only source of truth.** Phones send requests; the server checks each one against the rules and sends every person the new state. No two phones can disagree about the result.
 - **Updates can arrive out of order.** Every change bumps a version number and phones keep the newest (BUG-002). History writes use the same number, so a slow, older database write can't overwrite a newer one.
@@ -34,24 +34,13 @@ flowchart LR
 
 ## Docs
 
-Project docs live in `.claude/` for now:
-
-- Product decisions: [`.claude/docs/DESIGN.md`](.claude/docs/DESIGN.md)
-- Technical decisions: [`.claude/docs/TECH_DECISIONS.md`](.claude/docs/TECH_DECISIONS.md)
-- Bug log: [`.claude/BUGS.md`](.claude/BUGS.md)
-- Design tradeoffs: [`.claude/TRADEOFFS.md`](.claude/TRADEOFFS.md)
-- Tech stack review: [`.claude/TECH_STACK_REVIEW.md`](.claude/TECH_STACK_REVIEW.md)
-- Project assessment and roadmap: [`.claude/PROJECT_ASSESSMENT.md`](.claude/PROJECT_ASSESSMENT.md)
-- Planned work: [`.claude/todo/`](.claude/todo/README.md)
 - Security and threat model: [`SECURITY.md`](SECURITY.md)
-- Deploying (AWS EC2 + Neon + Vercel): [`.claude/docs/DEPLOY.md`](.claude/docs/DEPLOY.md)
-- How the hosting was chosen: [`.claude/cloud-deliberation/`](.claude/cloud-deliberation/README.md)
 
 ## Status
 
 The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. Make an account (or log in) from the top of any page to keep your preferences and see past sessions on any device.
 
-Still temporary until the open decisions in `.claude/docs/DESIGN.md` are made:
+Still temporary:
 
 - **Places are sample data unless you add a Google API key.** Without one, the server places 12 made-up restaurants around wherever the session starts (see "Real places" below).
 - **Live sessions live in server memory.** Guests, preferences and session history are saved in Postgres, but a server restart ends any session in progress.
