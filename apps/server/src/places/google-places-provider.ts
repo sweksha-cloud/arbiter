@@ -18,7 +18,9 @@ export const FIELD_MASK = [
   'places.types',
   'places.priceLevel',
   'places.rating',
-  'places.servesVegetarianFood'
+  'places.servesVegetarianFood',
+  // Same billing tier as the fields above, so it costs nothing extra.
+  'places.currentOpeningHours.openNow'
 ].join(',');
 
 /** Restaurants, cafes and fast food (spec section 2). Provisional: DESIGN.md section 4. */
@@ -43,7 +45,8 @@ const GooglePlaceSchema = z.object({
   types: z.array(z.string()).optional(),
   priceLevel: z.string().optional(),
   rating: z.number().optional(),
-  servesVegetarianFood: z.boolean().optional()
+  servesVegetarianFood: z.boolean().optional(),
+  currentOpeningHours: z.object({ openNow: z.boolean().optional() }).optional()
 });
 type GooglePlace = z.infer<typeof GooglePlaceSchema>;
 
@@ -98,7 +101,8 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
     isFastFood: types.includes('fast_food_restaurant') ? true : undefined,
     rating: place.rating !== undefined && place.rating >= 1 && place.rating <= 5 ? place.rating : undefined,
     // Only a vegan restaurant is a known "yes"; Google has no vegan field for other places.
-    servesVegan: isVeganPlace ? true : undefined
+    servesVegan: isVeganPlace ? true : undefined,
+    openNow: place.currentOpeningHours?.openNow
   };
 }
 

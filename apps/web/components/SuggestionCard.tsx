@@ -36,6 +36,7 @@ export function SuggestionCard({
   const total = likes + dislikes;
   const likeShare = total === 0 ? 50 : (likes / total) * 100;
   const details = [
+    place.openNow === undefined ? undefined : place.openNow ? 'Open now' : 'Closed now',
     formatDistance(place.distanceMeters),
     formatPrice(place.priceLevel),
     place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`

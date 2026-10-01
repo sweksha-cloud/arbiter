@@ -13,7 +13,8 @@ const thai = {
   types: ['thai_restaurant', 'restaurant', 'food', 'point_of_interest', 'establishment'],
   priceLevel: 'PRICE_LEVEL_MODERATE',
   rating: 4.4,
-  servesVegetarianFood: true
+  servesVegetarianFood: true,
+  currentOpeningHours: { openNow: true }
 };
 const burgers = {
   id: 'ChIJburger',
@@ -66,7 +67,8 @@ describe('GooglePlacesProvider', () => {
         servesVegetarian: undefined,
         isFastFood: true,
         rating: 3.9,
-        servesVegan: undefined
+        servesVegan: undefined,
+        openNow: undefined
       },
       {
         id: 'ChIJthai',
@@ -78,7 +80,8 @@ describe('GooglePlacesProvider', () => {
         servesVegetarian: true,
         isFastFood: undefined,
         rating: 4.4,
-        servesVegan: undefined
+        servesVegan: undefined,
+        openNow: true
       }
     ]);
   });
