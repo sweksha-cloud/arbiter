@@ -56,6 +56,7 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await expect(host.locator('article').nth(1).getByRole('button', { name: /👎 1/ })).toBeVisible();
   await host.locator('article').nth(0).getByRole('button', { name: /^Vegan/ }).click();
   await expect(host.locator('article').nth(0).getByRole('button', { name: /^Vegan/ })).toHaveAttribute('aria-pressed', 'true');
+  await host.locator('article details summary').first().click(); // An expanded "Hours" or locations list.
   await expectNoViolations(host, 'results with reactions and a nutrition mark');
 
   // Dark mode has its own colors, so check them too.

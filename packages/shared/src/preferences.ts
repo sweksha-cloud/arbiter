@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { PriceLevelSchema } from './place.js';
+import { PlaceKindSchema, PriceLevelSchema } from './place.js';
 
 // Field list is a proposal awaiting approval; see .claude/docs/DESIGN.md section 3.
 
@@ -53,6 +53,9 @@ export const SoftPreferencesSchema = z.object({
   noFastFood: z.boolean().optional(),
   likedCuisines: CuisineListSchema.optional(),
   dislikedCuisines: CuisineListSchema.optional(),
+  /** Kinds of place (restaurant, café, fast food…), liked or disliked like cuisines. */
+  likedKinds: z.array(PlaceKindSchema).max(5).optional(),
+  dislikedKinds: z.array(PlaceKindSchema).max(5).optional(),
   /** Raises places known to have vegan options (a hint: the data is sparse). */
   veganOptions: z.boolean().optional(),
   nutrition: NutritionGoalsSchema.optional()

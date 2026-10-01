@@ -13,6 +13,8 @@ function normalize(cuisine: string): string {
  * who dislikes one. A member counts at most once in each direction. Each member
  * who'd rather skip fast food takes another -1 off a known fast-food place, so
  * one can still win if it suits everyone better than the alternatives.
+ * Kinds of place (restaurant, café…) count like cuisines: +1 per member who
+ * likes the place's kind, -1 per member who dislikes it.
  * +1 for each member whose nutrition goals a menu item meets, and for each
  * member who'd like vegan options at a place known to have them. Members who
  * left those blank don't count either way (TRADEOFFS.md 2c).
@@ -26,6 +28,8 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
     if (matches(soft.likedCuisines)) score += 1;
     if (matches(soft.dislikedCuisines)) score -= 1;
     if (soft.noFastFood && place.isFastFood === true) score -= 1;
+    if (place.kind && soft.likedKinds?.includes(place.kind)) score += 1;
+    if (place.kind && soft.dislikedKinds?.includes(place.kind)) score -= 1;
     if (fittingItem(place, soft.nutrition)) score += 1;
     if (soft.veganOptions && hasVeganOptions(place)) score += 1;
   }
@@ -39,10 +43,25 @@ export function majorityAvoidsFastFood(members: Pick<Preferences, 'soft'>[]): bo
 }
 
 /**
+ * The name without a branch suffix, for spotting several locations of one
+ * place: "Starbucks - 1st St" and "Starbucks" are the same.
+ */
+export function branchKey(name: string): string {
+  return name
+    .split(/\s[-–—|]\s/)[0]!
+    .toLowerCase()
+    .replace(/[’'`]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/**
  * Picks the short list from places that already survived elimination.
  * Order: if most of the group would rather skip fast food, every known
  * fast-food place goes below every other place; then soft-preference score,
  * rating (unrated last), distance, and id so the result is deterministic.
+ * Several branches of one place take one slot: the nearest is shown, with the
+ * others listed under it.
  */
 export function rankSuggestions(
   places: PlaceCandidate[],
@@ -51,7 +70,7 @@ export function rankSuggestions(
 ): PlaceCandidate[] {
   const demoteFastFood = majorityAvoidsFastFood(members);
   const demoted = (place: PlaceCandidate) => (demoteFastFood && place.isFastFood === true ? 1 : 0);
-  return places
+  const ranked = places
     .map((place) => ({ place, score: softScore(place, members) }))
     .sort(
       (a, b) =>
@@ -61,6 +80,27 @@ export function rankSuggestions(
         a.place.distanceMeters - b.place.distanceMeters ||
         a.place.id.localeCompare(b.place.id)
     )
-    .slice(0, count)
     .map(({ place }) => place);
+
+  // Group branches under the best-ranked one, then show the nearest of them.
+  const groups = new Map<string, PlaceCandidate[]>();
+  for (const place of ranked) {
+    const key = branchKey(place.name);
+    groups.set(key, [...(groups.get(key) ?? []), place]);
+  }
+  return [...groups.values()].slice(0, count).map((branches) => {
+    const [shown, ...others] = [...branches].sort((a, b) => a.distanceMeters - b.distanceMeters);
+    if (others.length === 0) return shown!;
+    return {
+      ...shown!,
+      otherLocations: others.map(({ id, location, distanceMeters, rating, openNow, hours }) => ({
+        id,
+        location,
+        distanceMeters,
+        ...(rating !== undefined && { rating }),
+        ...(openNow !== undefined && { openNow }),
+        ...(hours !== undefined && { hours })
+      }))
+    };
+  });
 }
