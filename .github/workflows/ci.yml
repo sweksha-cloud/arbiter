@@ -44,6 +44,8 @@ jobs:
         env:
           DATABASE_URL: postgres://arbiter:arbiter@localhost:5432/arbiter
       - run: pnpm build
+      # The production server image must keep building (deploy/docker-compose.yml uses it).
+      - run: docker build -f apps/server/Dockerfile -t arbiter-server .
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
         env:

@@ -4,11 +4,24 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { api } from '../../lib/api';
+import { EMAIL_ENABLED } from '../../lib/config';
 import { useSubmit } from '../../lib/use-submit';
 
 export default function ForgotPasswordPage() {
   const [sentTo, setSentTo] = useState<string>();
   const { handle, busy, error } = useSubmit();
+
+  if (!EMAIL_ENABLED) {
+    return (
+      <main className="page stack">
+        <h1>Reset your password</h1>
+        <p>Password reset by email isn&apos;t available yet. If you&apos;re locked out, make a new account for now.</p>
+        <p className="small">
+          <Link href="/login">Back to log in</Link>
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="page stack">
