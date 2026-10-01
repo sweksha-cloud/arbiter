@@ -50,7 +50,9 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await host.locator('article').nth(0).getByRole('button', { name: /👍/ }).click();
   await host.locator('article').nth(1).getByRole('button', { name: /👎/ }).click();
   await expect(host.locator('article').nth(1).getByRole('button', { name: /👎 1/ })).toBeVisible();
-  await expectNoViolations(host, 'results with reactions');
+  await host.locator('article').nth(0).getByRole('button', { name: /^Vegan/ }).click();
+  await expect(host.locator('article').nth(0).getByRole('button', { name: /^Vegan/ })).toHaveAttribute('aria-pressed', 'true');
+  await expectNoViolations(host, 'results with reactions and a nutrition mark');
 
   // Dark mode has its own colors, so check them too.
   await host.emulateMedia({ colorScheme: 'dark' });

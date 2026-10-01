@@ -1,4 +1,12 @@
-import type { LatLng, PlaceCandidate, Preferences, ReactionsByMember, SessionMember, SessionStatus } from '@arbiter/shared';
+import type {
+  LatLng,
+  PlaceCandidate,
+  Preferences,
+  ReactionsByMember,
+  SessionMember,
+  SessionStatus,
+  TagsByMember
+} from '@arbiter/shared';
 
 /** Presence (`online`) isn't stored; it's worked out from open connections when sending views. */
 export type RoomMember = Omit<SessionMember, 'online'>;
@@ -21,6 +29,8 @@ export interface RoomState {
   submissions: Record<string, Preferences>;
   suggestions: PlaceCandidate[];
   reactions: ReactionsByMember;
+  /** What members marked each suggestion as having. In memory only, for this session. */
+  tags: TagsByMember;
   scannedCount: number;
   eliminatedCount: number;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Reaction, SessionView, SuggestionView } from '@arbiter/shared';
+import { NUTRITION_TAGS, type NutritionTag, type Reaction, type SessionView, type SuggestionView } from '@arbiter/shared';
 
 import { formatDistance, formatPrice } from '../lib/format';
 
@@ -15,14 +15,17 @@ export function SuggestionCard({
   suggestion,
   source,
   canReact,
-  onReact
+  onReact,
+  onTag
 }: {
   suggestion: SuggestionView;
   source: SessionView['placesSource'];
   canReact: boolean;
   onReact: (reaction: Reaction | null) => void;
+  onTag: (tag: NutritionTag, on: boolean) => void;
 }) {
-  const { place, likes, dislikes, myReaction } = suggestion;
+  const { place, likes, dislikes, myReaction, tags } = suggestion;
+  const anyMarks = tags.some((t) => t.count > 0);
   const total = likes + dislikes;
   const likeShare = total === 0 ? 50 : (likes / total) * 100;
   const details = [
@@ -73,6 +76,31 @@ export function SuggestionCard({
           Directions
         </a>
       </div>
+
+      <section className="stack tight" aria-label={`What the group says ${place.name} has`}>
+        <p className="small">
+          <strong>Options the group says it has</strong>
+          {!anyMarks && <span className="muted"> · No nutrition info for this place yet</span>}
+        </p>
+        <div className="chips">
+          {NUTRITION_TAGS.map(({ tag, label }) => {
+            const { count, mine } = tags.find((t) => t.tag === tag) ?? { count: 0, mine: false };
+            return (
+              <button
+                key={tag}
+                type="button"
+                className="chip tag"
+                aria-pressed={mine}
+                disabled={!canReact}
+                onClick={() => onTag(tag, !mine)}
+              >
+                {label}
+                {count > 0 && <span aria-label={`, ${count} ${count === 1 ? 'person' : 'people'}`}> · {count}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </article>
   );
 }

@@ -130,6 +130,32 @@ describe('session over Socket.IO', () => {
     expect(await opened(connectClient(guest.token))).toBe('connected');
   });
 
+  it('shares nutrition marks live: everyone sees the count, only you see your own', async () => {
+    const { sessionId, hostClient, friendClient } = await sessionWithTwoPeople();
+    void sessionId;
+    expect(await submit(friendClient)).toEqual({ ok: true });
+    const results = nextState(hostClient, (v) => v.status === 'voting');
+    expect(await submit(hostClient)).toEqual({ ok: true });
+    const placeId = (await results).suggestions[0]!.place.id;
+
+    const hostSees = nextState(hostClient, (v) => v.suggestions[0]!.tags.some((t) => t.tag === 'vegan' && t.count === 1));
+    const ack = await new Promise<Ack>((resolve) => friendClient.emit('session:tag', { placeId, tag: 'vegan', on: true }, resolve));
+    expect(ack).toEqual({ ok: true });
+    expect((await hostSees).suggestions[0]!.tags.find((t) => t.tag === 'vegan')).toEqual({ tag: 'vegan', count: 1, mine: false });
+  });
+
+  it('refuses an unknown nutrition tag', async () => {
+    const { hostClient } = await sessionWithTwoPeople();
+    const ack = await new Promise<Ack>((resolve) =>
+      (hostClient as unknown as { emit: (e: string, p: unknown, cb: (a: Ack) => void) => void }).emit(
+        'session:tag',
+        { placeId: 'x', tag: 'keto', on: true },
+        resolve
+      )
+    );
+    expect(ack).toMatchObject({ ok: false, code: 'invalid_request' });
+  });
+
   it('rejects connections without a valid token', async () => {
     const client = connectClient('not-a-token');
     const error = await new Promise<Error>((resolve) => client.on('connect_error', resolve));

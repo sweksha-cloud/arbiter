@@ -13,6 +13,7 @@ const emptyRoom = (sessionId: string): Omit<RoomState, 'version'> => ({
   submissions: {},
   suggestions: [],
   reactions: {},
+  tags: {},
   scannedCount: 0,
   eliminatedCount: 0
 });

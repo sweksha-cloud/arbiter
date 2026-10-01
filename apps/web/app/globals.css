@@ -525,3 +525,18 @@ input:not([type='checkbox']) {
   margin: 0;
   padding-left: 20px;
 }
+
+/* A nutrition mark the viewer has made. */
+.chip[aria-pressed='true'] {
+  border-color: var(--like);
+  color: var(--success-text);
+  font-weight: 600;
+}
+
+/* Nutrition marks: smaller than cuisine chips, so three cards stay short on a phone. */
+.chip.tag {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  text-transform: none;
+}
