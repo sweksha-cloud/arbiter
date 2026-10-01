@@ -11,6 +11,7 @@ const view = (sessionId: string, version: number): SessionView => ({
   suggestions: [],
   scannedCount: 0,
   eliminatedCount: 0,
+  allergyReminder: false,
   placesSource: 'sample'
 });
 

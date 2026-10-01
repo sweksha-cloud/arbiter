@@ -65,7 +65,8 @@ describe('GooglePlacesProvider', () => {
         priceLevel: 1,
         servesVegetarian: undefined,
         isFastFood: true,
-        rating: 3.9
+        rating: 3.9,
+        servesVegan: undefined
       },
       {
         id: 'ChIJthai',
@@ -76,7 +77,8 @@ describe('GooglePlacesProvider', () => {
         priceLevel: 2,
         servesVegetarian: true,
         isFastFood: undefined,
-        rating: 4.4
+        rating: 4.4,
+        servesVegan: undefined
       }
     ]);
   });
@@ -112,12 +114,13 @@ describe('toCandidate', () => {
     expect(place).toMatchObject({ cuisines: [], priceLevel: undefined, servesVegetarian: undefined, isFastFood: undefined, rating: undefined });
   });
 
-  it('counts vegetarian and vegan restaurants as serving vegetarian food', () => {
-    const place = toCandidate(
-      { id: 'v', displayName: { text: 'Leafy' }, location: { latitude: 0, longitude: 0 }, types: ['vegan_restaurant'] },
-      { lat: 0, lng: 0 }
-    );
-    expect(place?.servesVegetarian).toBe(true);
+  it('counts vegetarian and vegan restaurants as serving vegetarian food, and vegan ones as vegan', () => {
+    const at = { lat: 0, lng: 0 };
+    const loc = { latitude: 0, longitude: 0 };
+    const vegan = toCandidate({ id: 'v', displayName: { text: 'Leafy' }, location: loc, types: ['vegan_restaurant'] }, at);
+    const vegetarian = toCandidate({ id: 'g', displayName: { text: 'Greens' }, location: loc, types: ['vegetarian_restaurant'] }, at);
+    expect(vegan).toMatchObject({ servesVegetarian: true, servesVegan: true });
+    expect(vegetarian).toMatchObject({ servesVegetarian: true, servesVegan: undefined });
   });
 
   it('treats an unspecified price level as unknown', () => {

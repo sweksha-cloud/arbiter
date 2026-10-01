@@ -1,3 +1,4 @@
+import { fittingItem, hasVeganOptions } from './nutrition.js';
 import type { PlaceCandidate } from './place.js';
 import type { Preferences } from './preferences.js';
 
@@ -12,6 +13,9 @@ function normalize(cuisine: string): string {
  * who dislikes one. A member counts at most once in each direction. Each member
  * who'd rather skip fast food takes another -1 off a known fast-food place, so
  * one can still win if it suits everyone better than the alternatives.
+ * +1 for each member whose nutrition goals a menu item meets, and for each
+ * member who'd like vegan options at a place known to have them. Members who
+ * left those blank don't count either way (TRADEOFFS.md 2c).
  */
 export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'soft'>[]): number {
   const cuisines = new Set(place.cuisines.map(normalize));
@@ -22,6 +26,8 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
     if (matches(soft.likedCuisines)) score += 1;
     if (matches(soft.dislikedCuisines)) score -= 1;
     if (soft.noFastFood && place.isFastFood === true) score -= 1;
+    if (fittingItem(place, soft.nutrition)) score += 1;
+    if (soft.veganOptions && hasVeganOptions(place)) score += 1;
   }
   return score;
 }

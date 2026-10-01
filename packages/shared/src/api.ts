@@ -76,6 +76,11 @@ export const SessionViewSchema = z.object({
   suggestions: z.array(SuggestionViewSchema),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
+  /**
+   * Someone who submitted preferences listed a food allergy. Never who: the
+   * group just sees a reminder to check with the restaurant.
+   */
+  allergyReminder: z.boolean(),
   /** 'sample' until the Google Places client exists. */
   placesSource: z.enum(['sample', 'google'])
 });

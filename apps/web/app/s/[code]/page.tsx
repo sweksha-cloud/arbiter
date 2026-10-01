@@ -156,6 +156,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
 
           {view.status === 'ended' && <SessionEnded token={identity.token} />}
 
+          {view.allergyReminder && (
+            <p className="notice small" role="note">
+              Someone in your group has a food allergy. Check with the restaurant before ordering.
+            </p>
+          )}
+
           {view.suggestions.length === 0 ? (
             <div className="card stack">
               <h2>Nothing fits everyone</h2>

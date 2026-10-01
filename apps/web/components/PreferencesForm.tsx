@@ -1,6 +1,6 @@
 'use client';
 
-import type { Preferences } from '@arbiter/shared';
+import { ALLERGENS, type Allergen, type NutritionGoals, type Preferences, type Range } from '@arbiter/shared';
 import { useState, type FormEvent } from 'react';
 
 import { MAX_MILES, MILE_OPTIONS, MIN_MILES, metersToMiles, milesToMeters } from '../lib/format';
@@ -53,6 +53,53 @@ function distanceMeters(choice: DistanceChoice): { meters?: number; error?: stri
   return { meters: milesToMeters(miles) };
 }
 
+/** The number typed into a field, or undefined if it's blank ("don't care"). */
+function parseAmount(text: string): number | undefined {
+  const trimmed = text.trim();
+  return trimmed === '' ? undefined : Math.round(Number(trimmed));
+}
+
+type NutritionText = { calMin: string; calMax: string; protein: string; carbsMin: string; carbsMax: string };
+
+const asText = (n: number | undefined) => (n === undefined ? '' : String(n));
+
+function initialNutrition(goals: NutritionGoals | undefined): NutritionText {
+  return {
+    calMin: asText(goals?.calories?.min),
+    calMax: asText(goals?.calories?.max),
+    protein: asText(goals?.proteinMinGrams),
+    carbsMin: asText(goals?.carbs?.min),
+    carbsMax: asText(goals?.carbs?.max)
+  };
+}
+
+/** Builds the goals from what was filled in; blank fields are left out entirely. */
+function nutritionGoals(text: NutritionText): { goals?: NutritionGoals; error?: string } {
+  const amounts = Object.values(text).map(parseAmount);
+  if (amounts.some((n) => n !== undefined && (!Number.isFinite(n) || n < 0))) {
+    return { error: 'Nutrition amounts must be positive numbers.' };
+  }
+  const range = (min: string, max: string, what: string, limit: number): { range?: Range; error?: string } => {
+    const lo = parseAmount(min);
+    const hi = parseAmount(max);
+    if ((lo ?? 0) > limit || (hi ?? 0) > limit) return { error: `${what} can be at most ${limit}.` };
+    if (lo !== undefined && hi !== undefined && lo > hi) return { error: `${what}: the minimum is more than the maximum.` };
+    if (lo === undefined && hi === undefined) return {};
+    return { range: { ...(lo !== undefined && { min: lo }), ...(hi !== undefined && { max: hi }) } };
+  };
+  const calories = range(text.calMin, text.calMax, 'Calories', 4000);
+  const carbs = range(text.carbsMin, text.carbsMax, 'Carbs', 600);
+  const protein = parseAmount(text.protein);
+  const error = calories.error ?? carbs.error ?? (protein !== undefined && (protein < 1 || protein > 300) ? 'Protein must be between 1 and 300 g.' : undefined);
+  if (error) return { error };
+  const goals: NutritionGoals = {
+    ...(calories.range && { calories: calories.range }),
+    ...(protein !== undefined && { proteinMinGrams: protein }),
+    ...(carbs.range && { carbs: carbs.range })
+  };
+  return { goals: Object.keys(goals).length > 0 ? goals : undefined };
+}
+
 const nextFeeling = (current: CuisineFeeling | undefined): CuisineFeeling | undefined =>
   current === undefined ? 'like' : current === 'like' ? 'dislike' : undefined;
 
@@ -72,6 +119,9 @@ export function PreferencesForm({
   const [maxPriceLevel, setMaxPriceLevel] = useState<number | undefined>(start.hard.maxPriceLevel);
   const [distance, setDistance] = useState<DistanceChoice>(() => initialDistance(start));
   const [feelings, setFeelings] = useState(() => initialFeelings(start));
+  const [veganOptions, setVeganOptions] = useState(start.soft.veganOptions ?? false);
+  const [nutrition, setNutrition] = useState<NutritionText>(() => initialNutrition(start.soft.nutrition));
+  const [allergies, setAllergies] = useState<Allergen[]>(() => (start.allergies ?? []) as Allergen[]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -80,6 +130,11 @@ export function PreferencesForm({
     const { meters, error: distanceError } = distanceMeters(distance);
     if (distanceError) {
       setError(distanceError);
+      return;
+    }
+    const { goals, error: nutritionError } = nutritionGoals(nutrition);
+    if (nutritionError) {
+      setError(nutritionError);
       return;
     }
     const entries = Object.entries(feelings);
@@ -92,8 +147,11 @@ export function PreferencesForm({
       soft: {
         noFastFood: noFastFood || undefined,
         likedCuisines: entries.filter(([, f]) => f === 'like').map(([c]) => c),
-        dislikedCuisines: entries.filter(([, f]) => f === 'dislike').map(([c]) => c)
-      }
+        dislikedCuisines: entries.filter(([, f]) => f === 'dislike').map(([c]) => c),
+        veganOptions: veganOptions || undefined,
+        nutrition: goals
+      },
+      allergies: allergies.length > 0 ? allergies : undefined
     };
     setBusy(true);
     setError(undefined);
@@ -205,6 +263,50 @@ export function PreferencesForm({
             );
           })}
         </div>
+
+        <label className="check">
+          <input type="checkbox" checked={veganOptions} onChange={(e) => setVeganOptions(e.target.checked)} />
+          <span>I&apos;d like vegan options</span>
+        </label>
+
+        <fieldset className="field">
+          <legend>Nutrition per meal (optional)</legend>
+          <p className="muted small">
+            Leave blank if you don&apos;t mind. Only chains publish nutrition, so this raises chains with a dish that
+            fits; it never removes a place.
+          </p>
+          <div className="number-pair">
+            <NumberField label="Calories at least" value={nutrition.calMin} onChange={(calMin) => setNutrition({ ...nutrition, calMin })} />
+            <NumberField label="Calories at most" value={nutrition.calMax} onChange={(calMax) => setNutrition({ ...nutrition, calMax })} />
+          </div>
+          <NumberField label="Protein at least (g)" value={nutrition.protein} onChange={(protein) => setNutrition({ ...nutrition, protein })} />
+          <div className="number-pair">
+            <NumberField label="Carbs at least (g)" value={nutrition.carbsMin} onChange={(carbsMin) => setNutrition({ ...nutrition, carbsMin })} />
+            <NumberField label="Carbs at most (g)" value={nutrition.carbsMax} onChange={(carbsMax) => setNutrition({ ...nutrition, carbsMax })} />
+          </div>
+        </fieldset>
+      </section>
+
+      <section className="card stack">
+        <h2>Allergies (private)</h2>
+        <p className="muted small">
+          Never shared, and never used to pick places: restaurants don&apos;t publish reliable allergen information.
+          The group only sees that someone has a food allergy, never who or what.
+        </p>
+        <div className="check-grid">
+          {ALLERGENS.map(({ id, label }) => (
+            <label key={id} className="check">
+              <input
+                type="checkbox"
+                checked={allergies.includes(id)}
+                onChange={(e) =>
+                  setAllergies((all) => (e.target.checked ? [...all, id] : all.filter((a) => a !== id)))
+                }
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
       </section>
 
       <button className="button primary" disabled={busy}>
@@ -212,5 +314,14 @@ export function PreferencesForm({
       </button>
       {error && <p className="error">{error}</p>}
     </form>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="field">
+      <span className="small">{label}</span>
+      <input type="number" inputMode="numeric" min={0} step={1} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }

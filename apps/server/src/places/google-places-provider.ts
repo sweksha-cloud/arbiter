@@ -83,7 +83,8 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
   if (!name || !place.location) return undefined;
   const location = { lat: place.location.latitude, lng: place.location.longitude };
   const types = place.types ?? [];
-  const isVegetarianPlace = types.includes('vegetarian_restaurant') || types.includes('vegan_restaurant');
+  const isVeganPlace = types.includes('vegan_restaurant');
+  const isVegetarianPlace = isVeganPlace || types.includes('vegetarian_restaurant');
 
   return {
     id: place.id,
@@ -95,7 +96,9 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
     servesVegetarian: isVegetarianPlace ? true : place.servesVegetarianFood,
     // Being typed fast food is a real "yes"; not being typed isn't a reliable "no".
     isFastFood: types.includes('fast_food_restaurant') ? true : undefined,
-    rating: place.rating !== undefined && place.rating >= 1 && place.rating <= 5 ? place.rating : undefined
+    rating: place.rating !== undefined && place.rating >= 1 && place.rating <= 5 ? place.rating : undefined,
+    // Only a vegan restaurant is a known "yes"; Google has no vegan field for other places.
+    servesVegan: isVeganPlace ? true : undefined
   };
 }
 
