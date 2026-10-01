@@ -231,7 +231,8 @@ describe('SessionService', () => {
     const hostView = service.view(room, host.id);
     expect(hostView.suggestions[0]).toMatchObject({ likes: 1, dislikes: 1, myReaction: 'like' });
     expect(service.view(room, friend.id).suggestions[0]?.myReaction).toBe('dislike');
-    expect(JSON.stringify(hostView)).not.toMatch(/vegetarian|dislikedCuisines|submissions/);
+    // Preference fields, not words: "vegetarian" can appear as a nutrition mark (`"tag":"vegetarian"`).
+    expect(JSON.stringify(hostView)).not.toMatch(/"vegetarian":|dislikedCuisines|submissions/);
   });
 
   it('reports a missing session as not found', async () => {
@@ -346,6 +347,57 @@ describe('SessionService', () => {
       const results = await Promise.allSettled([service.start(sessionId, host), service.start(sessionId, host)]);
       expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
       expect(results.find((r) => r.status === 'rejected')).toMatchObject({ reason: { code: 'invalid_state' } });
+    });
+  });
+
+  describe('nutrition marks (what the group says a place has)', () => {
+    it('counts marks per place and tag, and shows each person only their own', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo();
+      await service.submit(sessionId, host, noPreferences);
+      await service.submit(sessionId, friend, noPreferences);
+      await service.tag(sessionId, host, 'a', 'high_protein', true);
+      await service.tag(sessionId, friend, 'a', 'high_protein', true);
+      const room = await service.tag(sessionId, friend, 'a', 'vegan', true);
+
+      const hostView = service.view(room, host.id).suggestions.find((s) => s.place.id === 'a')!;
+      expect(hostView.tags).toEqual([
+        { tag: 'high_protein', count: 2, mine: true },
+        { tag: 'low_calorie', count: 0, mine: false },
+        { tag: 'low_carb', count: 0, mine: false },
+        { tag: 'vegetarian', count: 0, mine: false },
+        { tag: 'vegan', count: 1, mine: false }
+      ]);
+      // Never reveals who marked what.
+      expect(JSON.stringify(service.view(room, host.id))).not.toContain(friend.id + '":{');
+    });
+
+    it('lets a member take a mark back', async () => {
+      const { service, host, sessionId } = await setup();
+      await service.start(sessionId, host);
+      await service.tag(sessionId, host, 'a', 'low_carb', true);
+      const room = await service.tag(sessionId, host, 'a', 'low_carb', false);
+      expect(service.view(room, host.id).suggestions[0]!.tags.find((t) => t.tag === 'low_carb')).toEqual({
+        tag: 'low_carb',
+        count: 0,
+        mine: false
+      });
+    });
+
+    it('follows the same rules as reacting: members, while voting, suggested places only', async () => {
+      const { guests, service, host, sessionId } = await setup();
+      const stranger: Guest = (await guests.create('Stranger')).guest;
+      await expect(service.tag(sessionId, host, 'a', 'vegan', true)).rejects.toThrow('Voting is not open');
+      await service.start(sessionId, host);
+      await expect(service.tag(sessionId, stranger, 'a', 'vegan', true)).rejects.toThrow('Join the session');
+      await expect(service.tag(sessionId, host, 'nope', 'vegan', true)).rejects.toThrow('not one of the suggestions');
+    });
+
+    it('never changes the order of suggestions mid-vote', async () => {
+      const { service, host, sessionId } = await setup();
+      const before = (await service.start(sessionId, host)).suggestions.map((p) => p.id);
+      const last = before.at(-1)!;
+      const room = await service.tag(sessionId, host, last, 'high_protein', true);
+      expect(room.suggestions.map((p) => p.id)).toEqual(before);
     });
   });
 });

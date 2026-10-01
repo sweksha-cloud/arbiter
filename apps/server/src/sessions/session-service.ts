@@ -5,10 +5,14 @@ import {
   eliminate,
   rankSuggestions,
   setReaction,
+  setTag,
   tallyReactions,
+  tallyTags,
+  NUTRITION_TAGS,
   type Guest,
   type LatLng,
   type MissingDataPolicy,
+  type NutritionTag,
   type Preferences,
   type Reaction,
   type SessionView
@@ -107,6 +111,7 @@ export class SessionService {
           submissions: {},
           suggestions: [],
           reactions: {},
+          tags: {},
           scannedCount: 0,
           eliminatedCount: 0
         });
@@ -180,19 +185,25 @@ export class SessionService {
 
   async react(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
     const updated = await this.update(sessionId, (room) => {
-      if (!room.members.some((m) => m.id === guest.id)) {
-        throw new SessionError('forbidden', 'Join the session before reacting');
-      }
-      if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
-      if (!room.suggestions.some((p) => p.id === placeId)) {
-        throw new SessionError('invalid_place', 'That place is not one of the suggestions');
-      }
+      this.checkCanActOnPlace(room, guest, placeId);
       return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
     });
     await this.record(sessionId, 'react', () =>
       this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
     );
     return updated;
+  }
+
+  /**
+   * Marks a suggested place as having (or, with on = false, not having) e.g.
+   * high-protein options, in this member's view. Same rules as reacting.
+   * Kept for this session only.
+   */
+  async tag(sessionId: string, guest: Guest, placeId: string, tag: NutritionTag, on: boolean): Promise<RoomState> {
+    return this.update(sessionId, (room) => {
+      this.checkCanActOnPlace(room, guest, placeId);
+      return { ...room, tags: setTag(room.tags, guest.id, placeId, tag, on) };
+    });
   }
 
   async end(sessionId: string, guest: Guest): Promise<RoomState> {
@@ -215,6 +226,11 @@ export class SessionService {
       room.suggestions.map((p) => p.id)
     );
     const mine = room.reactions[viewerId] ?? {};
+    const tagCounts = tallyTags(
+      room.tags,
+      room.suggestions.map((p) => p.id)
+    );
+    const myTags = room.tags[viewerId] ?? {};
     return {
       sessionId: room.sessionId,
       version: room.version,
@@ -225,7 +241,12 @@ export class SessionService {
         place,
         likes: tally[place.id]?.likes ?? 0,
         dislikes: tally[place.id]?.dislikes ?? 0,
-        myReaction: mine[place.id] ?? null
+        myReaction: mine[place.id] ?? null,
+        tags: NUTRITION_TAGS.map(({ tag }) => ({
+          tag,
+          count: tagCounts[place.id]?.[tag] ?? 0,
+          mine: myTags[place.id]?.includes(tag) ?? false
+        }))
       })),
       scannedCount: room.scannedCount,
       eliminatedCount: room.eliminatedCount,
@@ -326,6 +347,17 @@ export class SessionService {
       await write();
     } catch (error) {
       this.options.log?.error({ err: error, sessionId, action }, 'Could not save session history');
+    }
+  }
+
+  /** Reacting and marking: members only, while voting is open, on places that were suggested. */
+  private checkCanActOnPlace(room: RoomState, guest: Guest, placeId: string) {
+    if (!room.members.some((m) => m.id === guest.id)) {
+      throw new SessionError('forbidden', 'Join the session before reacting');
+    }
+    if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
+    if (!room.suggestions.some((p) => p.id === placeId)) {
+      throw new SessionError('invalid_place', 'That place is not one of the suggestions');
     }
   }
 

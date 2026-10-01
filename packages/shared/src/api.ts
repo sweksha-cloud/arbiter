@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { LatLngSchema, PlaceCandidateSchema } from './place.js';
 import { PreferencesSchema, type Preferences } from './preferences.js';
+import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
 
 // Request, response and real-time event shapes shared by server and web.
@@ -55,7 +56,12 @@ export const SuggestionViewSchema = z.object({
   likes: z.number().int().nonnegative(),
   dislikes: z.number().int().nonnegative(),
   /** Only the viewer's own reaction; other people's are never sent. */
-  myReaction: ReactionSchema.nullable()
+  myReaction: ReactionSchema.nullable(),
+  /**
+   * What the group says this place has (high-protein options, vegan options…),
+   * in display order. Counts only; `mine` is whether the viewer marked it.
+   */
+  tags: z.array(z.object({ tag: NutritionTagSchema, count: z.number().int().nonnegative(), mine: z.boolean() }))
 });
 export type SuggestionView = z.infer<typeof SuggestionViewSchema>;
 
@@ -89,6 +95,7 @@ export function newerView(current: SessionView | undefined, incoming: SessionVie
 export const JoinSessionPayloadSchema = z.object({ sessionId: z.string().min(1) });
 export const SubmitPreferencesPayloadSchema = z.object({ preferences: PreferencesSchema });
 export const ReactPayloadSchema = z.object({ placeId: z.string().min(1), reaction: ReactionSchema.nullable() });
+export const TagPayloadSchema = z.object({ placeId: z.string().min(1), tag: NutritionTagSchema, on: z.boolean() });
 
 /** Why an action failed, for clients that react differently (e.g. show a "session not found" screen). */
 export type AckErrorCode =
@@ -110,6 +117,8 @@ export interface ClientToServerEvents {
   /** Host only: show results before everyone has submitted. */
   'session:start': (ack: (result: Ack) => void) => void;
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
+  /** Marks (or unmarks) a suggested place as having, e.g., high-protein options. */
+  'session:tag': (payload: { placeId: string; tag: NutritionTag; on: boolean }, ack: (result: Ack) => void) => void;
   'session:end': (ack: (result: Ack) => void) => void;
 }
 

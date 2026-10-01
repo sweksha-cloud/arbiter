@@ -171,8 +171,16 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 onReact={(reaction: Reaction | null) =>
                   socket()?.emit('session:react', { placeId: suggestion.place.id, reaction }, handleAck)
                 }
+                onTag={(tag, on) => socket()?.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck)}
               />
             ))
+          )}
+
+          {view.suggestions.length > 0 && (
+            <p className="muted small">
+              Tap what you know a place has (like high-protein or vegan options). It&apos;s what people in this group say,
+              not nutrition advice, and it&apos;s only kept for this session.
+            </p>
           )}
 
           {view.placesSource === 'google' && <p className="muted small center">Place data © Google Maps</p>}

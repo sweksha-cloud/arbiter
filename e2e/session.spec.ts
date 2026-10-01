@@ -94,3 +94,29 @@ test('a custom distance outside the allowed range is caught before submitting', 
   await expect(host.getByText('Enter a distance between 0.1 and 31 miles.')).toBeVisible();
   await expect(host.getByText('0 of 1 submitted')).toBeVisible();
 });
+
+test('the group can mark what a place has, and everyone sees the count live', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  const hostFirst = host.locator('article').first();
+  const friendFirst = friend.locator('article').first();
+  await expect(hostFirst.getByText('No nutrition info for this place yet')).toBeVisible();
+
+  await friendFirst.getByRole('button', { name: /^High protein/ }).click();
+
+  // The friend's own mark is pressed; the host sees the count, with their own button not pressed.
+  await expect(friendFirst.getByRole('button', { name: /^High protein/ })).toHaveAttribute('aria-pressed', 'true');
+  const hostButton = hostFirst.getByRole('button', { name: /^High protein/ });
+  await expect(hostButton).toContainText('· 1');
+  await expect(hostButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(hostFirst.getByText('No nutrition info for this place yet')).toHaveCount(0);
+
+  // Taking it back clears it for everyone.
+  await friendFirst.getByRole('button', { name: /^High protein/ }).click();
+  await expect(hostFirst.getByText('No nutrition info for this place yet')).toBeVisible();
+});

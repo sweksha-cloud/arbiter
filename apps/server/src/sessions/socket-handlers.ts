@@ -1,6 +1,7 @@
 import {
   JoinSessionPayloadSchema,
   ReactPayloadSchema,
+  TagPayloadSchema,
   SubmitPreferencesPayloadSchema,
   type Ack,
   type ClientToServerEvents,
@@ -175,6 +176,15 @@ export function registerSocketHandlers(
         const sessionId = currentSession(socket);
         const { placeId, reaction } = ReactPayloadSchema.parse(payload);
         await sessions.react(sessionId, guest, placeId, reaction);
+        await broadcast(sessionId);
+      })
+    );
+
+    socket.on('session:tag', (payload, ack) =>
+      respond(ack, logContext('session:tag'), async () => {
+        const sessionId = currentSession(socket);
+        const { placeId, tag, on } = TagPayloadSchema.parse(payload);
+        await sessions.tag(sessionId, guest, placeId, tag, on);
         await broadcast(sessionId);
       })
     );
