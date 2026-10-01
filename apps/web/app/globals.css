@@ -540,3 +540,16 @@ input:not([type='checkbox']) {
   font-size: 0.85rem;
   text-transform: none;
 }
+
+/* Two short number fields side by side (a min and a max). */
+.number-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 4px 12px;
+}

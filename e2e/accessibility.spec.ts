@@ -27,6 +27,8 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await host.getByRole('button', { name: /thai$/ }).click();
   await host.getByRole('button', { name: /pizza$/ }).click();
   await host.getByRole('button', { name: /pizza$/ }).click();
+  await host.getByLabel('Protein at least (g)').fill('30');
+  await host.getByLabel('Peanuts').check();
   await host.getByRole('button', { name: /save/i }).click();
   await expect(host.locator('.success')).toBeVisible();
   await expectNoViolations(host, 'saved preferences, with choices and a success message');

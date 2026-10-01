@@ -120,3 +120,47 @@ test('the group can mark what a place has, and everyone sees the count live', as
   await friendFirst.getByRole('button', { name: /^High protein/ }).click();
   await expect(hostFirst.getByText('No nutrition info for this place yet')).toBeVisible();
 });
+
+test('nutrition goals, vegan and allergies are saved, prefilled, and checked', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await phone.goto('/');
+  await enterName(phone, 'Nia');
+  await expect(phone.getByRole('button', { name: 'Start a session' })).toBeVisible();
+  await phone.goto('/preferences');
+
+  // A minimum above its maximum is caught before saving.
+  await phone.getByLabel('Calories at least').fill('900');
+  await phone.getByLabel('Calories at most').fill('500');
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.error')).toHaveText('Calories: the minimum is more than the maximum.');
+
+  await phone.getByLabel('Calories at least').fill('');
+  await phone.getByLabel('Calories at most').fill('700');
+  await phone.getByLabel('Protein at least (g)').fill('30');
+  await phone.getByLabel("I'd like vegan options").check();
+  await phone.getByLabel('Peanuts').check();
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.success')).toBeVisible();
+
+  await phone.reload();
+  await expect(phone.getByLabel('Calories at most')).toHaveValue('700');
+  await expect(phone.getByLabel('Calories at least')).toHaveValue('');
+  await expect(phone.getByLabel('Protein at least (g)')).toHaveValue('30');
+  await expect(phone.getByLabel("I'd like vegan options")).toBeChecked();
+  await expect(phone.getByLabel('Peanuts')).toBeChecked();
+});
+
+test('an allergy shows the group a reminder, never who has it', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByLabel('Shellfish').check();
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  const reminder = 'Someone in your group has a food allergy. Check with the restaurant before ordering.';
+  await expect(host.getByText(reminder)).toBeVisible();
+  await expect(friend.getByText(reminder)).toBeVisible();
+  await expect(host.getByText(/shellfish/i)).toHaveCount(0);
+});

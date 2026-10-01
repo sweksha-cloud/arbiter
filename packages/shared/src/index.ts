@@ -3,6 +3,7 @@ export * from './auth.js';
 export * from './elimination.js';
 export * from './geo.js';
 export * from './maps.js';
+export * from './nutrition.js';
 export * from './nutrition-tags.js';
 export * from './place.js';
 export * from './preferences.js';

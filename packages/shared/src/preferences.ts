@@ -20,17 +20,68 @@ export type HardConstraints = z.infer<typeof HardConstraintsSchema>;
 
 const CuisineListSchema = z.array(z.string().trim().min(1).max(50)).max(20);
 
+/**
+ * An optional range. Either end may be left out; both left out means "don't
+ * care". `limit` caps either end at something plausible for one meal.
+ */
+const rangeSchema = (limit: number) =>
+  z
+    .object({
+      min: z.number().int().min(0).max(limit).optional(),
+      max: z.number().int().min(1).max(limit).optional()
+    })
+    .refine((r) => r.min === undefined || r.max === undefined || r.min <= r.max, {
+      message: 'The minimum must not be more than the maximum'
+    });
+export type Range = z.infer<ReturnType<typeof rangeSchema>>;
+
+/**
+ * Per-meal nutrition goals, all optional (TRADEOFFS.md 2c). A blank field means
+ * "don't care" and plays no part in the result. They only raise a place's
+ * rank (when its menu has a fitting item); they never remove a place, because
+ * most places have no nutrition data.
+ */
+export const NutritionGoalsSchema = z.object({
+  calories: rangeSchema(4_000).optional(),
+  proteinMinGrams: z.number().int().min(1).max(300).optional(),
+  carbs: rangeSchema(600).optional()
+});
+export type NutritionGoals = z.infer<typeof NutritionGoalsSchema>;
+
 export const SoftPreferencesSchema = z.object({
   /** Lowers fast-food places in the ranking; never removes them. */
   noFastFood: z.boolean().optional(),
   likedCuisines: CuisineListSchema.optional(),
-  dislikedCuisines: CuisineListSchema.optional()
+  dislikedCuisines: CuisineListSchema.optional(),
+  /** Raises places known to have vegan options (a hint: the data is sparse). */
+  veganOptions: z.boolean().optional(),
+  nutrition: NutritionGoalsSchema.optional()
 });
 export type SoftPreferences = z.infer<typeof SoftPreferencesSchema>;
 
+/** The nine major US food allergens. A fixed list, so it can be matched against data later. */
+export const ALLERGENS = [
+  { id: 'milk', label: 'Milk' },
+  { id: 'eggs', label: 'Eggs' },
+  { id: 'fish', label: 'Fish' },
+  { id: 'shellfish', label: 'Shellfish' },
+  { id: 'tree_nuts', label: 'Tree nuts' },
+  { id: 'peanuts', label: 'Peanuts' },
+  { id: 'wheat', label: 'Wheat' },
+  { id: 'soy', label: 'Soy' },
+  { id: 'sesame', label: 'Sesame' }
+] as const;
+export const AllergenSchema = z.enum(ALLERGENS.map((a) => a.id) as [string, ...string[]]);
+export type Allergen = (typeof ALLERGENS)[number]['id'];
+
 export const PreferencesSchema = z.object({
   hard: HardConstraintsSchema,
-  soft: SoftPreferencesSchema
+  soft: SoftPreferencesSchema,
+  /**
+   * Never used to pick places (no reliable allergen data exists for
+   * restaurants). The group only sees "someone has a food allergy", never who.
+   */
+  allergies: z.array(AllergenSchema).max(ALLERGENS.length).optional()
 });
 export type Preferences = z.infer<typeof PreferencesSchema>;
 
@@ -58,4 +109,11 @@ export function combineHardConstraints(members: Pick<Preferences, 'hard'>[]): Gr
     maxPriceLevel: minDefined(hards.map((h) => h.maxPriceLevel)),
     maxDistanceMeters: minDefined(hards.map((h) => h.maxDistanceMeters))
   };
+}
+
+/** True if any nutrition goal is filled in (blank goals mean "don't care"). */
+export function hasNutritionGoals(goals: NutritionGoals | undefined): boolean {
+  if (!goals) return false;
+  const inRange = (r: Range | undefined) => r !== undefined && (r.min !== undefined || r.max !== undefined);
+  return inRange(goals.calories) || goals.proteinMinGrams !== undefined || inRange(goals.carbs);
 }

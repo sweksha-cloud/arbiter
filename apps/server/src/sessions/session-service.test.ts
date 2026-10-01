@@ -400,4 +400,32 @@ describe('SessionService', () => {
       expect(room.suggestions.map((p) => p.id)).toEqual(before);
     });
   });
+
+  describe('allergies', () => {
+    it('reminds the group that someone has an allergy, without saying who or what', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo();
+      await service.submit(sessionId, host, noPreferences);
+      const room = await service.submit(sessionId, friend, { hard: {}, soft: {}, allergies: ['peanuts'] });
+      const view = service.view(room, host.id);
+      expect(view.allergyReminder).toBe(true);
+      expect(JSON.stringify(view)).not.toMatch(/peanuts|allergies/);
+    });
+
+    it('shows no reminder when nobody listed one', async () => {
+      const { service, host, sessionId } = await setup();
+      const room = await service.start(sessionId, host);
+      expect(service.view(room, host.id).allergyReminder).toBe(false);
+    });
+  });
+
+  it('ranks a chain whose menu fits a member\'s nutrition goals above a better-rated place', async () => {
+    const places = new FixturePlacesProvider([
+      place('local', { rating: 4.9 }),
+      place('chain', { rating: 3, menu: [{ name: 'Chicken bowl', calories: 620, proteinGrams: 42 }] })
+    ]);
+    const { service, host, friend, sessionId } = await lobbyOfTwo(places);
+    await service.submit(sessionId, host, { hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } });
+    const room = await service.submit(sessionId, friend, noPreferences);
+    expect(room.suggestions.map((p) => p.id)).toEqual(['chain', 'local']);
+  });
 });
