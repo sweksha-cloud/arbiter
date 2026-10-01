@@ -10,6 +10,8 @@ import { AccountService } from './identity/account-service.js';
 import { InMemoryGuestStore, type GuestStore } from './identity/guest-store.js';
 import { LogMailer, type Mailer } from './identity/mailer.js';
 import type { ScryptParams } from './identity/passwords.js';
+import type { MenuProvider } from './nutrition/fatsecret-menus.js';
+import { SampleMenuProvider } from './nutrition/sample-menus.js';
 import { DemoPlacesProvider } from './places/demo-places-provider.js';
 import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
@@ -36,6 +38,8 @@ export interface AppOptions {
   mailer?: (log: FastifyBaseLogger) => Mailer;
   /** For tests: faster password hashing. */
   passwordParams?: ScryptParams;
+  /** Chains' published menus; none means nutrition goals have no data to act on. */
+  menus?: MenuProvider;
 }
 
 export interface App {
@@ -96,6 +100,10 @@ export async function buildApp({
 
   const guests = deps.guests ?? new InMemoryGuestStore();
   const history = deps.history ?? new InMemorySessionHistory();
+  const placesSource = deps.placesSource ?? 'sample';
+  // Sample places get sample nutrition, so the feature works end to end without
+  // credentials. Real places get chain nutrition only with fatsecret set up.
+  const menus = deps.menus ?? (placesSource === 'sample' ? new SampleMenuProvider() : undefined);
   const accounts = new AccountService({
     guests,
     mailer: deps.mailer?.(http.log) ?? new LogMailer(http.log),
@@ -111,7 +119,8 @@ export async function buildApp({
     log: http.log,
     scanBudget: new SlidingWindowLimiter(rateLimits.scansPerIpPerDay, 24 * 60 * 60_000),
     places: deps.places ?? new DemoPlacesProvider(),
-    placesSource: deps.placesSource ?? 'sample',
+    menus,
+    placesSource,
     radiusMeters: SCAN_RADIUS_METERS,
     missingDataPolicy: MISSING_DATA_POLICY
   });

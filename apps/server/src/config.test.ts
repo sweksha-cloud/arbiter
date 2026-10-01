@@ -32,4 +32,9 @@ describe('loadConfig', () => {
   it('names every missing or invalid variable', () => {
     expect(() => loadConfig({ WEB_ORIGIN: 'not a url' })).toThrow(/WEB_ORIGIN[\s\S]*DATABASE_URL|DATABASE_URL[\s\S]*WEB_ORIGIN/);
   });
+
+  it('needs both fatsecret settings or neither', () => {
+    expect(() => loadConfig({ ...required, FATSECRET_CLIENT_ID: 'id' })).toThrow(/FATSECRET/);
+    expect(loadConfig({ ...required, FATSECRET_CLIENT_ID: 'id', FATSECRET_CLIENT_SECRET: 's' }).FATSECRET_CLIENT_ID).toBe('id');
+  });
 });

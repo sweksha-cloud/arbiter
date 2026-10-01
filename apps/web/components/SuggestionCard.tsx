@@ -1,6 +1,13 @@
 'use client';
 
-import { NUTRITION_TAGS, type NutritionTag, type Reaction, type SessionView, type SuggestionView } from '@arbiter/shared';
+import {
+  NUTRITION_TAGS,
+  type MenuItem,
+  type NutritionTag,
+  type Reaction,
+  type SessionView,
+  type SuggestionView
+} from '@arbiter/shared';
 
 import { formatDistance, formatPrice } from '../lib/format';
 
@@ -24,7 +31,7 @@ export function SuggestionCard({
   onReact: (reaction: Reaction | null) => void;
   onTag: (tag: NutritionTag, on: boolean) => void;
 }) {
-  const { place, likes, dislikes, myReaction, tags } = suggestion;
+  const { place, likes, dislikes, myReaction, tags, menuNutrition } = suggestion;
   const anyMarks = tags.some((t) => t.count > 0);
   const total = likes + dislikes;
   const likeShare = total === 0 ? 50 : (likes / total) * 100;
@@ -77,10 +84,13 @@ export function SuggestionCard({
         </a>
       </div>
 
+      {menuNutrition && <ChainNutrition {...menuNutrition} />}
+
       <section className="stack tight" aria-label={`What the group says ${place.name} has`}>
         <p className="small">
           <strong>Options the group says it has</strong>
-          {!anyMarks && <span className="muted"> · No nutrition info for this place yet</span>}
+          {/* Only when there's nothing at all: a chain's published menu above already counts. */}
+          {!anyMarks && !menuNutrition && <span className="muted"> · No nutrition info for this place yet</span>}
         </p>
         <div className="chips">
           {NUTRITION_TAGS.map(({ tag, label }) => {
@@ -102,5 +112,47 @@ export function SuggestionCard({
         </div>
       </section>
     </article>
+  );
+}
+
+/** "620 cal · 42 g protein · 60 g carbs", leaving out anything unknown. */
+function describeItem(item: MenuItem): string {
+  return [
+    item.calories === undefined ? undefined : `${Math.round(item.calories)} cal`,
+    item.proteinGrams === undefined ? undefined : `${Math.round(item.proteinGrams)} g protein`,
+    item.carbsGrams === undefined ? undefined : `${Math.round(item.carbsGrams)} g carbs`
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * Published chain nutrition, kept visually separate from Google's place data
+ * (Google's attribution rules) and credited to fatsecret (their terms), with
+ * no advice implied (also their terms).
+ */
+function ChainNutrition({ fitsYou, source }: { fitsYou: MenuItem | null; source: 'fatsecret' | 'sample' }) {
+  return (
+    <section className="nutrition-box stack tight" aria-label="Published nutrition">
+      {fitsYou ? (
+        <p className="small">
+          <strong>Fits your nutrition settings:</strong> {fitsYou.name}
+          <br />
+          <span className="muted">{describeItem(fitsYou)}</span>
+        </p>
+      ) : (
+        <p className="small">This chain publishes nutrition for its menu.</p>
+      )}
+      <p className="muted small">
+        {source === 'fatsecret' ? (
+          <a href="https://platform.fatsecret.com" target="_blank" rel="noreferrer">
+            Powered by fatsecret Platform API
+          </a>
+        ) : (
+          'Sample nutrition for testing, not a real menu'
+        )}{' '}
+        · Not nutrition or medical advice.
+      </p>
+    </section>
   );
 }

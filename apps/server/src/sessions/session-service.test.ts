@@ -5,6 +5,7 @@ import { InMemorySessionHistory, SessionCodeTakenError, type SessionHistory } fr
 import { InMemoryGuestStore } from '../identity/guest-store.js';
 import { FixturePlacesProvider } from '../places/fixture-places-provider.js';
 import type { PlacesProvider } from '../places/places-provider.js';
+import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
 import { InMemoryRoomStore } from '../rooms/in-memory-room-store.js';
 import { SessionService } from './session-service.js';
@@ -27,7 +28,8 @@ const place = (id: string, overrides: Partial<PlaceCandidate> = {}) => ({
 async function setup(
   places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')]),
   history: SessionHistory = new InMemorySessionHistory(),
-  scanBudget?: SlidingWindowLimiter
+  scanBudget?: SlidingWindowLimiter,
+  menus?: MenuProvider
 ) {
   const guests = new InMemoryGuestStore();
   const historyErrors: { error: unknown; action: string }[] = [];
@@ -37,6 +39,7 @@ async function setup(
     guests,
     history,
     scanBudget,
+    menus,
     log: {
       info: (details, message) => logged.push({ details: details as Record<string, unknown>, message }),
       error: (details, message) => {
@@ -427,5 +430,37 @@ describe('SessionService', () => {
     await service.submit(sessionId, host, { hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } });
     const room = await service.submit(sessionId, friend, noPreferences);
     expect(room.suggestions.map((p) => p.id)).toEqual(['chain', 'local']);
+  });
+
+  describe('chain nutrition (fatsecret menus)', () => {
+    const bowl = { name: 'Chicken Burrito Bowl', calories: 620, proteinGrams: 42, carbsGrams: 60 };
+    const menus: MenuProvider = { source: 'fatsecret', menuFor: async (chain) => (chain.name === 'Chipotle' ? [bowl] : undefined) };
+
+    async function scanWithChain(hostPrefs: Preferences, friendPrefs: Preferences = noPreferences) {
+      const places = new FixturePlacesProvider([place('chain-1', { name: 'Chipotle Mexican Grill', rating: 3 }), place('local', { rating: 4.9 })]);
+      const ctx = await setup(places, undefined, undefined, menus);
+      await ctx.service.join(ctx.sessionId, ctx.friend);
+      await ctx.service.submit(ctx.sessionId, ctx.host, hostPrefs);
+      const room = await ctx.service.submit(ctx.sessionId, ctx.friend, friendPrefs);
+      return { ...ctx, room };
+    }
+
+    it("shows each person the dish that fits their own goals, and nobody else's", async () => {
+      const lean: Preferences = { hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } };
+      const { service, room, host, friend } = await scanWithChain(lean);
+
+      const chainFor = (id: string) => service.view(room, id).suggestions.find((s) => s.place.id === 'chain-1')!;
+      expect(chainFor(host.id).menuNutrition).toEqual({ fitsYou: bowl, source: 'fatsecret' });
+      expect(chainFor(friend.id).menuNutrition).toEqual({ fitsYou: null, source: 'fatsecret' });
+      // Places without published nutrition say so; the full menu never leaves the server.
+      expect(service.view(room, host.id).suggestions.find((s) => s.place.id === 'local')!.menuNutrition).toBeNull();
+      expect(chainFor(host.id).place).not.toHaveProperty('menu');
+    });
+
+    it('ranks the fitting chain first, even below a better-rated local place otherwise', async () => {
+      const lean: Preferences = { hard: {}, soft: { nutrition: { calories: { max: 700 } } } };
+      expect((await scanWithChain(lean)).room.suggestions.map((p) => p.id)).toEqual(['chain-1', 'local']);
+      expect((await scanWithChain(noPreferences)).room.suggestions.map((p) => p.id)).toEqual(['local', 'chain-1']);
+    });
   });
 });

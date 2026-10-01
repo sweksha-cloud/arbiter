@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { LatLngSchema, PlaceCandidateSchema } from './place.js';
+import { LatLngSchema, MenuItemSchema, PlaceCandidateSchema } from './place.js';
 import { PreferencesSchema, type Preferences } from './preferences.js';
 import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
@@ -61,7 +61,13 @@ export const SuggestionViewSchema = z.object({
    * What the group says this place has (high-protein options, vegan options…),
    * in display order. Counts only; `mine` is whether the viewer marked it.
    */
-  tags: z.array(z.object({ tag: NutritionTagSchema, count: z.number().int().nonnegative(), mine: z.boolean() }))
+  tags: z.array(z.object({ tag: NutritionTagSchema, count: z.number().int().nonnegative(), mine: z.boolean() })),
+  /**
+   * Published nutrition for this chain (from fatsecret), or null for places
+   * without any. `fitsYou` is a dish meeting the viewer's own goals, if any;
+   * nobody else's goals are used or revealed. The full menu stays on the server.
+   */
+  menuNutrition: z.object({ fitsYou: MenuItemSchema.nullable(), source: z.enum(['fatsecret', 'sample']) }).nullable()
 });
 export type SuggestionView = z.infer<typeof SuggestionViewSchema>;
 
