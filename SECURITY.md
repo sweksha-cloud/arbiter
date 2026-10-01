@@ -46,8 +46,8 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 
 | Gap | Risk | Plan |
 | --- | --- | --- |
-| **Signup reveals whether an email has an account** | "That email already has an account" is the only useful signup answer. | Verify email addresses before creating the account. |
-| **Email verification isn't enforced** | Accounts work before the email is confirmed, so a typo'd address can't reset its password, and someone could sign up with an address that isn't theirs (its real owner could still take it over by resetting the password). | Decide whether anything should need a confirmed email; the links already work. |
+| **Signup reveals whether an email has an account** | "That email already has an account" is the only useful signup answer. | Verify email addresses before creating the account (`.claude/todo/email-verification-policy.md`). |
+| **Email verification isn't enforced** | Accounts work before the email is confirmed, so a typo'd address can't reset its password, and someone could sign up with an address that isn't theirs (its real owner could still take it over by resetting the password). | Decide whether anything should need a confirmed email (`.claude/todo/email-verification-policy.md`); the links already work. |
 | **Rate-limit counters are per server, in memory** | They reset on restart, and with two servers (Phase 7) each counts separately, doubling every limit. | Move counters to Redis, which `@fastify/rate-limit` supports. |
 | **Someone with many IPs** | Per-IP limits (including the daily scan limit) don't stop a spread-out attacker. | The Google quota is still a hard ceiling on cost; if it's hit in practice, require an account for scans. |
 
