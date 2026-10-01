@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "check:places": "tsx --env-file-if-exists=.env --conditions=@arbiter/source scripts/check-places.ts"
   },
   "dependencies": {
     "@arbiter/shared": "workspace:*",

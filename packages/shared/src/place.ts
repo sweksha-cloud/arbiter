@@ -35,6 +35,8 @@ export const PlaceCandidateSchema = z.object({
   servesVegetarian: z.boolean().optional(),
   isFastFood: z.boolean().optional(),
   rating: z.number().min(1).max(5).optional(),
+  /** Open at the moment of the scan, per Google. Undefined means unknown. */
+  openNow: z.boolean().optional(),
   /** Known to have vegan options (e.g. a vegan restaurant). Undefined means unknown, never "no". */
   servesVegan: z.boolean().optional(),
   /**
