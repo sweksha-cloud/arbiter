@@ -61,8 +61,18 @@ const CUISINE_ALIASES: Record<string, string> = {
   cafe: 'cafe'
 };
 
-/** Types that say nothing about the food. */
-const NOT_A_CUISINE = new Set(['restaurant', 'fast_food_restaurant']);
+/**
+ * Types that say nothing about the food: the kind or style of place, not its
+ * cuisine. The first real scan showed "family" appearing as a cuisine.
+ */
+const NOT_A_CUISINE = new Set([
+  'restaurant',
+  'fast_food_restaurant',
+  'family_restaurant',
+  'fine_dining_restaurant',
+  'buffet_restaurant',
+  'diner'
+]);
 
 /** 'thai_restaurant' → 'thai', 'hamburger_restaurant' → 'burgers'. Matches PreferencesForm's list. */
 export function cuisinesFromTypes(types: readonly string[]): string[] {
