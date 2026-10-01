@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import {
   combineHardConstraints,
   eliminate,
+  fittingItem,
   rankSuggestions,
   setReaction,
   setTag,
@@ -20,6 +21,8 @@ import {
 
 import { SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import type { GuestStore } from '../identity/guest-store.js';
+import { addMenus } from '../nutrition/enrich.js';
+import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
@@ -59,6 +62,8 @@ export interface SessionServiceOptions {
    */
   scanBudget?: SlidingWindowLimiter;
   places: PlacesProvider;
+  /** Chains' published menus (fatsecret). Without it, nutrition goals have no data to act on. */
+  menus?: MenuProvider;
   placesSource: SessionView['placesSource'];
   /** Search area when nobody in the group set a distance limit. */
   radiusMeters: number;
@@ -231,13 +236,14 @@ export class SessionService {
       room.suggestions.map((p) => p.id)
     );
     const myTags = room.tags[viewerId] ?? {};
+    const myGoals = room.submissions[viewerId]?.soft.nutrition;
     return {
       sessionId: room.sessionId,
       version: room.version,
       status: room.status,
       hostId: room.hostId,
       members: room.members.map((m) => ({ ...m, online: onlineIds.has(m.id) })),
-      suggestions: room.suggestions.map((place) => ({
+      suggestions: room.suggestions.map(({ menu, ...place }) => ({
         place,
         likes: tally[place.id]?.likes ?? 0,
         dislikes: tally[place.id]?.dislikes ?? 0,
@@ -246,7 +252,11 @@ export class SessionService {
           tag,
           count: tagCounts[place.id]?.[tag] ?? 0,
           mine: myTags[place.id]?.includes(tag) ?? false
-        }))
+        })),
+        menuNutrition:
+          menu && this.options.menus
+            ? { fitsYou: fittingItem({ ...place, menu }, myGoals) ?? null, source: this.options.menus.source }
+            : null
       })),
       scannedCount: room.scannedCount,
       eliminatedCount: room.eliminatedCount,
@@ -289,7 +299,9 @@ export class SessionService {
         radiusMeters: group.maxDistanceMeters ?? this.options.radiusMeters
       });
       const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy);
-      const suggestions = rankSuggestions(kept, preferences);
+      // Nutrition only adds to places that already fit everyone's must-haves.
+      const withMenus = await addMenus(kept, this.options.menus);
+      const suggestions = rankSuggestions(withMenus, preferences);
 
       this.options.log?.info(
         {
@@ -300,6 +312,7 @@ export class SessionService {
           scanned: scanned.length,
           eliminated: eliminatedCount,
           suggested: suggestions.length,
+          withMenus: withMenus.filter((p) => p.menu).length,
           placesSource: this.options.placesSource,
           durationMs: Math.round(performance.now() - startedAt)
         },

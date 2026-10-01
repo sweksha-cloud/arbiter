@@ -7,6 +7,7 @@ import { runMigrations } from './db/migrate.js';
 import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 import { LogMailer, OutboxMailer, UnconfiguredMailer, type Mailer } from './identity/mailer.js';
+import { FatSecretMenuProvider } from './nutrition/fatsecret-menus.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
 import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
 
@@ -32,10 +33,24 @@ const { http } = await buildApp({
   guests,
   history: new PostgresSessionHistory(db),
   mailer,
+  ...(config.FATSECRET_CLIENT_ID && config.FATSECRET_CLIENT_SECRET
+    ? {
+        menus: new FatSecretMenuProvider({
+          clientId: config.FATSECRET_CLIENT_ID,
+          clientSecret: config.FATSECRET_CLIENT_SECRET,
+          // Runs during scans, after the server (and its logger) has started.
+          onError: (error, chain) => http.log.error({ err: error, chain }, 'fatsecret lookup failed')
+        })
+      }
+    : {}),
   ...(config.GOOGLE_PLACES_API_KEY
     ? { places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }), placesSource: 'google' as const }
     : {})
 });
+http.log.info(
+  { chainNutrition: Boolean(config.FATSECRET_CLIENT_ID) },
+  config.FATSECRET_CLIENT_ID ? 'Using fatsecret for chain nutrition' : 'No fatsecret credentials: no chain nutrition'
+);
 http.log.info(
   { placesSource: config.GOOGLE_PLACES_API_KEY ? 'google' : 'sample' },
   config.GOOGLE_PLACES_API_KEY ? 'Using Google Places' : 'No GOOGLE_PLACES_API_KEY: using sample places'

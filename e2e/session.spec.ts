@@ -164,3 +164,29 @@ test('an allergy shows the group a reminder, never who has it', async ({ newPhon
   await expect(friend.getByText(reminder)).toBeVisible();
   await expect(host.getByText(/shellfish/i)).toHaveCount(0);
 });
+
+test("a chain's published nutrition shows the dish that fits your own goals (ranking is covered in server tests)", async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  // The host wants a lean meal; the friend sets no nutrition goals.
+  await host.getByLabel('Calories at most').fill('700');
+  await host.getByLabel('Protein at least (g)').fill('30');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  // Sample "Taco Stand" has a 620-calorie, 42 g-protein bowl that fits.
+  const hostTaco = host.locator('article').filter({ has: host.getByRole('heading', { name: 'Taco Stand' }) });
+  await expect(hostTaco.getByText('Fits your nutrition settings:')).toBeVisible();
+  await expect(hostTaco.getByText('Chicken Burrito Bowl')).toBeVisible();
+  await expect(hostTaco.getByText('620 cal · 42 g protein · 60 g carbs')).toBeVisible();
+  await expect(hostTaco.getByText(/Sample nutrition for testing/)).toBeVisible();
+  // Its published menu counts as nutrition info, so the "no info" note isn't shown.
+  await expect(hostTaco.getByText('No nutrition info for this place yet')).toHaveCount(0);
+
+  // The friend sees the same place, but nothing is matched to goals they don't have.
+  const friendTaco = friend.locator('article').filter({ has: friend.getByRole('heading', { name: 'Taco Stand' }) });
+  await expect(friendTaco.getByText('This chain publishes nutrition for its menu.')).toBeVisible();
+  await expect(friendTaco.getByText('Fits your nutrition settings:')).toHaveCount(0);
+});

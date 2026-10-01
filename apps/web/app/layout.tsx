@@ -27,6 +27,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body>
         <SiteHeader />
         {children}
+        <footer className="site-footer muted small">
+          Chain nutrition information{' '}
+          <a href="https://platform.fatsecret.com" target="_blank" rel="noreferrer">
+            Powered by fatsecret Platform API
+          </a>
+          . Nothing here is nutrition or medical advice.
+        </footer>
       </body>
     </html>
   );

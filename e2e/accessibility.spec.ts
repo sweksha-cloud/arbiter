@@ -41,6 +41,8 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
 
   const friend = await newPhone();
   await joinSession(friend, invite, 'Alex');
+  // A nutrition goal, so results include the published-nutrition box.
+  await host.getByLabel('Calories at most').fill('700');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.getByText('1 of 2 submitted')).toBeVisible();
   await expectNoViolations(host, 'the lobby with a "submitted" badge');
