@@ -190,3 +190,44 @@ test("a chain's published nutrition shows the dish that fits your own goals (ran
   await expect(friendTaco.getByText('This chain publishes nutrition for its menu.')).toBeVisible();
   await expect(friendTaco.getByText('Fits your nutrition settings:')).toHaveCount(0);
 });
+
+test('suggestions show their hours, and a place with several branches lists the others', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  // Liking Mexican puts sample "Taco Stand" (which has two branches) in the top 3.
+  await host.getByRole('button', { name: /mexican$/ }).click();
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  const taco = host.locator('article').filter({ has: host.getByRole('heading', { name: 'Taco Stand' }) });
+  await expect(taco).toHaveCount(1); // Both branches share one card.
+  await expect(taco.getByText(/Open now/).first()).toBeVisible();
+
+  await taco.getByText('Hours', { exact: true }).first().click();
+  await expect(taco.getByText('Sunday: Closed').first()).toBeVisible();
+
+  await taco.getByText('2 locations available').click();
+  const others = taco.locator('.other-locations > li');
+  await expect(others).toHaveCount(1);
+  await expect(others.first()).toContainText('Closed now');
+  await expect(others.first().getByRole('link', { name: 'Directions' })).toBeVisible();
+});
+
+test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await phone.goto('/');
+  await enterName(phone, 'Kit');
+  await expect(phone.getByRole('button', { name: 'Start a session' })).toBeVisible();
+  await phone.goto('/preferences');
+  await phone.getByRole('button', { name: /Restaurant$/ }).click(); // 👍
+  await phone.getByRole('button', { name: /Café$/ }).click();
+  await phone.getByRole('button', { name: /Café$/ }).click(); // 👎
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.success')).toBeVisible();
+
+  await phone.reload();
+  await expect(phone.getByRole('button', { name: '👍 Restaurant' })).toBeVisible();
+  await expect(phone.getByRole('button', { name: '👎 Café' })).toBeVisible();
+});

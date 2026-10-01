@@ -67,7 +67,7 @@ const rawPlaces = raw.places ?? [];
 
 console.log(`\n=== Google returned ${rawPlaces.length} places within ${radiusMeters} m (${places.length} usable) ===\n`);
 console.log('How often each field is present (raw):');
-for (const field of ['priceLevel', 'rating', 'servesVegetarianFood', 'currentOpeningHours', 'types']) {
+for (const field of ['priceLevel', 'rating', 'servesVegetarianFood', 'currentOpeningHours', 'primaryType', 'types']) {
   console.log(`  ${field.padEnd(22)} ${pct(rawPlaces.filter((p) => p[field] !== undefined).length, rawPlaces.length)}`);
 }
 console.log('\nAfter conversion:');
@@ -76,6 +76,10 @@ console.log(`  has a price level      ${count((p) => p.priceLevel !== undefined)
 console.log(`  vegetarian known       ${count((p) => p.servesVegetarian !== undefined)}  (yes: ${count((p) => p.servesVegetarian === true)})`);
 console.log(`  open now known         ${count((p) => p.openNow !== undefined)}  (closed now: ${count((p) => p.openNow === false)})`);
 console.log(`  has a cuisine          ${count((p) => p.cuisines.length > 0)}`);
+console.log(`  has weekly hours       ${count((p) => (p.hours?.length ?? 0) > 0)}`);
+const kinds = new Map<string, number>();
+for (const p of places) kinds.set(p.kind ?? 'unknown', (kinds.get(p.kind ?? 'unknown') ?? 0) + 1);
+console.log(`  kinds                  ${[...kinds].map(([k, n]) => `${k} ${n}`).join(', ')}`);
 console.log(`  typed fast food        ${count((p) => p.isFastFood === true)}`);
 
 const fatsecretId = process.env.FATSECRET_CLIENT_ID;
@@ -103,6 +107,7 @@ for (const p of places) {
     p.rating === undefined ? 'unrated' : `★${p.rating}`,
     p.servesVegetarian === undefined ? 'veg ?' : p.servesVegetarian ? 'veg ✓' : 'veg ✗',
     p.openNow === undefined ? 'hours ?' : p.openNow ? 'open' : 'CLOSED',
+    p.kind ?? 'kind ?',
     p.isFastFood ? 'fast food' : '',
     p.cuisines.join('/') || 'no cuisine',
     p.menu ? `menu: ${p.menu.length} items` : ''
@@ -116,6 +121,7 @@ const groups: { label: string; members: Preferences[] }[] = [
   { label: 'Budget $$, within 1 mile', members: [{ hard: { maxPriceLevel: 2, maxDistanceMeters: 1609 }, soft: {} }, { hard: {}, soft: {} }] },
   { label: 'Likes thai and mexican', members: [{ hard: {}, soft: { likedCuisines: ['thai', 'mexican'] } }, { hard: {}, soft: {} }] },
   { label: 'Wants vegan options', members: [{ hard: {}, soft: { veganOptions: true } }, { hard: {}, soft: {} }] },
+  { label: 'Rather a restaurant than a café or dessert', members: [{ hard: {}, soft: { likedKinds: ['restaurant'], dislikedKinds: ['cafe', 'dessert'] } }, { hard: {}, soft: {} }] },
   {
     label: 'Lean meal (≤700 cal, ≥30 g protein)',
     members: [{ hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } }, { hard: {}, soft: {} }]
@@ -133,7 +139,9 @@ for (const { label, members } of groups) {
       hasVeganOptions(p) ? 'vegan options' : '',
       members.map((m) => fittingItem(p, m.soft.nutrition)).find(Boolean)?.name ?? ''
     ].filter(Boolean);
-    console.log(`    - ${p.name}${notes.length ? `  (${notes.join('; ')})` : ''}`);
+    if (p.otherLocations?.length) notes.push(`${p.otherLocations.length + 1} locations`);
+    if (p.hours?.[0]) notes.push(p.hours[0]);
+    console.log(`    - ${p.name} [${p.kind ?? '?'}]${notes.length ? `  (${notes.join('; ')})` : ''}`);
   }
 }
 console.log('\nOne Nearby Search used. Nothing was saved.\n');

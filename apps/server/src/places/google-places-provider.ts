@@ -1,4 +1,4 @@
-import { distanceMeters, MAX_DISTANCE_METERS, type PlaceCandidate } from '@arbiter/shared';
+import { distanceMeters, MAX_DISTANCE_METERS, type PlaceCandidate, type PlaceKind } from '@arbiter/shared';
 import { z } from 'zod';
 
 import { PlacesQuotaExceededError, type NearbySearchRequest, type PlacesProvider } from './places-provider.js';
@@ -19,8 +19,10 @@ export const FIELD_MASK = [
   'places.priceLevel',
   'places.rating',
   'places.servesVegetarianFood',
-  // Same billing tier as the fields above, so it costs nothing extra.
-  'places.currentOpeningHours.openNow'
+  'places.primaryType',
+  // Same billing tier as the fields above, so these cost nothing extra.
+  'places.currentOpeningHours.openNow',
+  'places.currentOpeningHours.weekdayDescriptions'
 ].join(',');
 
 /** Restaurants, cafes and fast food (spec section 2). Provisional: DESIGN.md section 4. */
@@ -43,10 +45,13 @@ const GooglePlaceSchema = z.object({
   displayName: z.object({ text: z.string() }).optional(),
   location: z.object({ latitude: z.number(), longitude: z.number() }).optional(),
   types: z.array(z.string()).optional(),
+  primaryType: z.string().optional(),
   priceLevel: z.string().optional(),
   rating: z.number().optional(),
   servesVegetarianFood: z.boolean().optional(),
-  currentOpeningHours: z.object({ openNow: z.boolean().optional() }).optional()
+  currentOpeningHours: z
+    .object({ openNow: z.boolean().optional(), weekdayDescriptions: z.array(z.string()).optional() })
+    .optional()
 });
 type GooglePlace = z.infer<typeof GooglePlaceSchema>;
 
@@ -73,6 +78,43 @@ const NOT_A_CUISINE = new Set([
   'buffet_restaurant',
   'diner'
 ]);
+
+const CAFE_TYPES = new Set(['cafe', 'coffee_shop', 'tea_house', 'cat_cafe', 'dog_cafe', 'internet_cafe']);
+const DESSERT_TYPES = new Set([
+  'ice_cream_shop',
+  'dessert_shop',
+  'dessert_restaurant',
+  'bakery',
+  'donut_shop',
+  'candy_store',
+  'chocolate_shop',
+  'confectionery',
+  'juice_shop'
+]);
+const BAR_TYPES = new Set(['bar', 'pub', 'wine_bar', 'cocktail_bar', 'night_club', 'brewpub', 'beer_garden', 'sports_bar', 'lounge_bar']);
+
+/**
+ * The kind of place from Google's main type (falling back to its other
+ * types). Undefined for places that aren't somewhere to eat, like the
+ * mini-golf course the first real scan found.
+ */
+export function kindFromTypes(primaryType: string | undefined, types: readonly string[]): PlaceKind | undefined {
+  const classify = (type: string): PlaceKind | undefined => {
+    if (type === 'fast_food_restaurant') return 'fast_food';
+    if (CAFE_TYPES.has(type)) return 'cafe';
+    if (DESSERT_TYPES.has(type)) return 'dessert';
+    if (BAR_TYPES.has(type)) return 'bar';
+    if (type === 'restaurant' || type.endsWith('_restaurant') || ['diner', 'food_court', 'deli', 'sandwich_shop', 'steak_house', 'meal_takeaway', 'meal_delivery'].includes(type)) {
+      return 'restaurant';
+    }
+    return undefined;
+  };
+  const kind = primaryType ? classify(primaryType) : types.map(classify).find(Boolean);
+  // A restaurant Google also types as fast food (e.g. a burger chain) counts
+  // as fast food, matching isFastFood. A café or bar stays a café or bar.
+  if (kind === 'restaurant' && types.includes('fast_food_restaurant')) return 'fast_food';
+  return kind;
+}
 
 /** 'thai_restaurant' → 'thai', 'hamburger_restaurant' → 'burgers'. Matches PreferencesForm's list. */
 export function cuisinesFromTypes(types: readonly string[]): string[] {
@@ -112,7 +154,9 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
     rating: place.rating !== undefined && place.rating >= 1 && place.rating <= 5 ? place.rating : undefined,
     // Only a vegan restaurant is a known "yes"; Google has no vegan field for other places.
     servesVegan: isVeganPlace ? true : undefined,
-    openNow: place.currentOpeningHours?.openNow
+    openNow: place.currentOpeningHours?.openNow,
+    hours: place.currentOpeningHours?.weekdayDescriptions,
+    kind: kindFromTypes(place.primaryType, types)
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { cuisinesFromTypes, FIELD_MASK, GooglePlacesProvider, toCandidate } from './google-places-provider.js';
+import { cuisinesFromTypes, FIELD_MASK, GooglePlacesProvider, kindFromTypes, toCandidate } from './google-places-provider.js';
 import { PlacesQuotaExceededError } from './places-provider.js';
 
 const center = { lat: 37.3352, lng: -121.8811 };
@@ -14,7 +14,8 @@ const thai = {
   priceLevel: 'PRICE_LEVEL_MODERATE',
   rating: 4.4,
   servesVegetarianFood: true,
-  currentOpeningHours: { openNow: true }
+  primaryType: 'thai_restaurant',
+  currentOpeningHours: { openNow: true, weekdayDescriptions: ['Monday: 11:00 AM – 9:00 PM', 'Tuesday: Closed'] }
 };
 const burgers = {
   id: 'ChIJburger',
@@ -68,7 +69,9 @@ describe('GooglePlacesProvider', () => {
         isFastFood: true,
         rating: 3.9,
         servesVegan: undefined,
-        openNow: undefined
+        openNow: undefined,
+        hours: undefined,
+        kind: 'fast_food'
       },
       {
         id: 'ChIJthai',
@@ -81,7 +84,9 @@ describe('GooglePlacesProvider', () => {
         isFastFood: undefined,
         rating: 4.4,
         servesVegan: undefined,
-        openNow: true
+        openNow: true,
+        hours: ['Monday: 11:00 AM – 9:00 PM', 'Tuesday: Closed'],
+        kind: 'restaurant'
       }
     ]);
   });
@@ -155,5 +160,26 @@ describe('cuisinesFromTypes', () => {
     expect(cuisinesFromTypes(['family_restaurant', 'italian_restaurant', 'fine_dining_restaurant', 'buffet_restaurant'])).toEqual([
       'italian'
     ]);
+  });
+});
+
+describe('kindFromTypes', () => {
+  it("uses Google's main type", () => {
+    expect(kindFromTypes('coffee_shop', ['coffee_shop', 'cafe', 'food'])).toBe('cafe');
+    expect(kindFromTypes('ice_cream_shop', [])).toBe('dessert');
+    expect(kindFromTypes('wine_bar', [])).toBe('bar');
+    expect(kindFromTypes('thai_restaurant', [])).toBe('restaurant');
+    expect(kindFromTypes('fast_food_restaurant', [])).toBe('fast_food');
+  });
+
+  it('counts a restaurant Google also types as fast food as fast food, but keeps cafés as cafés', () => {
+    expect(kindFromTypes('hamburger_restaurant', ['hamburger_restaurant', 'fast_food_restaurant'])).toBe('fast_food');
+    expect(kindFromTypes(undefined, ['hamburger_restaurant', 'fast_food_restaurant'])).toBe('fast_food');
+    expect(kindFromTypes('coffee_shop', ['coffee_shop', 'fast_food_restaurant'])).toBe('cafe');
+  });
+
+  it('falls back to the other types, and leaves non-food places unknown', () => {
+    expect(kindFromTypes(undefined, ['point_of_interest', 'cafe'])).toBe('cafe');
+    expect(kindFromTypes('miniature_golf_course', ['restaurant'])).toBeUndefined();
   });
 });

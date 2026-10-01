@@ -10,6 +10,32 @@ export type LatLng = z.infer<typeof LatLngSchema>;
 export const PriceLevelSchema = z.number().int().min(0).max(4);
 export type PriceLevel = z.infer<typeof PriceLevelSchema>;
 
+/**
+ * The kind of place, from Google's main type. Groups can like or dislike
+ * kinds the same way as cuisines (e.g. rather a restaurant than a café).
+ */
+export const PlaceKindSchema = z.enum(['restaurant', 'cafe', 'fast_food', 'dessert', 'bar']);
+export type PlaceKind = z.infer<typeof PlaceKindSchema>;
+
+export const PLACE_KINDS: readonly { kind: PlaceKind; label: string }[] = [
+  { kind: 'restaurant', label: 'Restaurant' },
+  { kind: 'cafe', label: 'Café' },
+  { kind: 'fast_food', label: 'Fast food' },
+  { kind: 'dessert', label: 'Dessert' },
+  { kind: 'bar', label: 'Bar' }
+];
+
+/** Another branch of the same chain, listed under the suggestion's "more locations". */
+export const BranchSchema = z.object({
+  id: z.string().min(1),
+  location: z.object({ lat: z.number(), lng: z.number() }),
+  distanceMeters: z.number().nonnegative(),
+  rating: z.number().min(1).max(5).optional(),
+  openNow: z.boolean().optional(),
+  hours: z.array(z.string()).optional()
+});
+export type Branch = z.infer<typeof BranchSchema>;
+
 /** One menu item's nutrition per serving. Missing values are unknown. */
 export const MenuItemSchema = z.object({
   name: z.string().min(1),
@@ -37,6 +63,12 @@ export const PlaceCandidateSchema = z.object({
   rating: z.number().min(1).max(5).optional(),
   /** Open at the moment of the scan, per Google. Undefined means unknown. */
   openNow: z.boolean().optional(),
+  /** This week's hours, one line per day ("Monday: 11:00 AM – 9:00 PM"), for the session only. */
+  hours: z.array(z.string()).optional(),
+  /** Undefined when Google's main type isn't one of the kinds (e.g. a mini-golf course). */
+  kind: PlaceKindSchema.optional(),
+  /** Other branches with the same name that also fit; set on suggestions only. */
+  otherLocations: z.array(BranchSchema).optional(),
   /** Known to have vegan options (e.g. a vegan restaurant). Undefined means unknown, never "no". */
   servesVegan: z.boolean().optional(),
   /**

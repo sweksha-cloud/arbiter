@@ -1,6 +1,14 @@
 'use client';
 
-import { ALLERGENS, type Allergen, type NutritionGoals, type Preferences, type Range } from '@arbiter/shared';
+import {
+  ALLERGENS,
+  PLACE_KINDS,
+  type Allergen,
+  type NutritionGoals,
+  type PlaceKind,
+  type Preferences,
+  type Range
+} from '@arbiter/shared';
 import { useState, type FormEvent } from 'react';
 
 import { MAX_MILES, MILE_OPTIONS, MIN_MILES, metersToMiles, milesToMeters } from '../lib/format';
@@ -119,6 +127,12 @@ export function PreferencesForm({
   const [maxPriceLevel, setMaxPriceLevel] = useState<number | undefined>(start.hard.maxPriceLevel);
   const [distance, setDistance] = useState<DistanceChoice>(() => initialDistance(start));
   const [feelings, setFeelings] = useState(() => initialFeelings(start));
+  const [kindFeelings, setKindFeelings] = useState<Partial<Record<PlaceKind, CuisineFeeling>>>(() => {
+    const feelings: Partial<Record<PlaceKind, CuisineFeeling>> = {};
+    for (const k of start.soft.likedKinds ?? []) feelings[k] = 'like';
+    for (const k of start.soft.dislikedKinds ?? []) feelings[k] = 'dislike';
+    return feelings;
+  });
   const [veganOptions, setVeganOptions] = useState(start.soft.veganOptions ?? false);
   const [nutrition, setNutrition] = useState<NutritionText>(() => initialNutrition(start.soft.nutrition));
   const [allergies, setAllergies] = useState<Allergen[]>(() => (start.allergies ?? []) as Allergen[]);
@@ -148,6 +162,8 @@ export function PreferencesForm({
         noFastFood: noFastFood || undefined,
         likedCuisines: entries.filter(([, f]) => f === 'like').map(([c]) => c),
         dislikedCuisines: entries.filter(([, f]) => f === 'dislike').map(([c]) => c),
+        likedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'like').map(({ kind }) => kind),
+        dislikedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'dislike').map(({ kind }) => kind),
         veganOptions: veganOptions || undefined,
         nutrition: goals
       },
@@ -240,6 +256,23 @@ export function PreferencesForm({
           <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
           <span>Rather not do fast food</span>
         </label>
+        <p className="muted small">Kind of place: tap once for 👍, twice for 👎, three times to clear.</p>
+        <div className="chips">
+          {PLACE_KINDS.map(({ kind, label }) => {
+            const feeling = kindFeelings[kind];
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`chip kind ${feeling ?? ''}`}
+                onClick={() => setKindFeelings((all) => ({ ...all, [kind]: nextFeeling(all[kind]) }))}
+              >
+                {feeling === 'like' ? '👍 ' : feeling === 'dislike' ? '👎 ' : ''}
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <p className="muted small">Cuisines: tap once for 👍 love it, twice for 👎 rather not, three times to clear.</p>
         <div className="chips">
           {CUISINES.map((cuisine) => {

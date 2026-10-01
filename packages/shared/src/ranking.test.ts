@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { majorityAvoidsFastFood, rankSuggestions, softScore } from './ranking.js';
+import { branchKey, majorityAvoidsFastFood, rankSuggestions, softScore } from './ranking.js';
 import { makePlace } from './test-helpers.js';
 
 const ids = (places: { id: string }[]) => places.map((p) => p.id);
@@ -67,5 +67,43 @@ describe('rankSuggestions', () => {
 
   it('returns every place when fewer survive than the list size', () => {
     expect(rankSuggestions([makePlace({ id: 'only' })], [])).toHaveLength(1);
+  });
+});
+
+describe('kinds of place', () => {
+  it('ranks by liked and disliked kinds, like cuisines', () => {
+    const cafe = makePlace({ id: 'cafe', kind: 'cafe', rating: 4.9 });
+    const restaurant = makePlace({ id: 'restaurant', kind: 'restaurant', rating: 4.1 });
+    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: {} }]))).toEqual(['cafe', 'restaurant']);
+    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: { dislikedKinds: ['cafe'] } }]))).toEqual(['restaurant', 'cafe']);
+    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: { likedKinds: ['restaurant'] } }]))).toEqual(['restaurant', 'cafe']);
+  });
+
+  it("leaves places of unknown kind alone", () => {
+    const unknown = makePlace({ id: 'putt', kind: undefined });
+    expect(softScore(unknown, [{ soft: { likedKinds: ['restaurant'], dislikedKinds: ['bar'] } }])).toBe(0);
+  });
+});
+
+describe('several locations of one place', () => {
+  it('takes one slot, shows the nearest branch, and lists the others', () => {
+    const far = makePlace({ id: 'far', name: 'La Victoria Taqueria', distanceMeters: 1022, rating: 4.4 });
+    const near = makePlace({ id: 'near', name: 'La Victoria Taqueria', distanceMeters: 413, rating: 4.2, hours: ['Monday: 10 AM – 2 AM'] });
+    const other = makePlace({ id: 'other', name: 'Il Fornaio', rating: 4.2 });
+    const third = makePlace({ id: 'third', name: 'Paper Plane', rating: 4.0 });
+
+    const result = rankSuggestions([far, near, other, third], [{ soft: {} }]);
+
+    expect(ids(result)).toEqual(['near', 'other', 'third']);
+    expect(result[0]!.otherLocations).toEqual([
+      { id: 'far', location: far.location, distanceMeters: 1022, rating: 4.4 }
+    ]);
+    expect(result[1]!.otherLocations).toBeUndefined();
+  });
+
+  it('treats a branch suffix as the same place', () => {
+    expect(branchKey('Starbucks - 1st St')).toBe(branchKey('Starbucks'));
+    expect(branchKey('Home Eat汉家宴 - San Jose')).toBe('home eat汉家宴');
+    expect(branchKey('Philz Coffee')).not.toBe(branchKey('Philz Tea'));
   });
 });

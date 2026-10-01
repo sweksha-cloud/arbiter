@@ -11,11 +11,27 @@ import {
 
 import { formatDistance, formatPrice } from '../lib/format';
 
-function directionsUrl({ place }: SuggestionView, source: SessionView['placesSource']): string {
+function directionsUrl(place: { id: string; location: { lat: number; lng: number } }, source: SessionView['placesSource']): string {
   const params = new URLSearchParams({ api: '1', destination: `${place.location.lat},${place.location.lng}` });
   // Sample places have made-up IDs; only real Google place IDs go in the link.
   if (source === 'google') params.set('destination_place_id', place.id);
   return `https://www.google.com/maps/dir/?${params}`;
+}
+
+const openLabel = (openNow: boolean | undefined) => (openNow === undefined ? undefined : openNow ? 'Open now' : 'Closed now');
+
+/** A place's week, one line per day, behind a tap (the group may go another day). */
+function Hours({ hours }: { hours: string[] }) {
+  return (
+    <details className="small">
+      <summary>Hours</summary>
+      <ul className="hours">
+        {hours.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 export function SuggestionCard({
@@ -36,7 +52,7 @@ export function SuggestionCard({
   const total = likes + dislikes;
   const likeShare = total === 0 ? 50 : (likes / total) * 100;
   const details = [
-    place.openNow === undefined ? undefined : place.openNow ? 'Open now' : 'Closed now',
+    openLabel(place.openNow),
     formatDistance(place.distanceMeters),
     formatPrice(place.priceLevel),
     place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`
@@ -80,10 +96,33 @@ export function SuggestionCard({
         >
           👎 {dislikes}
         </button>
-        <a className="button" href={directionsUrl(suggestion, source)} target="_blank" rel="noreferrer">
+        <a className="button" href={directionsUrl(place, source)} target="_blank" rel="noreferrer">
           Directions
         </a>
       </div>
+
+      {place.hours && place.hours.length > 0 && <Hours hours={place.hours} />}
+
+      {place.otherLocations && place.otherLocations.length > 0 && (
+        <details className="small">
+          <summary>
+            {place.otherLocations.length + 1} locations available
+          </summary>
+          <ul className="stack tight other-locations">
+            {place.otherLocations.map((branch) => (
+              <li key={branch.id} className="stack tight">
+                <span>
+                  {[formatDistance(branch.distanceMeters), openLabel(branch.openNow), branch.rating === undefined ? undefined : `★ ${branch.rating.toFixed(1)}`]
+                    .filter(Boolean)
+                    .join(' · ')}{' '}
+                  · <a href={directionsUrl(branch, source)} target="_blank" rel="noreferrer">Directions</a>
+                </span>
+                {branch.hours && branch.hours.length > 0 && <Hours hours={branch.hours} />}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {menuNutrition && <ChainNutrition {...menuNutrition} />}
 
