@@ -44,6 +44,8 @@ Project docs live in `.claude/` for now:
 - Project assessment and roadmap: [`.claude/PROJECT_ASSESSMENT.md`](.claude/PROJECT_ASSESSMENT.md)
 - Planned work: [`.claude/todo/`](.claude/todo/README.md)
 - Security and threat model: [`SECURITY.md`](SECURITY.md)
+- Deploying (AWS EC2 + Neon + Vercel): [`.claude/docs/DEPLOY.md`](.claude/docs/DEPLOY.md)
+- How the hosting was chosen: [`.claude/cloud-deliberation/`](.claude/cloud-deliberation/README.md)
 
 ## Status
 

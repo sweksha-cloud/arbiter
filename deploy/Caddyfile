@@ -1,0 +1,10 @@
+# HTTPS in front of the Arbiter server. Caddy gets and renews a Let's Encrypt
+# certificate for $DOMAIN automatically, and passes WebSockets through.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy server:4000 {
+		# Only send traffic to a server that reports healthy.
+		health_uri /health
+		health_interval 5s
+	}
+}

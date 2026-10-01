@@ -12,3 +12,6 @@ coverage/
 # Playwright
 test-results/
 playwright-report/
+
+# Production secrets on the server
+deploy/server.env

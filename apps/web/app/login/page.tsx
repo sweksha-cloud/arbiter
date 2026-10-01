@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { api } from '../../lib/api';
+import { EMAIL_ENABLED } from '../../lib/config';
 import { hasAccount, saveIdentity, useIdentity } from '../../lib/identity';
 import { useSubmit } from '../../lib/use-submit';
 
@@ -50,7 +51,7 @@ export default function LoginPage() {
           </p>
         )}
         <div className="auth-links small">
-          <Link href="/forgot-password">Forgot your password?</Link>
+          {EMAIL_ENABLED && <Link href="/forgot-password">Forgot your password?</Link>}
           <Link href="/signup">Make an account</Link>
         </div>
       </form>

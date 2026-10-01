@@ -118,7 +118,8 @@ export async function buildApp({
 
   // Liveness only. Querying the database here would keep Neon's free tier
   // from ever suspending (see .claude/docs/TECH_DECISIONS.md).
-  http.get('/health', async () => ({ status: 'ok' }));
+  // Not logged: Docker and Caddy check it every few seconds.
+  http.get('/health', { logLevel: 'silent' }, async () => ({ status: 'ok' }));
 
   registerRoutes(http, { guests, sessions, accounts, history, rateLimits });
   registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits, trustProxy });

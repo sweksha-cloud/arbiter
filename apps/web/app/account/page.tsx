@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { api } from '../../lib/api';
+import { EMAIL_ENABLED } from '../../lib/config';
 import { clearIdentity, hasAccount, useIdentity } from '../../lib/identity';
 import { useSubmit } from '../../lib/use-submit';
 
@@ -55,7 +56,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      {verified === false && (
+      {EMAIL_ENABLED && verified === false && (
         <form
           className="notice stack tight"
           onSubmit={resend.handle(async () => {
