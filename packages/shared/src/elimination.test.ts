@@ -4,9 +4,9 @@ import { eliminate, type MissingDataPolicy } from './elimination.js';
 import { combineHardConstraints } from './preferences.js';
 import { makePlace } from './test-helpers.js';
 
-const keepMissing: MissingDataPolicy = { priceLevel: 'keep', servesVegetarian: 'keep' };
+const keepMissing: MissingDataPolicy = { price: 'keep', servesVegetarian: 'keep' };
 const eliminateMissing: MissingDataPolicy = {
-  priceLevel: 'eliminate',
+  price: 'eliminate',
   servesVegetarian: 'eliminate'
 };
 
@@ -15,17 +15,17 @@ const ids = (places: { id: string }[]) => places.map((p) => p.id);
 describe('combineHardConstraints', () => {
   it('uses the lowest budget and shortest distance in the group', () => {
     const group = combineHardConstraints([
-      { hard: { maxPriceLevel: 4, maxDistanceMeters: 5000 } },
-      { hard: { maxPriceLevel: 1 } },
+      { hard: { maxPricePerPerson: 50, maxDistanceMeters: 5000 } },
+      { hard: { maxPricePerPerson: 10 } },
       { hard: { maxDistanceMeters: 800 } }
     ]);
-    expect(group.maxPriceLevel).toBe(1);
+    expect(group.maxPricePerPerson).toBe(10);
     expect(group.maxDistanceMeters).toBe(800);
   });
 
   it('turns on a boolean constraint if any one member sets it', () => {
     const group = combineHardConstraints([{ hard: {} }, { hard: { vegetarian: true } }, { hard: { vegetarian: false } }]);
-    expect(group).toEqual({ vegetarian: true, maxPriceLevel: undefined, maxDistanceMeters: undefined });
+    expect(group).toEqual({ vegetarian: true, maxPricePerPerson: undefined, maxDistanceMeters: undefined });
   });
 
   it('has no constraints for an empty group', () => {
@@ -53,15 +53,33 @@ describe('eliminate', () => {
     expect(result.eliminatedCount).toBe(2);
   });
 
-  it('removes places above the group budget and keeps places at it', () => {
-    const places = [makePlace({ id: 'cheap', priceLevel: 1 }), makePlace({ id: 'pricey', priceLevel: 3 })];
-    const group = combineHardConstraints([{ hard: { maxPriceLevel: 1 } }, { hard: { maxPriceLevel: 4 } }]);
+  it("uses the group's lowest dollar budget: a range fits if it starts below it", () => {
+    const places = [
+      makePlace({ id: 'under-10', pricePerPerson: { min: 1, max: 10 } }),
+      makePlace({ id: '10-20', pricePerPerson: { min: 10, max: 20 } }),
+      makePlace({ id: '20-30', pricePerPerson: { min: 20, max: 30 } }),
+      makePlace({ id: 'wide', pricePerPerson: { min: 15, max: 80 } }),
+      makePlace({ id: 'open-ended', pricePerPerson: { min: 100 } })
+    ];
+    const atMost = (dollars: number) =>
+      ids(eliminate(places, combineHardConstraints([{ hard: { maxPricePerPerson: dollars } }, { hard: { maxPricePerPerson: 50 } }]), keepMissing).kept);
 
-    expect(ids(eliminate(places, group, keepMissing).kept)).toEqual(['cheap']);
+    expect(atMost(10)).toEqual(['under-10']);
+    // A wide range counts by its low end (provisional rule).
+    expect(atMost(20)).toEqual(['under-10', '10-20', 'wide']);
+    expect(atMost(30)).toEqual(['under-10', '10-20', '20-30', 'wide']);
+  });
+
+  it('budgets use the dollar range, not the price level', () => {
+    const levelOnly = makePlace({ id: 'level-only', priceLevel: 4, pricePerPerson: undefined });
+    const group = combineHardConstraints([{ hard: { maxPricePerPerson: 10 } }]);
+    // No dollar range means unknown, so the missing-data policy decides.
+    expect(eliminate([levelOnly], group, keepMissing).kept).toHaveLength(1);
+    expect(eliminate([levelOnly], group, eliminateMissing).kept).toHaveLength(0);
   });
 
   it('keeps everything when nobody has constraints', () => {
-    const places = [makePlace({ id: 'a' }), makePlace({ id: 'b', isFastFood: true, priceLevel: undefined })];
+    const places = [makePlace({ id: 'a' }), makePlace({ id: 'b', isFastFood: true, priceLevel: undefined, pricePerPerson: undefined })];
     expect(eliminate(places, combineHardConstraints([{ hard: {} }]), eliminateMissing).kept).toHaveLength(2);
   });
 
@@ -69,10 +87,11 @@ describe('eliminate', () => {
     const unknown = makePlace({
       id: 'unknown',
       priceLevel: undefined,
+      pricePerPerson: undefined,
       servesVegetarian: undefined
     });
     const cases = [
-      { field: 'priceLevel', hard: { maxPriceLevel: 2 } },
+      { field: 'price', hard: { maxPricePerPerson: 20 } },
       { field: 'servesVegetarian', hard: { vegetarian: true } }
     ] as const;
 

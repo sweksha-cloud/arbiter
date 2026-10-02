@@ -15,7 +15,7 @@ import {
 export function describeGuestStore(name: string, makeStore: (options?: GuestStoreOptions) => GuestStore) {
   describe(`${name} (GuestStore contract)`, () => {
     const prefs: Preferences = {
-      hard: { vegetarian: true, maxPriceLevel: 2, maxDistanceMeters: 1_500 },
+      hard: { vegetarian: true, maxPricePerPerson: 20, maxDistanceMeters: 1_500 },
       soft: { noFastFood: true, likedCuisines: ['thai'], dislikedCuisines: [] }
     };
 

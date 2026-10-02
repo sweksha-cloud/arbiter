@@ -1,4 +1,4 @@
-import { distanceMeters, MAX_DISTANCE_METERS, type PlaceCandidate, type PlaceKind } from '@arbiter/shared';
+import { distanceMeters, MAX_DISTANCE_METERS, type PlaceCandidate, type PlaceKind, type PricePerPerson } from '@arbiter/shared';
 import { z } from 'zod';
 
 import { PlacesQuotaExceededError, type NearbySearchRequest, type PlacesProvider } from './places-provider.js';
@@ -17,6 +17,7 @@ export const FIELD_MASK = [
   'places.location',
   'places.types',
   'places.priceLevel',
+  'places.priceRange',
   'places.rating',
   'places.servesVegetarianFood',
   'places.primaryType',
@@ -39,6 +40,26 @@ const PRICE_LEVELS: Record<string, number> = {
   PRICE_LEVEL_VERY_EXPENSIVE: 4
 };
 
+// Google sends money as a currency code plus whole units, as a string ("20").
+const MoneySchema = z.object({ currencyCode: z.string().optional(), units: z.string().optional() });
+
+/**
+ * Google's price range in whole US dollars, e.g. $10–20; undefined if missing,
+ * not in dollars, or malformed. An open-ended range ("$100+") has no max.
+ */
+export function pricePerPerson(range: GooglePlace['priceRange']): PricePerPerson | undefined {
+  const dollars = (money: z.infer<typeof MoneySchema> | undefined) => {
+    if (!money || (money.currencyCode !== undefined && money.currencyCode !== 'USD')) return undefined;
+    const n = Number(money.units ?? '0');
+    return Number.isInteger(n) && n >= 0 ? n : undefined;
+  };
+  const min = dollars(range?.startPrice);
+  if (min === undefined) return undefined;
+  const max = range?.endPrice ? dollars(range.endPrice) : undefined;
+  if (range?.endPrice && (max === undefined || max < min || max === 0)) return undefined;
+  return max === undefined ? { min } : { min, max };
+}
+
 // Google's response is outside input: check its shape, but tolerate new fields.
 const GooglePlaceSchema = z.object({
   id: z.string().min(1),
@@ -47,6 +68,9 @@ const GooglePlaceSchema = z.object({
   types: z.array(z.string()).optional(),
   primaryType: z.string().optional(),
   priceLevel: z.string().optional(),
+  priceRange: z
+    .object({ startPrice: MoneySchema.optional(), endPrice: MoneySchema.optional() })
+    .optional(),
   rating: z.number().optional(),
   servesVegetarianFood: z.boolean().optional(),
   currentOpeningHours: z
@@ -148,6 +172,7 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
     distanceMeters: Math.round(distanceMeters(center, location)),
     cuisines: cuisinesFromTypes(types),
     priceLevel: place.priceLevel === undefined ? undefined : PRICE_LEVELS[place.priceLevel],
+    pricePerPerson: pricePerPerson(place.priceRange),
     servesVegetarian: isVegetarianPlace ? true : place.servesVegetarianFood,
     // Being typed fast food is a real "yes"; not being typed isn't a reliable "no".
     isFastFood: types.includes('fast_food_restaurant') ? true : undefined,

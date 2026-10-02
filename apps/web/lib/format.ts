@@ -1,4 +1,4 @@
-import { MAX_DISTANCE_METERS } from '@arbiter/shared';
+import { MAX_DISTANCE_METERS, type PricePerPerson } from '@arbiter/shared';
 
 const METERS_PER_MILE = 1609.344;
 
@@ -7,22 +7,19 @@ export function formatDistance(meters: number): string {
   return miles < 0.1 ? 'under 0.1 mi' : `${miles.toFixed(1)} mi`;
 }
 
-/**
- * What Google's price levels roughly mean per person in the US. Google gives
- * only the level, not amounts, so these are approximate.
- */
-export const PRICE_LEVELS: Record<1 | 2 | 3 | 4, { word: string; perPerson: string }> = {
-  1: { word: 'Cheap', perPerson: 'under $15' },
-  2: { word: 'Moderate', perPerson: '$15–30' },
-  3: { word: 'Pricey', perPerson: '$30–60' },
-  4: { word: 'Splurge', perPerson: '$60+' }
-};
+/** Budget buttons: each is "at most this many dollars per person". */
+export const BUDGET_OPTIONS: readonly { label: string; maxDollars: number }[] = [
+  { label: 'Under $10', maxDollars: 10 },
+  { label: '$10–20', maxDollars: 20 },
+  { label: '$20–30', maxDollars: 30 },
+  { label: '$30–50', maxDollars: 50 }
+];
 
-export function formatPrice(level: number | undefined): string | undefined {
+/** A place's price per person ("$10–20", "$100+"), falling back to Google's $–$$$$ level. */
+export function formatPrice(perPerson: PricePerPerson | undefined, level: number | undefined): string | undefined {
+  if (perPerson) return perPerson.max === undefined ? `$${perPerson.min}+` : `$${perPerson.min}–${perPerson.max}`;
   if (level === undefined) return undefined;
-  if (level === 0) return 'Free';
-  const meaning = PRICE_LEVELS[level as keyof typeof PRICE_LEVELS];
-  return meaning ? `${'$'.repeat(level)} · ${meaning.perPerson}` : '$'.repeat(level);
+  return level === 0 ? 'Free' : '$'.repeat(level);
 }
 
 export const MILE_OPTIONS: readonly number[] = [0.5, 1, 2, 5, 10, 20];

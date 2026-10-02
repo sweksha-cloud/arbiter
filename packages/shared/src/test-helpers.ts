@@ -7,6 +7,7 @@ export function makePlace(overrides: Partial<PlaceCandidate> & Pick<PlaceCandida
     distanceMeters: 500,
     cuisines: [],
     priceLevel: 2,
+    pricePerPerson: { min: 10, max: 20 },
     servesVegetarian: true,
     isFastFood: false,
     rating: 4,

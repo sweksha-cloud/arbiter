@@ -53,7 +53,7 @@ describe('app', () => {
     expect(guest.displayName).toBe('Sam');
 
     const auth = { authorization: `Bearer ${token}` };
-    const preferences = { hard: { vegetarian: true, maxPriceLevel: 2 }, soft: { likedCuisines: ['thai'] } };
+    const preferences = { hard: { vegetarian: true, maxPricePerPerson: 20 }, soft: { likedCuisines: ['thai'] } };
     const saved = await app.http.inject({ method: 'PUT', url: '/api/me/preferences', headers: auth, payload: preferences });
     expect(saved.statusCode).toBe(200);
 

@@ -49,7 +49,8 @@ test('a login link only ever returns to a page on this site', async ({ newPhone 
   await phone.getByLabel('Email').fill(email);
   await phone.getByLabel('Password').fill(password);
   await phone.getByRole('button', { name: 'Make my account' }).click();
-  await phone.getByRole('link', { name: 'Account' }).click();
+  await expect(phone.getByText('Hi Lou.')).toBeVisible();
+  await phone.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'Account' }).click();
   await phone.getByRole('button', { name: 'Log out' }).click();
   await expect(phone.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
 

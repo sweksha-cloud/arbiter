@@ -295,22 +295,6 @@ input:not([type='checkbox']) {
   border-left: 0;
 }
 
-/* Budget: a word with a rough amount under it. */
-.segmented.price button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 2px;
-  line-height: 1.15;
-}
-
-.segmented.price .price-amount {
-  font-size: 0.75rem;
-  opacity: 0.85;
-}
-
 .save-progress p {
   margin: 0;
 }
@@ -325,6 +309,23 @@ input:not([type='checkbox']) {
 
 .segmented.grid button {
   border-left: 0;
+}
+
+.segmented.grid.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .segmented button[aria-pressed='true'] {

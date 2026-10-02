@@ -2,6 +2,7 @@
 
 import {
   ALLERGENS,
+  MAX_PRICE_PER_PERSON,
   PLACE_KINDS,
   type Allergen,
   type NutritionGoals,
@@ -11,7 +12,7 @@ import {
 } from '@arbiter/shared';
 import { useState, type FormEvent } from 'react';
 
-import { MAX_MILES, MILE_OPTIONS, MIN_MILES, PRICE_LEVELS, metersToMiles, milesToMeters } from '../lib/format';
+import { BUDGET_OPTIONS, MAX_MILES, MILE_OPTIONS, MIN_MILES, metersToMiles, milesToMeters } from '../lib/format';
 
 const CUISINES = [
   'american',
@@ -59,6 +60,27 @@ function distanceMeters(choice: DistanceChoice): { meters?: number; error?: stri
     return { error: `Enter a distance between ${MIN_MILES} and ${MAX_MILES} miles.` };
   }
   return { meters: milesToMeters(miles) };
+}
+
+/** Any budget, one of the buttons, or a typed-in most-per-person amount. */
+type BudgetChoice = { kind: 'any' } | { kind: 'preset'; dollars: number } | { kind: 'custom'; text: string };
+
+function initialBudget(preferences: Preferences): BudgetChoice {
+  const dollars = preferences.hard.maxPricePerPerson;
+  if (dollars === undefined) return { kind: 'any' };
+  if (BUDGET_OPTIONS.some((o) => o.maxDollars === dollars)) return { kind: 'preset', dollars };
+  return { kind: 'custom', text: String(dollars) };
+}
+
+/** Dollars for the chosen budget, or an error message for a bad custom one. */
+function budgetDollars(choice: BudgetChoice): { dollars?: number; error?: string } {
+  if (choice.kind === 'any') return {};
+  if (choice.kind === 'preset') return { dollars: choice.dollars };
+  const dollars = Number(choice.text);
+  if (choice.text.trim() === '' || !Number.isInteger(dollars) || dollars < 1 || dollars > MAX_PRICE_PER_PERSON) {
+    return { error: `Enter the most you want to spend per person, in whole dollars (1 to ${MAX_PRICE_PER_PERSON}).` };
+  }
+  return { dollars };
 }
 
 /** The number typed into a field, or undefined if it's blank ("don't care"). */
@@ -124,7 +146,7 @@ export function PreferencesForm({
   const start = initial ?? EMPTY;
   const [vegetarian, setVegetarian] = useState(start.hard.vegetarian ?? false);
   const [noFastFood, setNoFastFood] = useState(start.soft.noFastFood ?? false);
-  const [maxPriceLevel, setMaxPriceLevel] = useState<number | undefined>(start.hard.maxPriceLevel);
+  const [budget, setBudget] = useState<BudgetChoice>(() => initialBudget(start));
   const [distance, setDistance] = useState<DistanceChoice>(() => initialDistance(start));
   const [feelings, setFeelings] = useState(() => initialFeelings(start));
   const [kindFeelings, setKindFeelings] = useState<Partial<Record<PlaceKind, CuisineFeeling>>>(() => {
@@ -146,6 +168,11 @@ export function PreferencesForm({
       setError(distanceError);
       return;
     }
+    const { dollars, error: budgetError } = budgetDollars(budget);
+    if (budgetError) {
+      setError(budgetError);
+      return;
+    }
     const { goals, error: nutritionError } = nutritionGoals(nutrition);
     if (nutritionError) {
       setError(nutritionError);
@@ -155,7 +182,7 @@ export function PreferencesForm({
     const preferences: Preferences = {
       hard: {
         vegetarian: vegetarian || undefined,
-        maxPriceLevel,
+        maxPricePerPerson: dollars,
         maxDistanceMeters: meters
       },
       soft: {
@@ -191,27 +218,45 @@ export function PreferencesForm({
           <span>I need vegetarian options</span>
         </label>
         <fieldset className="field">
-          <legend>Most I want to spend</legend>
-          <div className="segmented price">
-            {([undefined, 1, 2, 3, 4] as const).map((level) => (
+          <legend>Most I want to spend per person</legend>
+          <div className="segmented grid three">
+            <button type="button" aria-pressed={budget.kind === 'any'} onClick={() => setBudget({ kind: 'any' })}>
+              Any
+            </button>
+            {BUDGET_OPTIONS.map(({ label, maxDollars }) => (
               <button
-                key={level ?? 'any'}
+                key={maxDollars}
                 type="button"
-                aria-pressed={maxPriceLevel === level}
-                onClick={() => setMaxPriceLevel(level)}
+                aria-pressed={budget.kind === 'preset' && budget.dollars === maxDollars}
+                onClick={() => setBudget({ kind: 'preset', dollars: maxDollars })}
               >
-                {level === undefined ? (
-                  'Any'
-                ) : (
-                  <>
-                    <span className="price-word">{PRICE_LEVELS[level].word}</span>
-                    <span className="price-amount">{PRICE_LEVELS[level].perPerson}</span>
-                  </>
-                )}
+                {label}
               </button>
             ))}
+            <button
+              type="button"
+              aria-pressed={budget.kind === 'custom'}
+              onClick={() => budget.kind !== 'custom' && setBudget({ kind: 'custom', text: '' })}
+            >
+              Custom
+            </button>
           </div>
-          <span className="muted small">Per person, roughly.</span>
+          {budget.kind === 'custom' && (
+            <label className="field">
+              <span className="small">The most you want to spend per person ($)</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={MAX_PRICE_PER_PERSON}
+                step={1}
+                placeholder="e.g. 40"
+                value={budget.text}
+                onChange={(e) => setBudget({ kind: 'custom', text: e.target.value })}
+                autoFocus
+              />
+            </label>
+          )}
         </fieldset>
 
         <fieldset className="field">
@@ -310,12 +355,16 @@ export function PreferencesForm({
           <span>I&apos;d like vegan options</span>
         </label>
 
+      </section>
+
+      <section className="card stack">
+        <h2>Nutrition (optional)</h2>
+        <p className="muted small">
+          Per meal. Leave blank if you don&apos;t mind. Only chains publish nutrition, so this raises chains with a dish
+          that fits; it never removes a place.
+        </p>
         <fieldset className="field">
-          <legend>Nutrition per meal (optional)</legend>
-          <p className="muted small">
-            Leave blank if you don&apos;t mind. Only chains publish nutrition, so this raises chains with a dish that
-            fits; it never removes a place.
-          </p>
+          <legend className="visually-hidden">Nutrition per meal</legend>
           <div className="number-pair">
             <NumberField label="Calories at least" value={nutrition.calMin} onChange={(calMin) => setNutrition({ ...nutrition, calMin })} />
             <NumberField label="Calories at most" value={nutrition.calMax} onChange={(calMax) => setNutrition({ ...nutrition, calMax })} />

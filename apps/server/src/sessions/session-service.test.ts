@@ -19,6 +19,7 @@ const place = (id: string, overrides: Partial<PlaceCandidate> = {}) => ({
   location: center,
   cuisines: [],
   priceLevel: 2,
+  pricePerPerson: { min: 10, max: 20 },
   servesVegetarian: true,
   isFastFood: false,
   rating: 4,
@@ -51,7 +52,7 @@ async function setup(
     places,
     placesSource: 'sample',
     radiusMeters: 3000,
-    missingDataPolicy: { priceLevel: 'keep', servesVegetarian: 'eliminate' }
+    missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' }
   });
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;
@@ -123,19 +124,19 @@ describe('SessionService', () => {
 
   it("applies this session's submissions: every hard constraint, then the top three", async () => {
     const places = new FixturePlacesProvider([
-      place('cheap', { priceLevel: 1, rating: 4.1 }),
-      place('pricey', { priceLevel: 4 }),
+      place('cheap', { priceLevel: 1, pricePerPerson: { min: 1, max: 10 }, rating: 4.1 }),
+      place('pricey', { priceLevel: 4, pricePerPerson: { min: 50, max: 100 } }),
       place('meaty', { servesVegetarian: false }),
       place('unknown-veg', { servesVegetarian: undefined }),
-      place('liked', { priceLevel: 1, cuisines: ['thai'], rating: 3 }),
-      place('ok', { priceLevel: 2, rating: 4.5 }),
-      place('also-ok', { priceLevel: 2, rating: 3.5 })
+      place('liked', { priceLevel: 1, pricePerPerson: { min: 1, max: 10 }, cuisines: ['thai'], rating: 3 }),
+      place('ok', { priceLevel: 2, pricePerPerson: { min: 10, max: 20 }, rating: 4.5 }),
+      place('also-ok', { priceLevel: 2, pricePerPerson: { min: 10, max: 20 }, rating: 3.5 })
     ]);
     const { guests, service, host, friend, sessionId } = await lobbyOfTwo(places);
     // Saved preferences from an older session must not count; only submissions do.
-    await guests.setPreferences(host.id, { hard: { maxPriceLevel: 1 }, soft: {} });
+    await guests.setPreferences(host.id, { hard: { maxPricePerPerson: 10 }, soft: {} });
 
-    await service.submit(sessionId, host, { hard: { maxPriceLevel: 2 }, soft: { likedCuisines: ['thai'] } });
+    await service.submit(sessionId, host, { hard: { maxPricePerPerson: 20 }, soft: { likedCuisines: ['thai'] } });
     const room = await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
 
     expect(room.scannedCount).toBe(7);
@@ -305,13 +306,13 @@ describe('SessionService', () => {
   describe('logs', () => {
     it('logs each scan with counts and timing, and never anyone\'s preferences', async () => {
       const { service, host, friend, sessionId, logged } = await lobbyOfTwo();
-      await service.submit(sessionId, host, { hard: { vegetarian: true, maxPriceLevel: 2 }, soft: { likedCuisines: ['thai'] } });
+      await service.submit(sessionId, host, { hard: { vegetarian: true, maxPricePerPerson: 20 }, soft: { likedCuisines: ['thai'] } });
       await service.submit(sessionId, friend, noPreferences);
 
       const scan = logged.find((l) => l.message === 'Scan finished');
       expect(scan?.details).toMatchObject({ sessionId, members: 2, submitted: 2, scanned: 4, suggested: 3 });
       expect(scan?.details.durationMs).toEqual(expect.any(Number));
-      expect(JSON.stringify(logged)).not.toMatch(/vegetarian|maxPriceLevel|thai|likedCuisines/);
+      expect(JSON.stringify(logged)).not.toMatch(/vegetarian|maxPricePerPerson|thai|likedCuisines/);
     });
 
     it('logs a failed scan with the session it belongs to', async () => {

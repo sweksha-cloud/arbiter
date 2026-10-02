@@ -87,7 +87,7 @@ test('a custom distance limits results for the group, and "Don\'t care" adds no 
   const host = await newPhone();
   const friend = await newPhone();
   const { invite } = await hostSession(host, 'Sweksha');
-  await host.getByRole('button', { name: 'Custom' }).click();
+  await host.getByRole('group', { name: "Farthest I'll go" }).getByRole('button', { name: 'Custom' }).click();
   await host.getByLabel(/Miles/).fill('0.3');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
 
@@ -107,7 +107,7 @@ test('a custom distance limits results for the group, and "Don\'t care" adds no 
 test('a custom distance outside the allowed range is caught before submitting', async ({ newPhone }) => {
   const host = await newPhone();
   await hostSession(host, 'Sweksha');
-  await host.getByRole('button', { name: 'Custom' }).click();
+  await host.getByRole('group', { name: "Farthest I'll go" }).getByRole('button', { name: 'Custom' }).click();
   await host.getByLabel(/Miles/).fill('');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.getByText('Enter a distance between 0.1 and 31 miles.')).toBeVisible();
@@ -231,15 +231,47 @@ test('suggestions show their hours, and a place with several branches lists the 
   await expect(others.first().getByRole('link', { name: 'Directions' })).toBeVisible();
 });
 
-test('the budget choices say what they roughly cost', async ({ newPhone }) => {
+test('the budget is in dollars, with a custom amount, and is saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Pia');
-  const budget = phone.getByRole('group', { name: 'Most I want to spend' });
-  for (const label of ['Any', 'Cheap under $15', 'Moderate $15–30', 'Pricey $30–60', 'Splurge $60+']) {
+  const budget = phone.getByRole('group', { name: 'Most I want to spend per person' });
+  for (const label of ['Any', 'Under $10', '$10–20', '$20–30', '$30–50', 'Custom']) {
     await expect(budget.getByRole('button', { name: label, exact: true })).toBeVisible();
   }
-  await budget.getByRole('button', { name: /^Moderate/ }).click();
-  await expect(budget.getByRole('button', { name: /^Moderate/ })).toHaveAttribute('aria-pressed', 'true');
+
+  await budget.getByRole('button', { name: 'Custom' }).click();
+  const amount = phone.getByLabel('The most you want to spend per person ($)');
+  // Left empty, it asks for an amount; out of range, the browser stops it.
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.error')).toContainText('whole dollars');
+  await amount.fill('0');
+  await phone.getByRole('button', { name: 'Save' }).click();
+  expect(await amount.evaluate((input: HTMLInputElement) => input.validity.valid)).toBe(false);
+
+  await amount.fill('40');
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.success')).toBeVisible();
+  await phone.reload();
+  await expect(phone.getByLabel('The most you want to spend per person ($)')).toHaveValue('40');
+
+  await budget.getByRole('button', { name: '$10–20' }).click();
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.success')).toBeVisible();
+  await phone.reload();
+  await expect(budget.getByRole('button', { name: '$10–20' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a dollar budget removes places that cost more, and cards show dollar ranges', async ({ newPhone }) => {
+  const host = await newPhone();
+  await hostSession(host, 'Ivy');
+  const budget = host.getByRole('group', { name: 'Most I want to spend per person' });
+  await budget.getByRole('button', { name: 'Under $10' }).click();
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await host.getByRole('button', { name: 'Show results now' }).click();
+  const cards = host.locator('article');
+  await expect(cards.first()).toBeVisible();
+  // Every sample place under $10 is $1–10; Pho House has no price, so it's kept.
+  for (const text of await cards.allInnerTexts()) expect(text).toMatch(/\$1–10|Pho House/);
 });
 
 test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {

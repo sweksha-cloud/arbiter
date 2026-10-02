@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { PlaceKindSchema, PriceLevelSchema } from './place.js';
+import { PlaceKindSchema } from './place.js';
 
 // Field list is a proposal awaiting approval; see .claude/docs/DESIGN.md section 3.
 
@@ -11,9 +11,13 @@ import { PlaceKindSchema, PriceLevelSchema } from './place.js';
  */
 export const MAX_DISTANCE_METERS = 50_000;
 
+/** The most anyone can enter as a per-person budget, in dollars. */
+export const MAX_PRICE_PER_PERSON = 1_000;
+
 export const HardConstraintsSchema = z.object({
   vegetarian: z.boolean().optional(),
-  maxPriceLevel: PriceLevelSchema.optional(),
+  /** Most I want to spend per person, in whole dollars. */
+  maxPricePerPerson: z.number().int().min(1).max(MAX_PRICE_PER_PERSON).optional(),
   maxDistanceMeters: z.number().int().positive().max(MAX_DISTANCE_METERS).optional()
 });
 export type HardConstraints = z.infer<typeof HardConstraintsSchema>;
@@ -91,7 +95,7 @@ export type Preferences = z.infer<typeof PreferencesSchema>;
 /** The strictest version of every member's hard constraints. */
 export interface GroupConstraints {
   vegetarian: boolean;
-  maxPriceLevel?: number;
+  maxPricePerPerson?: number;
   maxDistanceMeters?: number;
 }
 
@@ -102,14 +106,14 @@ function minDefined(values: (number | undefined)[]): number | undefined {
 
 /**
  * Combines hard constraints so the strictest one wins. For budget this is the
- * decided rule: if one member's max is $$ and another's is $$$$, the group's
- * max is $$.
+ * decided rule: if one member's max is $20 and another's is $50, the group's
+ * max is $20.
  */
 export function combineHardConstraints(members: Pick<Preferences, 'hard'>[]): GroupConstraints {
   const hards = members.map((m) => m.hard);
   return {
     vegetarian: hards.some((h) => h.vegetarian === true),
-    maxPriceLevel: minDefined(hards.map((h) => h.maxPriceLevel)),
+    maxPricePerPerson: minDefined(hards.map((h) => h.maxPricePerPerson)),
     maxDistanceMeters: minDefined(hards.map((h) => h.maxDistanceMeters))
   };
 }
