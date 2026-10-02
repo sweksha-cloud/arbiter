@@ -50,11 +50,23 @@ export async function enterName(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Continue' }).click();
 }
 
+/** Becomes a guest without starting a session (the home page's name form also starts one). */
+export async function becomeGuest(page: Page, name: string): Promise<void> {
+  await page.goto('/preferences');
+  await enterName(page, name);
+  await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+}
+
+/** A new guest's first step on the home page: their name, then "Start a session". */
+export async function startAs(page: Page, name: string): Promise<void> {
+  await page.goto('/');
+  await page.getByLabel('What should your friends call you?').fill(name);
+  await page.getByRole('button', { name: 'Start a session' }).click();
+}
+
 /** Opens the home page as a new guest and starts a session. Returns its invite link and code. */
 export async function hostSession(page: Page, name: string): Promise<{ invite: string; code: string }> {
-  await page.goto('/');
-  await enterName(page, name);
-  await page.getByRole('button', { name: 'Start a session' }).click();
+  await startAs(page, name);
   await expect(page.getByText('Invite your friends')).toBeVisible();
   const invite = await page.getByLabel('Invite link').inputValue();
   const code = invite.split('/s/')[1] ?? '';

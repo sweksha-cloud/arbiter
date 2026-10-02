@@ -1,4 +1,4 @@
-import { enterName, expect, hostSession, joinSession, test } from './helpers';
+import { becomeGuest, expect, hostSession, joinSession, startAs, test } from './helpers';
 
 test('the host lands in the session straight away and results wait for everyone', async ({ newPhone }) => {
   const host = await newPhone();
@@ -10,6 +10,27 @@ test('the host lands in the session straight away and results wait for everyone'
   await expect(host.getByText('1 of 1 submitted')).toBeVisible();
   // Alone in the session, submitting must not jump to results.
   await expect(host.locator('article')).toHaveCount(0);
+});
+
+test('a session needs a name: a blank or spaces-only name starts nothing', async ({ newPhone }) => {
+  const phone = await newPhone();
+  let guestsCreated = 0;
+  phone.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/guests')) guestsCreated += 1;
+  });
+  await phone.goto('/');
+  const name = phone.getByLabel('What should your friends call you?');
+  for (const blank of ['', '   ']) {
+    await name.fill(blank);
+    await phone.getByRole('button', { name: 'Start a session' }).click();
+    expect(await name.evaluate((input: HTMLInputElement) => input.validity.valid)).toBe(false);
+  }
+  await expect(phone).toHaveURL(/\/$/);
+  expect(guestsCreated).toBe(0);
+
+  await name.fill('Sweksha');
+  await phone.getByRole('button', { name: 'Start a session' }).click();
+  await expect(phone.getByText('Invite your friends')).toBeVisible();
 });
 
 test('results appear for everyone once the last person submits, and reactions are live', async ({ newPhone }) => {
@@ -57,9 +78,7 @@ test('two people reacting at the same moment both see the correct totals (BUG-00
 
 test('starting a session works even if the location prompt is never answered (BUG-010)', async ({ newPhone }) => {
   const host = await newPhone({ ignoreLocationPrompt: true });
-  await host.goto('/');
-  await enterName(host, 'Sweksha');
-  await host.getByRole('button', { name: 'Start a session' }).click();
+  await startAs(host, 'Sweksha');
   // Falls back to the default area after 10 s instead of hanging.
   await expect(host.getByText('Invite your friends')).toBeVisible({ timeout: 15_000 });
 });
@@ -123,10 +142,7 @@ test('the group can mark what a place has, and everyone sees the count live', as
 
 test('nutrition goals, vegan and allergies are saved, prefilled, and checked', async ({ newPhone }) => {
   const phone = await newPhone();
-  await phone.goto('/');
-  await enterName(phone, 'Nia');
-  await expect(phone.getByRole('button', { name: 'Start a session' })).toBeVisible();
-  await phone.goto('/preferences');
+  await becomeGuest(phone, 'Nia');
 
   // A minimum above its maximum is caught before saving.
   await phone.getByLabel('Calories at least').fill('900');
@@ -217,10 +233,7 @@ test('suggestions show their hours, and a place with several branches lists the 
 
 test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
-  await phone.goto('/');
-  await enterName(phone, 'Kit');
-  await expect(phone.getByRole('button', { name: 'Start a session' })).toBeVisible();
-  await phone.goto('/preferences');
+  await becomeGuest(phone, 'Kit');
   await phone.getByRole('button', { name: /Restaurant$/ }).click(); // 👍
   await phone.getByRole('button', { name: /Café$/ }).click();
   await phone.getByRole('button', { name: /Café$/ }).click(); // 👎

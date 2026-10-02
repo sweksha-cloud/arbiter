@@ -35,15 +35,16 @@ export function useStartSession(token: string | undefined) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  async function start() {
-    if (!token) return;
+  /** For a guest created this moment, before `token` catches up. */
+  async function startWith(tokenNow: string | undefined) {
+    if (!tokenNow) return;
     setBusy(true);
     setError(undefined);
     try {
       // How the scan center is chosen is still open (.claude/docs/DESIGN.md section 4);
       // the host's location is the simplest option for now.
       const center = (await currentLocation()) ?? FALLBACK_CENTER;
-      const sessionId = await api.createSession(token, center);
+      const sessionId = await api.createSession(tokenNow, center);
       router.push(`/s/${sessionId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -51,5 +52,7 @@ export function useStartSession(token: string | undefined) {
     }
   }
 
-  return { start, busy, error };
+  const start = () => startWith(token);
+
+  return { start, startWith, busy, error };
 }

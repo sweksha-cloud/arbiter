@@ -1,4 +1,4 @@
-import { enterName, expect, hostSession, joinSession, test } from './helpers';
+import { enterName, expect, hostSession, joinSession, startAs, test } from './helpers';
 
 test('an unknown session link explains itself and offers a way forward', async ({ newPhone }) => {
   const phone = await newPhone();
@@ -45,10 +45,8 @@ test('an unreachable server gives a clear message instead of spinning forever (B
   const phone = await newPhone();
   // A server that never answers, like an address pointing at the wrong machine.
   await phone.route('**/api/guests', () => new Promise(() => {}));
-  await phone.goto('/');
-  await phone.getByRole('textbox').fill('Angel');
-  await phone.getByRole('button', { name: 'Continue' }).click();
-  await expect(phone.getByRole('button', { name: 'One sec…' })).toBeVisible();
+  await startAs(phone, 'Angel');
+  await expect(phone.getByRole('button', { name: 'Starting…' })).toBeVisible();
   await expect(phone.locator('.error')).toHaveText("Can't reach the Arbiter server. Is it running?", { timeout: 20_000 });
-  await expect(phone.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  await expect(phone.getByRole('button', { name: 'Start a session' })).toBeEnabled();
 });

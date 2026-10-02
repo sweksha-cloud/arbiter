@@ -3,14 +3,14 @@
 import Link from 'next/link';
 
 import { JoinCodeForm } from '../components/JoinCodeForm';
-import { NameForm } from '../components/NameForm';
 import { RejoinBanner } from '../components/RejoinBanner';
+import { StartSessionForm } from '../components/StartSessionForm';
 import { useIdentity } from '../lib/identity';
 import { useStartSession } from '../lib/use-start-session';
 
 export default function HomePage() {
   const identity = useIdentity();
-  const { start, busy, error } = useStartSession(identity?.token);
+  const { start, startWith, busy, error } = useStartSession(identity?.token);
 
   return (
     <main className="page stack">
@@ -20,7 +20,10 @@ export default function HomePage() {
       </header>
 
       {identity === undefined ? null : identity === null ? (
-        <NameForm />
+        <>
+          <StartSessionForm onStart={startWith} />
+          <JoinCodeForm />
+        </>
       ) : (
         <>
           <RejoinBanner token={identity.token} />
