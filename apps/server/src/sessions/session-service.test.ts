@@ -122,6 +122,16 @@ describe('SessionService', () => {
     expect((await service.submit(sessionId, late, noPreferences)).status).toBe('voting');
   });
 
+  it('marks someone who joins once results are being chosen, and nobody who joined before', async () => {
+    const { guests, service, host, friend, sessionId } = await lobbyOfTwo();
+    await service.submit(sessionId, host, noPreferences);
+    await service.submit(sessionId, friend, noPreferences);
+    const late = (await guests.create('Late')).guest;
+    const room = await service.join(sessionId, late);
+    expect(room.members.find((m) => m.id === late.id)).toMatchObject({ submitted: false, joinedAfterResults: true });
+    expect(room.members.filter((m) => m.joinedAfterResults)).toHaveLength(1);
+  });
+
   it("applies this session's submissions: every hard constraint, then the top three", async () => {
     const places = new FixturePlacesProvider([
       place('cheap', { priceLevel: 1, pricePerPerson: { min: 1, max: 10 }, rating: 4.1 }),

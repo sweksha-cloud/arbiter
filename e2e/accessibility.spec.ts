@@ -118,3 +118,30 @@ test('the account pages pass automated WCAG 2.1 AA checks', async ({ newPhone })
     await expectNoViolations(phone, `${url} (logged in)`);
   }
 });
+
+test('preferences work with only a keyboard, and chips say whether they are liked', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await becomeGuest(phone, 'Kai');
+
+  // A chip announces its state, not an emoji's name.
+  const thai = phone.getByRole('button', { name: 'thai', exact: true });
+  await thai.focus();
+  await phone.keyboard.press('Enter');
+  await expect(phone.getByRole('button', { name: 'Liked, thai', exact: true })).toBeFocused();
+  await phone.keyboard.press('Space');
+  await expect(phone.getByRole('button', { name: 'Disliked, thai', exact: true })).toBeFocused();
+
+  // Boxes open and close from the keyboard.
+  await phone.locator('summary', { hasText: 'Must-haves' }).focus();
+  await phone.keyboard.press('Enter');
+  await expect(phone.getByLabel('I need vegetarian options')).toBeHidden();
+  await phone.keyboard.press('Enter');
+  await expect(phone.getByLabel('I need vegetarian options')).toBeVisible();
+
+  // Saving works without a mouse too, and keeps the chip's state.
+  await phone.getByRole('button', { name: 'Save' }).focus();
+  await phone.keyboard.press('Enter');
+  await expect(phone.locator('.success')).toBeVisible();
+  await phone.reload();
+  await expect(phone.getByRole('button', { name: 'Disliked, thai', exact: true })).toBeVisible();
+});

@@ -139,7 +139,13 @@ export class SessionService {
     const room = await this.update(sessionId, (current) =>
       current.members.some((m) => m.id === guest.id)
         ? current
-        : { ...current, members: [...current.members, { ...guest, submitted: false }] }
+        : {
+            ...current,
+            members: [
+              ...current.members,
+              { ...guest, submitted: false, ...(current.status !== 'lobby' && { joinedAfterResults: true }) }
+            ]
+          }
     );
     await this.record(sessionId, 'join', () => this.options.history.addMember(sessionId, guest));
     return room;
