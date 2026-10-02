@@ -18,6 +18,7 @@ import { normalizeSessionCode } from '../../../components/JoinCodeForm';
 import { ConnectionBanner } from '../../../components/ConnectionBanner';
 import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
+import { SaveProgress } from '../../../components/SaveProgress';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
@@ -295,14 +296,17 @@ function MyPreferences({
 
   if (submitted && !editing) {
     return (
-      <section className="card row spread">
-        <p>
-          <strong>✓ Submitted.</strong> <span className="muted small">Nobody else can see your answers.</span>
-        </p>
-        <button className="button" onClick={() => setEditing(true)}>
-          Change
-        </button>
-      </section>
+      <>
+        <section className="card row spread">
+          <p>
+            <strong>✓ Submitted.</strong> <span className="muted small">Nobody else can see your answers.</span>
+          </p>
+          <button className="button" onClick={() => setEditing(true)}>
+            Change
+          </button>
+        </section>
+        <SaveProgress />
+      </>
     );
   }
 

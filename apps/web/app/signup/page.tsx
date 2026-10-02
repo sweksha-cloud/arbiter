@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { api } from '../../lib/api';
 import { hasAccount, saveIdentity, useIdentity } from '../../lib/identity';
+import { nextPath } from '../../lib/next-path';
 import { useSubmit } from '../../lib/use-submit';
 
 export default function SignupPage() {
@@ -40,7 +41,7 @@ export default function SignupPage() {
               password: value('password')
             })
           );
-          router.push('/');
+          router.push(nextPath());
         })}
       >
         {identity ? (

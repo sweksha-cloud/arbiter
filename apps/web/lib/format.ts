@@ -7,9 +7,22 @@ export function formatDistance(meters: number): string {
   return miles < 0.1 ? 'under 0.1 mi' : `${miles.toFixed(1)} mi`;
 }
 
+/**
+ * What Google's price levels roughly mean per person in the US. Google gives
+ * only the level, not amounts, so these are approximate.
+ */
+export const PRICE_LEVELS: Record<1 | 2 | 3 | 4, { word: string; perPerson: string }> = {
+  1: { word: 'Cheap', perPerson: 'under $15' },
+  2: { word: 'Moderate', perPerson: '$15–30' },
+  3: { word: 'Pricey', perPerson: '$30–60' },
+  4: { word: 'Splurge', perPerson: '$60+' }
+};
+
 export function formatPrice(level: number | undefined): string | undefined {
   if (level === undefined) return undefined;
-  return level === 0 ? 'Free' : '$'.repeat(level);
+  if (level === 0) return 'Free';
+  const meaning = PRICE_LEVELS[level as keyof typeof PRICE_LEVELS];
+  return meaning ? `${'$'.repeat(level)} · ${meaning.perPerson}` : '$'.repeat(level);
 }
 
 export const MILE_OPTIONS: readonly number[] = [0.5, 1, 2, 5, 10, 20];
