@@ -52,7 +52,9 @@ test('a login link only ever returns to a page on this site', async ({ newPhone 
   await expect(phone.getByText('Hi Lou.')).toBeVisible();
   await phone.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'Account' }).click();
   await phone.getByRole('button', { name: 'Log out' }).click();
-  await expect(phone.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
+  // Wait for the trip home to finish: leaving mid-navigation cuts off its request.
+  await expect(phone).toHaveURL(/\/$/);
+  await expect(phone.getByLabel('What should your friends call you?')).toBeVisible();
 
   await phone.goto('/login?next=//evil.example.com');
   await phone.getByLabel('Email').fill(email);

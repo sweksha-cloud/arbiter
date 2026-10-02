@@ -2,6 +2,12 @@ import { defineConfig } from '@playwright/test';
 
 import { WEB_URL } from './e2e/api-server';
 
+// For machines whose preinstalled Chromium doesn't match this Playwright version.
+const chromium = {
+  browserName: 'chromium' as const,
+  launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}
+};
+
 // End-to-end tests drive real browsers against the built server and web app.
 // Run `pnpm build` first (`pnpm test:e2e` does it for you).
 export default defineConfig({
@@ -17,16 +23,22 @@ export default defineConfig({
     // Phone settings are applied per phone in e2e/helpers.ts.
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    // For machines whose preinstalled Chromium doesn't match this Playwright version.
-    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
-      : {}
   },
+  // Every flow runs in all three engines: Chromium (Chrome, Android),
+  // WebKit (Safari, every iPhone browser) and Firefox.
   projects: [
-    { name: 'flows', testIgnore: /server-restart/ },
+    { name: 'flows', testIgnore: /server-restart/, use: chromium },
+    { name: 'flows-webkit', testIgnore: /server-restart/, use: { browserName: 'webkit' } },
+    { name: 'flows-firefox', testIgnore: /server-restart/, use: { browserName: 'firefox' } },
     // Stops and restarts the shared API server, so it runs after everything
     // else, one test at a time.
-    { name: 'server-restart', testMatch: /server-restart/, dependencies: ['flows'], workers: 1 }
+    {
+      name: 'server-restart',
+      testMatch: /server-restart/,
+      dependencies: ['flows', 'flows-webkit', 'flows-firefox'],
+      workers: 1,
+      use: chromium
+    }
   ],
   webServer: {
     command: 'pnpm --filter @arbiter/web start --port 3000',
