@@ -4,6 +4,16 @@
 
 Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
 
+**Try it: [arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)**. Open it on two phones (or a normal and a private window), start a session on one, and join with the link on the other.
+
+| Part | Runs on |
+| --- | --- |
+| Web app (Next.js) | Vercel |
+| Server (Fastify + Socket.IO, Docker) | AWS EC2 in `us-west-2`, behind Caddy for HTTPS, at a free DuckDNS address |
+| Database (Postgres) | Neon, `us-west-2` |
+| Places | Google Places API (New), one Nearby Search per session, with a hard daily quota |
+| Chain nutrition | fatsecret Platform API (free plan), cached at most 24 hours |
+
 ## Hard problems
 
 The idea is simple; making it correct with several phones at once isn't. Each of these has tests.
@@ -24,10 +34,13 @@ flowchart LR
     A[Browser A]
     B[Browser B]
   end
-  A & B -- REST + Socket.IO --> S[Fastify server<br/>session rules]
+  A & B -- pages --> V[Next.js on Vercel]
+  A & B -- REST + Socket.IO<br/>over HTTPS --> C[Caddy on EC2]
+  C --> S[Fastify server in Docker<br/>session rules]
   S -- room state --> R[(In memory<br/>Redis later)]
-  S -- guests, preferences,<br/>session history --> P[(Postgres)]
+  S -- accounts, preferences,<br/>session history --> P[(Postgres on Neon)]
   S -- one Nearby Search<br/>per session --> G[Google Places API]
+  S -- chain menus,<br/>cached 24 h --> F[fatsecret API]
 ```
 
 `packages/shared` holds the Zod schemas for every request and live event, used by both the server and the web app, plus the pure rules: elimination, ranking, reactions.
@@ -38,14 +51,15 @@ flowchart LR
 
 ## Status
 
-The whole loop works locally: join as a guest, set preferences, start a session, invite friends, get three suggestions, and react live. Make an account (or log in) from the top of any page to keep your preferences and see past sessions on any device.
+Live, and the whole loop works: enter a name and start a session, invite friends, everyone submits private preferences, three real nearby places appear, and the group reacts live. Each card shows distance, price, rating, opening hours, a Directions link, and for big chains a dish that fits your own nutrition goals.
 
-Still temporary:
+Accounts are optional: sign up, log in and out, and change your password from any page. An account keeps your preferences and your past sessions on any device; guests are offered "Save your progress" after filling in the form, and signing up keeps everything they did as a guest. Terms of Use and Privacy Policy pages are linked from every page.
 
-- **Places are sample data unless you add a Google API key.** Without one, the server places 12 made-up restaurants around wherever the session starts (see "Real places" below).
-- **Live sessions live in server memory.** Guests, preferences and session history are saved in Postgres, but a server restart ends any session in progress.
-- **Password reset emails are only printed to the server log** until an email provider is set up.
-- **No ratings, Terms or Privacy pages yet.**
+Known limits:
+
+- **Live sessions live in server memory.** Accounts, preferences and session history are in Postgres, but a server restart ends any session in progress.
+- **Password reset and email confirmation are switched off in production** until an email provider is set up (locally, the emails are printed in the server log).
+- **Browser tests run in Chromium only**; Safari hasn't been covered yet.
 
 ## Run it locally
 
@@ -139,6 +153,13 @@ pnpm test:e2e                                                                   
 
 `pnpm test:e2e` builds everything, then drives real phone-sized browsers through whole sessions (`e2e/`). It starts its own server on port 4000 and web app on port 3000, so stop `dev:server` and `dev:web` first. The first time, run `pnpm exec playwright install chromium`. When a test fails, `pnpm exec playwright show-report` shows a screenshot and step-by-step trace. Every bug a user could see in the browser gets a test here, the same way server bugs get unit tests.
 
+## Deploying
+
+- **Web app:** Vercel builds `apps/web` on every push to `main` (`apps/web/vercel.json`). Settings: `NEXT_PUBLIC_SERVER_URL` (the server's HTTPS address) and `NEXT_PUBLIC_EMAIL_ENABLED=false` until email is set up.
+- **Server:** one EC2 instance running `deploy/docker-compose.yml`: the server image (`apps/server/Dockerfile`) behind Caddy, which gets the HTTPS certificate on its own. Secrets live in `deploy/server.env` on the instance (git-ignored; template in `deploy/server.env.example`), and `deploy/.env` holds `DOMAIN`. Migrations run when the server starts.
+- **Updating the server:** on the instance, `git pull && sudo docker compose -f deploy/docker-compose.yml up -d --build`. After changing `server.env`, add `--force-recreate server` so the container picks it up.
+- **Google key:** restricted to Places API (New) and to the server's IP address, with a hard daily quota.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -149,6 +170,7 @@ pnpm test:e2e                                                                   
 | Web app says "Can't reach the Arbiter server" | `pnpm dev:server` isn't running, or `NEXT_PUBLIC_SERVER_URL` points to the wrong place. |
 | Buttons do nothing when opened from a phone | `WEB_ORIGIN` in `apps/server/.env` must exactly match the address in the phone's browser. |
 | Asked for your name again | Your browser's site data was cleared, or the local database was wiped (`docker compose down -v`). Guests are saved in Postgres, so a server restart alone doesn't cause this. |
+| Session page says "You're offline" | Your browser thinks it has no internet. In Chrome, check DevTools → Network isn't set to **Offline**, then reload. |
 | Where's my password reset email? | Locally, emails aren't sent: the reset link is printed in the `pnpm dev:server` terminal (`Email (development: not actually sent)`). |
 | Port 3000 or 4000 already in use | `lsof -ti:3000 -sTCP:LISTEN \| xargs kill` (same for 4000). |
 
@@ -162,13 +184,13 @@ pnpm test:e2e                                                                   
 
 ## How a session works
 
-1. The host taps Start a session; it's created with their location as the center and a 6-letter code.
+1. The host enters a name and taps Start a session; it's created with their location as the center and a 6-letter code. A blank name starts nothing.
 2. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
 3. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
 4. When everyone has submitted (at least 2 people), or the host taps **Show results now**, the server:
    - scans once (Google Places with an API key, sample data without),
    - combines everyone's must-haves so the strictest wins (for example, the lowest budget),
    - removes places that fail any of them,
-   - ranks what's left by liked and disliked cuisines, then rating, then distance, and keeps the top 3.
+   - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines and kinds of place, fast food, vegan options, and nutrition goals for chains with published menus), then rating, then distance, and keeps the top 3, with several branches of one chain sharing a card.
 5. Reactions go to the server. The server checks them, then sends each person their own view: totals for everyone, plus that person's own reaction. Nobody's preferences are ever sent to anyone.
 6. Each state change has a version number, so a phone ignores any update older than the one it's showing.
