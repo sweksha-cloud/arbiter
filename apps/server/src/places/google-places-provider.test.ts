@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { cuisinesFromTypes, FIELD_MASK, GooglePlacesProvider, kindFromTypes, toCandidate } from './google-places-provider.js';
+import { cuisinesFromTypes, FIELD_MASK, GooglePlacesProvider, kindFromTypes, pricePerPerson, toCandidate } from './google-places-provider.js';
 import { PlacesQuotaExceededError } from './places-provider.js';
 
 const center = { lat: 37.3352, lng: -121.8811 };
@@ -12,6 +12,8 @@ const thai = {
   location: { latitude: 37.3362, longitude: -121.8811 },
   types: ['thai_restaurant', 'restaurant', 'food', 'point_of_interest', 'establishment'],
   priceLevel: 'PRICE_LEVEL_MODERATE',
+  // Real responses send units as strings.
+  priceRange: { startPrice: { currencyCode: 'USD', units: '20' }, endPrice: { currencyCode: 'USD', units: '30' } },
   rating: 4.4,
   servesVegetarianFood: true,
   primaryType: 'thai_restaurant',
@@ -65,6 +67,7 @@ describe('GooglePlacesProvider', () => {
         distanceMeters: 11,
         cuisines: ['burgers'],
         priceLevel: 1,
+        pricePerPerson: undefined,
         servesVegetarian: undefined,
         isFastFood: true,
         rating: 3.9,
@@ -80,6 +83,7 @@ describe('GooglePlacesProvider', () => {
         distanceMeters: 111,
         cuisines: ['thai'],
         priceLevel: 2,
+        pricePerPerson: { min: 20, max: 30 },
         servesVegetarian: true,
         isFastFood: undefined,
         rating: 4.4,
@@ -143,6 +147,20 @@ describe('toCandidate', () => {
     expect(toCandidate({ id: 'a', location: { latitude: 0, longitude: 0 } }, center)).toBeUndefined();
     expect(toCandidate({ id: 'b', displayName: { text: '  ' }, location: { latitude: 0, longitude: 0 } }, center)).toBeUndefined();
     expect(toCandidate({ id: 'c', displayName: { text: 'C' } }, center)).toBeUndefined();
+  });
+});
+
+describe('pricePerPerson', () => {
+  const usd = (units: string) => ({ currencyCode: 'USD', units });
+  it("reads Google's dollar range, including open-ended ones", () => {
+    expect(pricePerPerson({ startPrice: usd('1'), endPrice: usd('10') })).toEqual({ min: 1, max: 10 });
+    expect(pricePerPerson({ startPrice: usd('100') })).toEqual({ min: 100 });
+  });
+  it('treats a missing, non-dollar or malformed range as unknown', () => {
+    expect(pricePerPerson(undefined)).toBeUndefined();
+    expect(pricePerPerson({ startPrice: { currencyCode: 'EUR', units: '10' }, endPrice: { currencyCode: 'EUR', units: '20' } })).toBeUndefined();
+    expect(pricePerPerson({ startPrice: usd('30'), endPrice: usd('20') })).toBeUndefined();
+    expect(pricePerPerson({ startPrice: usd('ten') })).toBeUndefined();
   });
 });
 

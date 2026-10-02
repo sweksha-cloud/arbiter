@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CURRENT_PREFERENCES_VERSION, fromStored, toStored } from './stored-preferences.js';
 
 const prefs: Preferences = {
-  hard: { vegetarian: true, maxPriceLevel: 2 },
+  hard: { vegetarian: true, maxPricePerPerson: 20 },
   soft: { likedCuisines: ['thai'] }
 };
 
@@ -21,8 +21,14 @@ describe('stored preferences', () => {
     expect(fromStored(row)).toEqual({ hard: { maxDistanceMeters: 800 }, soft: { noFastFood: true } });
   });
 
+  it('turns a version 1 price level into the dollar budget in the same place on the form', () => {
+    const level = (maxPriceLevel: number) => fromStored({ version: 1, hard: { maxPriceLevel }, soft: {} }).hard;
+    expect([1, 2, 3, 4].map((l) => level(l).maxPricePerPerson)).toEqual([10, 20, 30, 50]);
+    expect(level(2)).not.toHaveProperty('maxPriceLevel');
+  });
+
   it('refuses to save invalid preferences', () => {
-    expect(() => toStored({ hard: { maxPriceLevel: 9 }, soft: {} } as unknown as Preferences)).toThrow();
+    expect(() => toStored({ hard: { maxPricePerPerson: 0 }, soft: {} } as unknown as Preferences)).toThrow();
   });
 
   it('drops fields the schema does not know before saving', () => {

@@ -1,4 +1,4 @@
-import type { PlaceCandidate } from './place.js';
+import type { PlaceCandidate, PricePerPerson } from './place.js';
 import type { GroupConstraints } from './preferences.js';
 
 export type MissingDataAction = 'keep' | 'eliminate';
@@ -9,7 +9,7 @@ export type MissingDataAction = 'keep' | 'eliminate';
  * product decision (.claude/docs/DESIGN.md section 4), so every caller must choose.
  */
 export interface MissingDataPolicy {
-  priceLevel: MissingDataAction;
+  price: MissingDataAction;
   servesVegetarian: MissingDataAction;
 }
 
@@ -24,10 +24,10 @@ function passes(place: PlaceCandidate, group: GroupConstraints, policy: MissingD
     return false;
   }
 
-  if (group.maxPriceLevel !== undefined) {
-    if (place.priceLevel === undefined) {
-      if (policy.priceLevel === 'eliminate') return false;
-    } else if (place.priceLevel > group.maxPriceLevel) {
+  if (group.maxPricePerPerson !== undefined) {
+    if (place.pricePerPerson === undefined) {
+      if (policy.price === 'eliminate') return false;
+    } else if (!fitsBudget(place.pricePerPerson, group.maxPricePerPerson)) {
       return false;
     }
   }
@@ -41,6 +41,15 @@ function passes(place: PlaceCandidate, group: GroupConstraints, policy: MissingD
   }
 
   return true;
+}
+
+/**
+ * A place fits if its range starts below the budget: under a $20 budget,
+ * $10–20 fits and $20–30 doesn't. A wide range like $20–80 counts by its low
+ * end, so it fits a $25 budget (provisional; the owner hasn't decided).
+ */
+export function fitsBudget(price: PricePerPerson, maxPerPerson: number): boolean {
+  return price.min < maxPerPerson;
 }
 
 export function eliminate(

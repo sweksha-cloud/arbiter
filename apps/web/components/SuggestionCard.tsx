@@ -54,7 +54,7 @@ export function SuggestionCard({
   const details = [
     openLabel(place.openNow),
     formatDistance(place.distanceMeters),
-    formatPrice(place.priceLevel),
+    formatPrice(place.pricePerPerson, place.priceLevel),
     place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`
   ].filter(Boolean);
 

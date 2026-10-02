@@ -11,6 +11,18 @@ export const PriceLevelSchema = z.number().int().min(0).max(4);
 export type PriceLevel = z.infer<typeof PriceLevelSchema>;
 
 /**
+ * What a meal costs per person, in whole US dollars, from Google's price
+ * range (e.g. $10–20). `max` is missing for open-ended ranges ("$100+").
+ */
+export const PricePerPersonSchema = z
+  .object({
+    min: z.number().int().nonnegative(),
+    max: z.number().int().positive().optional()
+  })
+  .refine((p) => p.max === undefined || p.min <= p.max, { message: 'min must not be more than max' });
+export type PricePerPerson = z.infer<typeof PricePerPersonSchema>;
+
+/**
  * The kind of place, from Google's main type. Groups can like or dislike
  * kinds the same way as cuisines (e.g. rather a restaurant than a café).
  */
@@ -58,6 +70,8 @@ export const PlaceCandidateSchema = z.object({
   distanceMeters: z.number().nonnegative(),
   cuisines: z.array(z.string().min(1)),
   priceLevel: PriceLevelSchema.optional(),
+  /** Dollars per person. Undefined means unknown; budget checks use this, not the level. */
+  pricePerPerson: PricePerPersonSchema.optional(),
   servesVegetarian: z.boolean().optional(),
   isFastFood: z.boolean().optional(),
   rating: z.number().min(1).max(5).optional(),

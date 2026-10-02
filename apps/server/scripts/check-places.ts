@@ -67,12 +67,13 @@ const rawPlaces = raw.places ?? [];
 
 console.log(`\n=== Google returned ${rawPlaces.length} places within ${radiusMeters} m (${places.length} usable) ===\n`);
 console.log('How often each field is present (raw):');
-for (const field of ['priceLevel', 'rating', 'servesVegetarianFood', 'currentOpeningHours', 'primaryType', 'types']) {
+for (const field of ['priceLevel', 'priceRange', 'rating', 'servesVegetarianFood', 'currentOpeningHours', 'primaryType', 'types']) {
   console.log(`  ${field.padEnd(22)} ${pct(rawPlaces.filter((p) => p[field] !== undefined).length, rawPlaces.length)}`);
 }
 console.log('\nAfter conversion:');
 const count = (test: (p: PlaceCandidate) => boolean) => pct(places.filter(test).length, places.length);
 console.log(`  has a price level      ${count((p) => p.priceLevel !== undefined)}`);
+console.log(`  has a dollar range     ${count((p) => p.pricePerPerson !== undefined)}`);
 console.log(`  vegetarian known       ${count((p) => p.servesVegetarian !== undefined)}  (yes: ${count((p) => p.servesVegetarian === true)})`);
 console.log(`  open now known         ${count((p) => p.openNow !== undefined)}  (closed now: ${count((p) => p.openNow === false)})`);
 console.log(`  has a cuisine          ${count((p) => p.cuisines.length > 0)}`);
@@ -103,7 +104,7 @@ console.log('\nEach place:');
 for (const p of places) {
   const bits = [
     `${p.distanceMeters} m`,
-    p.priceLevel === undefined ? 'price ?' : '$'.repeat(Math.max(1, p.priceLevel)),
+    p.pricePerPerson === undefined ? 'price ?' : `$${p.pricePerPerson.min}${p.pricePerPerson.max === undefined ? '+' : `–${p.pricePerPerson.max}`}`,
     p.rating === undefined ? 'unrated' : `★${p.rating}`,
     p.servesVegetarian === undefined ? 'veg ?' : p.servesVegetarian ? 'veg ✓' : 'veg ✗',
     p.openNow === undefined ? 'hours ?' : p.openNow ? 'open' : 'CLOSED',
@@ -118,7 +119,7 @@ for (const p of places) {
 const groups: { label: string; members: Preferences[] }[] = [
   { label: 'No preferences', members: [{ hard: {}, soft: {} }, { hard: {}, soft: {} }] },
   { label: 'One vegetarian', members: [{ hard: { vegetarian: true }, soft: {} }, { hard: {}, soft: {} }] },
-  { label: 'Budget $$, within 1 mile', members: [{ hard: { maxPriceLevel: 2, maxDistanceMeters: 1609 }, soft: {} }, { hard: {}, soft: {} }] },
+  { label: 'Budget $20, within 1 mile', members: [{ hard: { maxPricePerPerson: 20, maxDistanceMeters: 1609 }, soft: {} }, { hard: {}, soft: {} }] },
   { label: 'Likes thai and mexican', members: [{ hard: {}, soft: { likedCuisines: ['thai', 'mexican'] } }, { hard: {}, soft: {} }] },
   { label: 'Wants vegan options', members: [{ hard: {}, soft: { veganOptions: true } }, { hard: {}, soft: {} }] },
   { label: 'Rather a restaurant than a café or dessert', members: [{ hard: {}, soft: { likedKinds: ['restaurant'], dislikedKinds: ['cafe', 'dessert'] } }, { hard: {}, soft: {} }] },

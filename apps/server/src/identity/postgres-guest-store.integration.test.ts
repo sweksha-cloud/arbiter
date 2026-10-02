@@ -43,9 +43,9 @@ describe('PostgresGuestStore (real Postgres)', () => {
   it('stores preferences as one object tagged with its version', async () => {
     const store = new PostgresGuestStore(db);
     const { guest } = await store.create('Ada');
-    await store.setPreferences(guest.id, { hard: { maxPriceLevel: 1 }, soft: {} });
+    await store.setPreferences(guest.id, { hard: { maxPricePerPerson: 10 }, soft: {} });
     const [row] = await db.select().from(preferences).where(eq(preferences.userId, guest.id));
-    expect(row!.data).toEqual({ version: 1, hard: { maxPriceLevel: 1 }, soft: {} });
+    expect(row!.data).toEqual({ version: 2, hard: { maxPricePerPerson: 10 }, soft: {} });
   });
 
   it('refuses a preferences row that is not a versioned object', async () => {

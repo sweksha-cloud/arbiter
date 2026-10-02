@@ -7,8 +7,8 @@ import type { MissingDataPolicy } from '@arbiter/shared';
 export const SCAN_RADIUS_METERS = 3_000;
 
 export const MISSING_DATA_POLICY: MissingDataPolicy = {
-  // Price level is often missing; dropping every unpriced place would empty the list.
-  priceLevel: 'keep',
+  // A price is often missing; dropping every unpriced place would empty the list.
+  price: 'keep',
   // A vegetarian sent somewhere with nothing to eat is the worst outcome, so
   // unknown counts as "no" when someone needs vegetarian food.
   servesVegetarian: 'eliminate'
