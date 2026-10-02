@@ -293,6 +293,23 @@ test('preference boxes can be closed without losing answers, and say answers are
   await expect(phone.getByLabel('I need vegetarian options')).toBeChecked();
 });
 
+test("people whose must-haves weren't counted are told why", async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const late = await newPhone();
+  const { invite } = await hostSession(host, 'Hana');
+  await joinSession(friend, invite, 'Finn');
+  await expect(host.getByText('0 of 2 submitted')).toBeVisible();
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await host.getByRole('button', { name: 'Show results now' }).click();
+  await expect(host.locator('article').first()).toBeVisible();
+
+  await expect(friend.getByText("Results were shown before you submitted, so your must-haves weren't included.")).toBeVisible();
+  await joinSession(late, invite, 'Lia');
+  await expect(late.getByText("Results were chosen before you joined, so your must-haves weren't included.")).toBeVisible();
+  await expect(host.getByText(/must-haves weren.t included/)).toBeHidden();
+});
+
 test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Kit');
@@ -303,6 +320,6 @@ test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   await expect(phone.locator('.success')).toBeVisible();
 
   await phone.reload();
-  await expect(phone.getByRole('button', { name: '👍 Restaurant' })).toBeVisible();
-  await expect(phone.getByRole('button', { name: '👎 Café' })).toBeVisible();
+  await expect(phone.getByRole('button', { name: 'Liked, Restaurant', exact: true })).toBeVisible();
+  await expect(phone.getByRole('button', { name: 'Disliked, Café', exact: true })).toBeVisible();
 });

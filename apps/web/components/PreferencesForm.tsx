@@ -325,7 +325,7 @@ export function PreferencesForm({
                 className={`chip kind ${feeling ?? ''}`}
                 onClick={() => setKindFeelings((all) => ({ ...all, [kind]: nextFeeling(all[kind]) }))}
               >
-                {feeling === 'like' ? '👍 ' : feeling === 'dislike' ? '👎 ' : ''}
+                <FeelingMark feeling={feeling} />
                 {label}
               </button>
             );
@@ -348,7 +348,7 @@ export function PreferencesForm({
                   })
                 }
               >
-                {feeling === 'like' ? '👍 ' : feeling === 'dislike' ? '👎 ' : ''}
+                <FeelingMark feeling={feeling} />
                 {cuisine}
               </button>
             );
@@ -413,6 +413,20 @@ export function PreferencesForm({
       </button>
       {error && <p className="error">{error}</p>}
     </form>
+  );
+}
+
+/**
+ * The 👍/👎 on a chip. Screen readers hear "Liked, thai" or "Disliked, thai"
+ * instead of the emoji's name, so the state isn't only visual.
+ */
+function FeelingMark({ feeling }: { feeling: CuisineFeeling | undefined }) {
+  if (!feeling) return null;
+  return (
+    <>
+      <span aria-hidden="true">{feeling === 'like' ? '👍 ' : '👎 '}</span>
+      <span className="visually-hidden">{feeling === 'like' ? 'Liked, ' : 'Disliked, '}</span>
+    </>
   );
 }
 

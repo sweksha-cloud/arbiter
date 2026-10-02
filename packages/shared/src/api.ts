@@ -24,7 +24,12 @@ export type Guest = z.infer<typeof GuestSchema>;
  * this session (what they chose is never shared); `online` says they have the
  * session open right now.
  */
-export const SessionMemberSchema = GuestSchema.extend({ submitted: z.boolean(), online: z.boolean() });
+export const SessionMemberSchema = GuestSchema.extend({
+  submitted: z.boolean(),
+  online: z.boolean(),
+  /** Joined once results were being chosen, so their must-haves weren't included. */
+  joinedAfterResults: z.boolean().optional()
+});
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
 
 export const CreateGuestRequestSchema = z.object({ displayName: DisplayNameSchema });

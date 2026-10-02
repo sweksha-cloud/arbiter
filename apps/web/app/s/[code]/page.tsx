@@ -157,6 +157,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
 
           {view.status === 'ended' && <SessionEnded token={identity.token} />}
 
+          {me && !me.submitted && (
+            <p className="notice small">
+              {me.joinedAfterResults
+                ? "Results were chosen before you joined, so your must-haves weren't included."
+                : "Results were shown before you submitted, so your must-haves weren't included."}
+            </p>
+          )}
+
           {view.allergyReminder && (
             <p className="notice small" role="note">
               Someone in your group has a food allergy. Check with the restaurant before ordering.
