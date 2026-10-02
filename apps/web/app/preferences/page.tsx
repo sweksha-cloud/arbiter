@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { NameForm } from '../../components/NameForm';
 import { PreferencesForm } from '../../components/PreferencesForm';
+import { SaveProgress } from '../../components/SaveProgress';
 import { api } from '../../lib/api';
 import { useIdentity } from '../../lib/identity';
 import { usePreferences } from '../../lib/use-preferences';
@@ -37,6 +38,7 @@ export default function PreferencesPage() {
         />
       )}
       {saved && <p className="success">Saved. They&apos;ll be filled in for you in your next session.</p>}
+      {saved && <SaveProgress />}
     </main>
   );
 }

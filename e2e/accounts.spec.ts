@@ -23,6 +23,44 @@ test('a guest signs up, keeps their name, and sees the session they hosted in pa
   await expect(phone.getByText('Who came: Sweksha')).toBeVisible();
 });
 
+test('after submitting, a guest is offered to save their progress, and signing up brings them back', async ({ newPhone }) => {
+  const phone = await newPhone();
+  const { code } = await hostSession(phone, 'Rae');
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(phone.getByText('✓ Submitted.')).toBeVisible();
+
+  const saveBox = phone.getByRole('complementary', { name: 'Save your progress' });
+  await saveBox.getByRole('link', { name: 'Sign up' }).click();
+  await phone.getByLabel('Email').fill(newEmail());
+  await phone.getByLabel('Password').fill(password);
+  await phone.getByRole('button', { name: 'Make my account' }).click();
+
+  // Back in the same session, still submitted, and no longer asked to save.
+  await expect(phone).toHaveURL(new RegExp(`/s/${code}$`));
+  await expect(phone.getByText('✓ Submitted.')).toBeVisible();
+  await expect(saveBox).toBeHidden();
+});
+
+test('a login link only ever returns to a page on this site', async ({ newPhone }) => {
+  const phone = await newPhone();
+  const email = newEmail();
+  await phone.goto('/signup');
+  await phone.getByLabel('What should your friends call you?').fill('Lou');
+  await phone.getByLabel('Email').fill(email);
+  await phone.getByLabel('Password').fill(password);
+  await phone.getByRole('button', { name: 'Make my account' }).click();
+  await phone.getByRole('link', { name: 'Account' }).click();
+  await phone.getByRole('button', { name: 'Log out' }).click();
+  await expect(phone.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
+
+  await phone.goto('/login?next=//evil.example.com');
+  await phone.getByLabel('Email').fill(email);
+  await phone.getByLabel('Password').fill(password);
+  await phone.getByRole('button', { name: 'Log in' }).click();
+  await expect(phone.getByText('Hi Lou.')).toBeVisible();
+  expect(new URL(phone.url()).pathname).toBe('/');
+});
+
 test('log out, then log back in on another phone with the same account', async ({ newPhone }) => {
   const laptop = await newPhone();
   const email = newEmail();

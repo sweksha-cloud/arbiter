@@ -11,7 +11,7 @@ import {
 } from '@arbiter/shared';
 import { useState, type FormEvent } from 'react';
 
-import { MAX_MILES, MILE_OPTIONS, MIN_MILES, metersToMiles, milesToMeters } from '../lib/format';
+import { MAX_MILES, MILE_OPTIONS, MIN_MILES, PRICE_LEVELS, metersToMiles, milesToMeters } from '../lib/format';
 
 const CUISINES = [
   'american',
@@ -192,18 +192,26 @@ export function PreferencesForm({
         </label>
         <fieldset className="field">
           <legend>Most I want to spend</legend>
-          <div className="segmented">
-            {[undefined, 1, 2, 3, 4].map((level) => (
+          <div className="segmented price">
+            {([undefined, 1, 2, 3, 4] as const).map((level) => (
               <button
                 key={level ?? 'any'}
                 type="button"
                 aria-pressed={maxPriceLevel === level}
                 onClick={() => setMaxPriceLevel(level)}
               >
-                {level === undefined ? 'Any' : '$'.repeat(level)}
+                {level === undefined ? (
+                  'Any'
+                ) : (
+                  <>
+                    <span className="price-word">{PRICE_LEVELS[level].word}</span>
+                    <span className="price-amount">{PRICE_LEVELS[level].perPerson}</span>
+                  </>
+                )}
               </button>
             ))}
           </div>
+          <span className="muted small">Per person, roughly.</span>
         </fieldset>
 
         <fieldset className="field">

@@ -231,6 +231,17 @@ test('suggestions show their hours, and a place with several branches lists the 
   await expect(others.first().getByRole('link', { name: 'Directions' })).toBeVisible();
 });
 
+test('the budget choices say what they roughly cost', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await becomeGuest(phone, 'Pia');
+  const budget = phone.getByRole('group', { name: 'Most I want to spend' });
+  for (const label of ['Any', 'Cheap under $15', 'Moderate $15–30', 'Pricey $30–60', 'Splurge $60+']) {
+    await expect(budget.getByRole('button', { name: label, exact: true })).toBeVisible();
+  }
+  await budget.getByRole('button', { name: /^Moderate/ }).click();
+  await expect(budget.getByRole('button', { name: /^Moderate/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Kit');

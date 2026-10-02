@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
+import { SaveProgress } from '../components/SaveProgress';
 import { StartSessionForm } from '../components/StartSessionForm';
 import { useIdentity } from '../lib/identity';
 import { useStartSession } from '../lib/use-start-session';
@@ -39,6 +40,8 @@ export default function HomePage() {
           </section>
 
           <JoinCodeForm />
+
+          <SaveProgress />
 
           <p className="center">
             <Link href="/preferences">Edit my preferences</Link>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { EMAIL_ENABLED } from '../../lib/config';
 import { hasAccount, saveIdentity, useIdentity } from '../../lib/identity';
+import { nextPath } from '../../lib/next-path';
 import { useSubmit } from '../../lib/use-submit';
 
 export default function LoginPage() {
@@ -31,7 +32,7 @@ export default function LoginPage() {
         className="card stack"
         onSubmit={handle(async (value) => {
           saveIdentity(await api.login(identity?.token, { email: value('email'), password: value('password') }));
-          router.push('/');
+          router.push(nextPath());
         })}
       >
         <label className="field">

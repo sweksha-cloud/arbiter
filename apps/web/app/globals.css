@@ -295,6 +295,26 @@ input:not([type='checkbox']) {
   border-left: 0;
 }
 
+/* Budget: a word with a rough amount under it. */
+.segmented.price button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  line-height: 1.15;
+}
+
+.segmented.price .price-amount {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.save-progress p {
+  margin: 0;
+}
+
 /* Too many choices for one row: a grid, with the gaps drawn as dividers. */
 .segmented.grid {
   display: grid;
