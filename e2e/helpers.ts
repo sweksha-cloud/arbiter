@@ -7,7 +7,16 @@ import { OUTBOX_DIR, WEB_URL } from './api-server';
 
 export { expect };
 
-const PHONE: BrowserContextOptions = { ...devices['Pixel 7'], baseURL: WEB_URL };
+/**
+ * A phone for each browser engine: an Android phone in Chromium, an iPhone in
+ * WebKit (Safari's engine), and a phone-sized window in Firefox, which has no
+ * mobile mode.
+ */
+const PHONES: Record<string, BrowserContextOptions> = {
+  chromium: { ...devices['Pixel 7'], baseURL: WEB_URL },
+  webkit: { ...devices['iPhone 14'], baseURL: WEB_URL },
+  firefox: { ...devices['Desktop Firefox'], viewport: { width: 412, height: 915 }, baseURL: WEB_URL }
+};
 const ALLOWED_LOCATION: BrowserContextOptions = {
   geolocation: { latitude: 37.3352, longitude: -121.8811 },
   permissions: ['geolocation']
@@ -23,7 +32,8 @@ export const test = base.extend<{ newPhone: (options?: PhoneOptions) => Promise<
    * Opens a new phone with its own storage, so it gets its own guest identity.
    * The test fails if any phone hits an uncaught error in the page.
    */
-  newPhone: async ({ browser }, use) => {
+  newPhone: async ({ browser, browserName }, use) => {
+    const PHONE = PHONES[browserName]!;
     const contexts: BrowserContext[] = [];
     const errors: string[] = [];
     await use(async ({ ignoreLocationPrompt = false } = {}) => {
@@ -32,7 +42,13 @@ export const test = base.extend<{ newPhone: (options?: PhoneOptions) => Promise<
       const context = await browser.newContext(ignoreLocationPrompt ? PHONE : { ...PHONE, ...ALLOWED_LOCATION });
       contexts.push(context);
       const page = await context.newPage();
-      page.on('pageerror', (error) => errors.push(error.message));
+      page.on('pageerror', (error) => {
+        // WebKit reports a background page preload cancelled by navigating away
+        // as "Fetch API cannot load …?_rsc=… due to access control checks".
+        // Next.js preloads links this way; nothing breaks and nobody sees it.
+        if (browserName === 'webkit' && /_rsc=\S* due to access control checks/.test(error.message)) return;
+        errors.push(error.message);
+      });
       // The Content Security Policy must never block anything the app itself needs.
       page.on('console', (message) => {
         if (/Content Security Policy/i.test(message.text())) errors.push(message.text());
