@@ -18,6 +18,7 @@ export default function HomePage() {
       <header className="hero">
         <h1>Arbiter</h1>
         <p className="muted">Where should we eat? Everyone&apos;s must-haves are respected automatically, then the group reacts live.</p>
+        <p className="privacy-note">🔒 Your answers are never shared: nobody in your group sees what you chose.</p>
       </header>
 
       {identity === undefined ? null : identity === null ? (

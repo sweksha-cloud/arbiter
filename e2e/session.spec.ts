@@ -274,6 +274,25 @@ test('a dollar budget removes places that cost more, and cards show dollar range
   for (const text of await cards.allInnerTexts()) expect(text).toMatch(/\$1–10|Pho House/);
 });
 
+test('preference boxes can be closed without losing answers, and say answers are private', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await phone.goto('/');
+  await expect(phone.getByText('Your answers are never shared')).toBeVisible();
+  await becomeGuest(phone, 'Oli');
+  await expect(phone.getByText('All your answers are private.')).toBeVisible();
+  await expect(phone.getByRole('heading', { name: 'Allergies', exact: true })).toBeVisible();
+
+  const vegetarian = phone.getByLabel('I need vegetarian options');
+  await vegetarian.check();
+  await phone.getByText('Must-haves', { exact: true }).click();
+  await expect(vegetarian).toBeHidden();
+  await phone.getByRole('button', { name: 'Save' }).click();
+  await expect(phone.locator('.success')).toBeVisible();
+
+  await phone.reload();
+  await expect(phone.getByLabel('I need vegetarian options')).toBeChecked();
+});
+
 test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Kit');
