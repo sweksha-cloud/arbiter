@@ -314,7 +314,7 @@ function MyPreferences({
     <section className="stack">
       <h2>Your preferences</h2>
       <p className="muted small">
-        {preferences ? 'Filled in from last time. Change anything, then submit.' : 'Private to you. Nobody sees your answers.'}
+        {preferences ? 'Filled in from last time. Change anything, then submit.' : 'Fill these in for this session.'}
       </p>
       <PreferencesForm
         initial={preferences}

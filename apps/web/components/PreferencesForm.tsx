@@ -209,9 +209,12 @@ export function PreferencesForm({
 
   return (
     <form className="stack" onSubmit={submit}>
-      <section className="card stack">
-        <h2>Must-haves</h2>
-        <p className="muted small">Places that break any of these are removed for the whole group. Nobody sees your answers.</p>
+      <p className="privacy-note">🔒 All your answers are private. Nobody in your group ever sees them.</p>
+      <details className="card stack collapsible" open>
+        <summary>
+          <h2>Must-haves</h2>
+        </summary>
+        <p className="muted small">Places that break any of these are removed for the whole group.</p>
 
         <label className="check">
           <input type="checkbox" checked={vegetarian} onChange={(e) => setVegetarian(e.target.checked)} />
@@ -300,10 +303,12 @@ export function PreferencesForm({
             </label>
           )}
         </fieldset>
-      </section>
+      </details>
 
-      <section className="card stack">
-        <h2>Nice-to-haves</h2>
+      <details className="card stack collapsible" open>
+        <summary>
+          <h2>Nice-to-haves</h2>
+        </summary>
         <p className="muted small">These only change the order of suggestions, never remove a place.</p>
         <label className="check">
           <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
@@ -355,10 +360,12 @@ export function PreferencesForm({
           <span>I&apos;d like vegan options</span>
         </label>
 
-      </section>
+      </details>
 
-      <section className="card stack">
-        <h2>Nutrition (optional)</h2>
+      <details className="card stack collapsible" open>
+        <summary>
+          <h2>Nutrition (optional)</h2>
+        </summary>
         <p className="muted small">
           Per meal. Leave blank if you don&apos;t mind. Only chains publish nutrition, so this raises chains with a dish
           that fits; it never removes a place.
@@ -375,12 +382,14 @@ export function PreferencesForm({
             <NumberField label="Carbs at most (g)" value={nutrition.carbsMax} onChange={(carbsMax) => setNutrition({ ...nutrition, carbsMax })} />
           </div>
         </fieldset>
-      </section>
+      </details>
 
-      <section className="card stack">
-        <h2>Allergies (private)</h2>
+      <details className="card stack collapsible" open>
+        <summary>
+          <h2>Allergies</h2>
+        </summary>
         <p className="muted small">
-          Never shared, and never used to pick places: restaurants don&apos;t publish reliable allergen information.
+          Never used to pick places: restaurants don&apos;t publish reliable allergen information.
           The group only sees that someone has a food allergy, never who or what.
         </p>
         <div className="check-grid">
@@ -397,7 +406,7 @@ export function PreferencesForm({
             </label>
           ))}
         </div>
-      </section>
+      </details>
 
       <button className="button primary" disabled={busy}>
         {busy ? 'Saving…' : submitLabel}
