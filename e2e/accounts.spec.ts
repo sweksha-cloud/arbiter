@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { enterName, expect, hostSession, lastEmailTo, test } from './helpers';
+import { becomeGuest, expect, hostSession, lastEmailTo, test } from './helpers';
 
 // Unique per run, so reruns against the same database never collide.
 const newEmail = () => `e2e-${randomUUID()}@example.com`;
@@ -91,10 +91,7 @@ test('forgot password: the emailed link sets a new password and works only once'
 test('changing the password keeps this phone signed in and signs out the others', async ({ newPhone }) => {
   const phone = await newPhone();
   const email = newEmail();
-  await phone.goto('/');
-  await enterName(phone, 'Kai');
-  // Wait for the guest to be saved before leaving the page.
-  await expect(phone.getByText('Hi Kai.')).toBeVisible();
+  await becomeGuest(phone, 'Kai');
   await phone.goto('/signup');
   await expect(phone.getByText('Signing up as Kai')).toBeVisible();
   await phone.getByLabel('Email').fill(email);
