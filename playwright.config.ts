@@ -35,7 +35,9 @@ export default defineConfig({
     {
       name: 'server-restart',
       testMatch: /server-restart/,
-      dependencies: ['flows', 'flows-webkit'],
+      // In CI each engine has its own machine and server (ci.yml), so only
+      // Chromium's flows share this one; locally both engines do.
+      dependencies: process.env.CI ? ['flows'] : ['flows', 'flows-webkit'],
       workers: 1,
       use: chromium
     }

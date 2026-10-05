@@ -48,14 +48,52 @@ jobs:
       - run: pnpm build
       # The production server image must keep building (deploy/docker-compose.yml uses it).
       - run: docker build -f apps/server/Dockerfile -t arbiter-server .
-      - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm exec playwright test
+
+  # Browser tests, one GitHub machine per engine, side by side with `check`
+  # (TRADEOFFS.md 20d). Each machine builds the app and runs its own server.
+  browser-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      # Let both finish, so one failing browser still shows the other's results.
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            projects: --project=flows --project=server-restart
+          - browser: webkit
+            projects: --project=flows-webkit
+    name: browser tests (${{ matrix.browser }})
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: arbiter
+          POSTGRES_PASSWORD: arbiter
+          POSTGRES_DB: arbiter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arbiter -d arbiter"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm exec playwright test ${{ matrix.projects }}
         env:
           DATABASE_URL: postgres://arbiter:arbiter@localhost:5432/arbiter
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: |
             playwright-report/
             test-results/
@@ -67,7 +105,7 @@ jobs:
   # through Google's IAP tunnel. The script rolls back if the new version
   # isn't healthy.
   deploy:
-    needs: check
+    needs: [check, browser-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:
