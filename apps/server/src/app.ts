@@ -83,6 +83,16 @@ export async function buildApp({
     })
   });
 
+  // Server errors keep their details in the log, never in the response:
+  // Fastify's default would send the raw message (BUG-022). Client errors
+  // (400, 413, 429…) are sent as before.
+  http.setErrorHandler((error: { statusCode?: number }, request, reply) => {
+    const status = error.statusCode ?? 500;
+    if (status < 500) return reply.code(status).send(error);
+    request.log.error({ err: error }, 'Request failed');
+    return reply.code(status).send({ error: 'Something went wrong' });
+  });
+
   let shuttingDown = false;
   const io: ArbiterServer = new Server(http.server, {
     cors: { origin: webOrigin },

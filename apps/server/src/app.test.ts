@@ -135,6 +135,14 @@ describe('app', () => {
       expect((await lookup('x'.repeat(200), token)).statusCode).toBe(400);
     });
 
+    it('offers the current location instead when Google refuses, without passing on its message (BUG-022)', async () => {
+      const refusing = { find: () => Promise.reject(new Error('Geocoding API REQUEST_DENIED: key not authorized')), nameOf: async () => undefined };
+      app = await buildApp({ webOrigin, logLevel: 'silent', geocoder: refusing });
+      const response = await lookup('san francisco', await newToken());
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "Arbiter can't look up places right now. Use your current location instead." });
+    });
+
     it('caps lookups across everyone a day, so the free monthly amount is never passed', async () => {
       app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, geocodesPerDay: 1 } });
       expect((await lookup('a place', await newToken())).statusCode).toBe(200);
@@ -152,6 +160,16 @@ describe('app', () => {
       expect(refused.statusCode).toBe(429);
       expect(refused.json<{ error: string }>().error).toMatch(/^Too many place searches today\. Try again in .+, or use your current location\.$/);
     });
+  });
+
+  it('never sends the details of a server error to the browser (BUG-022)', async () => {
+    app = await buildApp({ webOrigin, logLevel: 'silent' });
+    app.http.get('/boom', async () => {
+      throw new Error('secret internal detail');
+    });
+    const response = await app.http.inject({ method: 'GET', url: '/boom' });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: 'Something went wrong' });
   });
 
   describe('abuse limits', () => {

@@ -139,10 +139,12 @@ export function registerRoutes(
       if (!found) return reply.code(404).send({ error: "Couldn't find that place. Try a city, neighborhood or full address." });
       return { location: found };
     } catch (error) {
-      if (error instanceof PlacesQuotaExceededError || error instanceof GeocodeBudgetExceededError) {
-        return reply.code(503).send({ error: "Arbiter can't look up places right now. Use your current location instead." });
+      // Quota, budget, or Google refusing (e.g. the API not enabled for the key):
+      // the person can still use their current location.
+      if (!(error instanceof PlacesQuotaExceededError || error instanceof GeocodeBudgetExceededError)) {
+        request.log.error({ err: error }, 'Place lookup failed');
       }
-      throw error;
+      return reply.code(503).send({ error: "Arbiter can't look up places right now. Use your current location instead." });
     }
   });
 
