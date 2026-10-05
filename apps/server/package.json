@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "check:places": "tsx --env-file-if-exists=.env --conditions=@arbiter/source scripts/check-places.ts",
+    "check:fatsecret": "tsx --env-file-if-exists=.env --conditions=@arbiter/source scripts/check-fatsecret.ts",
     "load-test": "tsx --conditions=@arbiter/source scripts/load-test.ts"
   },
   "dependencies": {

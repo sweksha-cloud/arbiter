@@ -88,6 +88,26 @@ describe('FatSecretMenuProvider', () => {
     expect(fetch.mock.calls.filter(([u]) => String(u).includes('foods/search'))).toHaveLength(1);
   });
 
+  it('reports a refusal sent with HTTP 200 (e.g. a blocked IP), and asks again next time instead of caching it (BUG-027)', async () => {
+    const onError = vi.fn();
+    let blocked = true;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (url) => {
+      if (String(url).includes('connect/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 86_400, token_type: 'Bearer' }));
+      }
+      return new Response(
+        JSON.stringify(blocked ? { error: { code: 21, message: "Invalid IP address detected:  '73.162.204.246'" } } : { foods: { food: [bowl] } })
+      );
+    });
+    const provider = new FatSecretMenuProvider({ clientId: 'id', clientSecret: 's', fetch, onError });
+
+    expect(await provider.menuFor(chipotle)).toBeUndefined();
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Invalid IP address') }), 'Chipotle');
+
+    blocked = false;
+    expect(await provider.menuFor(chipotle)).toEqual([expect.objectContaining({ name: 'Chicken Burrito Bowl' })]);
+  });
+
   it('answers "no menu" when fatsecret fails, and reports it', async () => {
     const onError = vi.fn();
     const failing = vi.fn<typeof globalThis.fetch>(async () => new Response('nope', { status: 500 }));

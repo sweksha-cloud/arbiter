@@ -28,8 +28,10 @@ const FoodSchema = z.object({
 type Food = z.infer<typeof FoodSchema>;
 
 // One result comes back as an object, several as an array; no results, no `food`.
+// Errors (a blocked IP, a bad token) come back with HTTP 200 and an `error` object.
 const SearchResponseSchema = z.object({
-  foods: z.object({ food: z.union([FoodSchema, z.array(FoodSchema)]).optional() }).optional()
+  foods: z.object({ food: z.union([FoodSchema, z.array(FoodSchema)]).optional() }).optional(),
+  error: z.object({ code: z.number().optional(), message: z.string().optional() }).optional()
 });
 
 const TokenResponseSchema = z.object({ access_token: z.string(), expires_in: z.number() });
@@ -117,6 +119,8 @@ export class FatSecretMenuProvider implements MenuProvider {
       });
       if (!response.ok) throw new Error(`fatsecret search ${response.status}`);
       const body = SearchResponseSchema.parse(await response.json());
+      // Not "no menu": a refusal must be reported, and never cached for 24 hours (BUG-027).
+      if (body.error) throw new Error(`fatsecret search refused (${body.error.code ?? '?'}): ${body.error.message ?? 'no details'}`);
       const food = body.foods?.food;
       const menu = toMenu(food === undefined ? [] : Array.isArray(food) ? food : [food], chain);
       this.cache.set(chain.name, { menu, fetchedAt: this.now() });
