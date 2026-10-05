@@ -9,7 +9,9 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Arbiter',
-  description: 'Fair group food decisions, fast.'
+  description: 'Fair group food decisions, fast.',
+  // Added to an iPhone's home screen, it opens full screen under this name.
+  appleWebApp: { capable: true, title: 'Arbiter', statusBarStyle: 'default' }
 };
 
 export const viewport: Viewport = {

@@ -26,7 +26,7 @@ export const config = {
   matcher: [
     {
       // Pages only: not static files, and not link prefetches.
-      source: '/((?!_next/static|_next/image|favicon.ico).*)',
+      source: '/((?!_next/static|_next/image|favicon.ico|icons/|icon.png|apple-icon.png|manifest.webmanifest).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' }

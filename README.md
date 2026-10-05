@@ -182,6 +182,10 @@ pnpm test:e2e                                                                   
 | `apps/server` | Fastify REST API and Socket.IO live sessions. Session rules live in `src/sessions/session-service.ts` |
 | `apps/web` | Next.js app: home, preferences, and the live session page (`app/s/[code]`) |
 
+## On your phone
+
+Arbiter installs like an app (a progressive web app): on an iPhone, open the site in Safari → Share → **Add to Home Screen**; on Android, Chrome offers **Install app**. It then opens full screen from its own icon. There's no offline mode, since a live session needs the server. The manifest is `apps/web/app/manifest.ts`; icons are in `apps/web/public/icons/`.
+
 ## How a session works
 
 1. The host enters a name and taps Start a session, which opens a setup page. A blank name starts nothing.
