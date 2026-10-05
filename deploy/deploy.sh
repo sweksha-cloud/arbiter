@@ -21,7 +21,9 @@ COMPOSE=(docker compose -f deploy/docker-compose.yml)
 ENV_FILE=deploy/.env
 STATE=deploy/.deployed-tag
 
-get() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-; }
+# A missing entry is empty, not an error (BUG-028: under pipefail, grep finding
+# nothing silently ended the very first slot deploy).
+get() { { grep -E "^$1=" "$ENV_FILE" 2>/dev/null || true; } | tail -1 | cut -d= -f2-; }
 set_var() {
   touch "$ENV_FILE"
   local kept
