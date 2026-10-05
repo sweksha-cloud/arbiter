@@ -88,6 +88,12 @@ jobs:
           - browser: webkit
             projects: --project=flows-webkit
     name: browser tests (${{ matrix.browser }})
+    # Playwright's ready-made machine image: the browsers and their system
+    # libraries are already installed, so nothing is downloaded each run. Its
+    # version must match @playwright/test in package.json (pinned exactly).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
     services:
       postgres:
         image: postgres:17-alpine
@@ -111,10 +117,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - run: pnpm exec playwright test ${{ matrix.projects }}
         env:
-          DATABASE_URL: postgres://arbiter:arbiter@localhost:5432/arbiter
+          DATABASE_URL: postgres://arbiter:arbiter@postgres:5432/arbiter
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
