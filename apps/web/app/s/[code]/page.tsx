@@ -142,11 +142,15 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   return (
     <>
       <ConnectionBanner connected={connected} />
+      {isHost ? (
+        <HostBar sessionId={view.sessionId} />
+      ) : (
+        <header className="stack tight">
+          <p className="muted small">Session</p>
+          <h1 className="code">{view.sessionId}</h1>
+        </header>
+      )}
       <HostLeftNotice view={view} isHost={isHost} />
-      <header className="stack tight">
-        <p className="muted small">Session</p>
-        <h1 className="code">{view.sessionId}</h1>
-      </header>
 
       {error && <p className="error">{error}</p>}
 
@@ -154,7 +158,6 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
         <>
           <SubmissionStatus view={view} myId={identity.guest.id} />
           <MeetingCard view={view} myId={identity.guest.id} token={identity.token} actions={meetingActions} />
-          <InviteCard sessionId={view.sessionId} />
           {view.meeting.mode === 'between' && !view.meeting.myOrigin ? (
             <p className="notice">
               First, share where you&apos;re coming from (above). Then you can fill in your preferences.
@@ -287,7 +290,12 @@ function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
   );
 }
 
-function InviteCard({ sessionId }: { sessionId: string }) {
+/**
+ * The host's session code and invite link, pinned to the top of the screen
+ * through the whole session, so inviting someone is always one tap away.
+ * Only the host sees it.
+ */
+function HostBar({ sessionId }: { sessionId: string }) {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/s/${sessionId}`;
   const canShare = typeof navigator.share === 'function';
@@ -299,24 +307,28 @@ function InviteCard({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <section className="card stack">
-      <h2>Invite your friends</h2>
-      <p className="muted small">Send them this link, or have them enter the code on the home page.</p>
-      <input className="invite-url" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Invite link" />
-      <div className="row">
-        <button className="button grow" onClick={copy}>
-          {copied ? 'Copied!' : 'Copy link'}
-        </button>
-        {canShare && (
-          <button
-            className="button grow"
-            onClick={() => navigator.share({ title: 'Arbiter', text: 'Help pick where we eat', url }).catch(() => {})}
-          >
-            Share
+    <header className="host-bar" aria-label="Invite people to this session">
+      <div className="row spread nowrap">
+        <div className="stack tight">
+          <span className="small muted">Your session</span>
+          <h1 className="code">{sessionId}</h1>
+        </div>
+        <div className="row nowrap">
+          <button className="button" onClick={copy}>
+            {copied ? 'Copied!' : 'Copy link'}
           </button>
-        )}
+          {canShare && (
+            <button
+              className="button"
+              onClick={() => navigator.share({ title: 'Arbiter', text: 'Help pick where we eat', url }).catch(() => {})}
+            >
+              Share
+            </button>
+          )}
+        </div>
       </div>
-    </section>
+      <input className="invite-url small" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Invite link" />
+    </header>
   );
 }
 

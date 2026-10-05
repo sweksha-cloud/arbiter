@@ -62,10 +62,7 @@ async function setup(
 
 /** A session searching around `center`, as most tests need. */
 async function createInArea(service: SessionService, host: Guest, ip: string) {
-  const sessionId = await service.create(host, ip);
-  await service.setMeetingMode(sessionId, host, 'area');
-  await service.setArea(sessionId, host, { center });
-  return sessionId;
+  return service.create(host, { mode: 'area', area: { center } }, ip);
 }
 
 /** Host and friend both in the lobby, nobody submitted yet. */
@@ -490,10 +487,19 @@ describe('SessionService', () => {
     /** A fresh session where nobody has chosen where to meet yet. Host and friend are in. */
     async function undecided(places?: PlacesProvider) {
       const ctx = await setup(places);
-      const sessionId = await ctx.service.create(ctx.host, '203.0.113.9');
+      const sessionId = await ctx.service.create(ctx.host, undefined, '203.0.113.9');
       await ctx.service.join(sessionId, ctx.friend);
       return { ...ctx, sessionId };
     }
+
+    it('starts with the meeting the host chose on the setup page', async () => {
+      const { service, host } = await undecided();
+      const area = await service.get(await service.create(host, { mode: 'area', area: { center, label: 'Downtown' } }));
+      expect(area).toMatchObject({ meetingMode: 'area', area: { label: 'Downtown' }, origins: {} });
+      const between = await service.get(await service.create(host, { mode: 'between', origin: { center: sanFrancisco } }));
+      expect(between).toMatchObject({ meetingMode: 'between', origins: { [host.id]: { center: sanFrancisco } } });
+      expect(between.area).toBeUndefined();
+    });
 
     it('says what is missing when results are asked for before the location is ready', async () => {
       const { service, host, sessionId } = await undecided();

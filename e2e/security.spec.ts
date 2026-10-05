@@ -42,5 +42,5 @@ test("injected HTML can't run code, so it can't read the saved sign-in", async (
   expect(await phone.evaluate(() => (window as unknown as { __stolen?: string }).__stolen)).toBeUndefined();
   await expect.poll(() => phone.evaluate(() => (window as unknown as { __blocked: string[] }).__blocked.length)).toBeGreaterThan(0);
   // The session itself still works under the policy.
-  await expect(phone.getByText('Invite your friends')).toBeVisible();
+  await expect(phone.getByText('Your session')).toBeVisible();
 });

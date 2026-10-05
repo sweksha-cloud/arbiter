@@ -726,3 +726,26 @@ details.collapsible:not([open]) {
 .more-list p {
   margin: 2px 0 0;
 }
+
+/* The host's code and invite link, pinned to the top for the whole session. */
+.host-bar {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.host-bar .code {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.host-bar .invite-url {
+  padding: 6px 10px;
+}

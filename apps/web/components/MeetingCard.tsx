@@ -5,13 +5,13 @@ import { useState } from 'react';
 
 import { LocationPicker } from './LocationPicker';
 
-const MODES: { mode: MeetingMode; label: string }[] = [
-  { mode: 'area', label: 'We already know the area' },
+export const MODES: { mode: MeetingMode; label: string }[] = [
+  { mode: 'area', label: 'Search around an area' },
   { mode: 'between', label: 'Find a spot between us' }
 ];
 
 /** What the location is for, shown wherever someone is asked for one. */
-const NOTES: Record<MeetingMode, { host: string; everyone: string }> = {
+export const NOTES: Record<MeetingMode, { host: string; everyone: string }> = {
   area: {
     host: 'Arbiter searches around this place. Nobody else is asked for a location.',
     everyone: 'Arbiter searches around this place.'
@@ -30,9 +30,10 @@ export interface MeetingActions {
 }
 
 /**
- * Where the group is meeting, in the lobby. The host picks how (TRADEOFFS.md
- * 1b): a known area, or between everyone's starting points. Starting points
- * are private: others only see how many people shared one.
+ * Where the group is meeting, in the lobby. The host chose how on the setup
+ * page (TRADEOFFS.md 1b): an area, or between everyone's starting points; here
+ * they see a summary and can change it until results are shown. Starting
+ * points are private: others only see how many people shared one.
  */
 export function MeetingCard({
   view,
@@ -49,6 +50,9 @@ export function MeetingCard({
   const isHost = view.hostId === myId;
   const hostName = view.members.find((m) => m.id === view.hostId)?.displayName ?? 'The host';
   const [error, setError] = useState<string>();
+  // The host's controls stay folded away behind "Change" once a mode is set.
+  const [changing, setChanging] = useState(false);
+  const showHostControls = isHost && (meeting.mode === null || changing);
 
   async function chooseMode(mode: MeetingMode) {
     setError(undefined);
@@ -63,7 +67,22 @@ export function MeetingCard({
     <section className="card stack" aria-labelledby="meeting-heading">
       <h2 id="meeting-heading">Where to meet</h2>
 
-      {isHost ? (
+      {isHost && !showHostControls ? (
+        <div className="row spread nowrap">
+          <p>
+            {meeting.mode === 'area' ? (
+              <>
+                Searching around <strong>{meeting.area?.label ?? 'your current location'}</strong>
+              </>
+            ) : (
+              <strong>Meeting spot: the average of everyone&apos;s locations</strong>
+            )}
+          </p>
+          <button className="button" onClick={() => setChanging(true)}>
+            Change
+          </button>
+        </div>
+      ) : isHost ? (
         <fieldset className="field">
           <legend className="small muted">
             {meeting.mode ? 'You can switch until results are shown.' : 'Choose how to pick the area.'}
@@ -76,6 +95,11 @@ export function MeetingCard({
             ))}
           </div>
           {meeting.mode && <p className="small muted">{NOTES[meeting.mode].host}</p>}
+          {meeting.mode && (
+            <button type="button" className="button link small" onClick={() => setChanging(false)}>
+              Done
+            </button>
+          )}
         </fieldset>
       ) : meeting.mode === null ? (
         <p className="muted">Waiting for {hostName} to choose where to meet.</p>
@@ -87,9 +111,9 @@ export function MeetingCard({
       {error && <p className="error">{error}</p>}
 
       {meeting.mode === 'area' &&
-        (isHost ? (
+        (showHostControls ? (
           <LocationPicker token={token} label="Search near" value={meeting.area} onChoose={actions.setArea} />
-        ) : meeting.area ? (
+        ) : isHost ? null : meeting.area ? (
           <>
             <p>
               Meeting near <strong>{meeting.area.label ?? `${hostName}'s current location`}</strong>
@@ -103,9 +127,9 @@ export function MeetingCard({
       {meeting.mode === 'between' && (
         <>
           <p>
-            <strong>Meeting spot: the average of everyone&apos;s locations</strong>{' '}
+            {!isHost && <strong>Meeting spot: the average of everyone&apos;s locations </strong>}
             <span className="muted small">
-              ({meeting.sharedIds.length} of {view.members.length} shared)
+              ({meeting.sharedIds.length} of {view.members.length} shared where they&apos;re coming from)
             </span>
           </p>
           <LocationPicker
@@ -118,7 +142,7 @@ export function MeetingCard({
           {meeting.tooFarApart && (
             <p className="warning small" role="alert">
               You&apos;re too far apart to meet in the middle: someone would come more than 30 miles.
-              {isHost ? ' Choose "We already know the area" instead.' : ` ${hostName} can set an area instead.`}
+              {isHost ? ' Change to "Search around an area" instead.' : ` ${hostName} can set an area instead.`}
             </p>
           )}
         </>

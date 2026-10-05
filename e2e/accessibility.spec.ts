@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { becomeGuest, expect, joinSession, meetHere, test } from './helpers';
+import { becomeGuest, expect, joinSession, setUpSession, test } from './helpers';
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
@@ -38,9 +38,9 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
 
   await host.goto('/');
   await host.getByRole('button', { name: 'Start a session' }).click();
-  await expect(host.getByText('Invite your friends')).toBeVisible();
-  await expectNoViolations(host, 'the lobby before choosing where to meet');
-  await meetHere(host);
+  await expect(host.getByRole('heading', { name: 'New session', level: 1 })).toBeVisible();
+  await expectNoViolations(host, 'the setup page');
+  await setUpSession(host);
   const invite = await host.getByLabel('Invite link').inputValue();
   await expectNoViolations(host, 'the session lobby');
 

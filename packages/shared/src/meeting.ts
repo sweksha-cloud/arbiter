@@ -23,6 +23,16 @@ export const NamedLocationSchema = z.object({
 });
 export type NamedLocation = z.infer<typeof NamedLocationSchema>;
 
+/**
+ * How the host sets up a new session before it exists: the area to search,
+ * or (meeting between everyone) where the host is coming from.
+ */
+export const MeetingChoiceSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('area'), area: NamedLocationSchema }),
+  z.object({ mode: z.literal('between'), origin: NamedLocationSchema })
+]);
+export type MeetingChoice = z.infer<typeof MeetingChoiceSchema>;
+
 /** What someone types to find a place: "san francisco", a neighbourhood, an address. */
 export const PlaceQuerySchema = z.string().trim().min(2).max(120);
 

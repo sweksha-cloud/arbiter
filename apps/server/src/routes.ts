@@ -120,7 +120,7 @@ export function registerRoutes(
     if (!guest) return reply;
     const body = await parseBody(CreateSessionRequestSchema, request, reply);
     if (!body) return reply;
-    const sessionId = await sessions.create(guest, request.ip);
+    const sessionId = await sessions.create(guest, body.meeting, request.ip);
     return reply.code(201).send({ sessionId });
   });
 

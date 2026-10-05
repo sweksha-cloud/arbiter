@@ -30,7 +30,7 @@ test('a session needs a name: a blank or spaces-only name starts nothing', async
 
   await name.fill('Sweksha');
   await phone.getByRole('button', { name: 'Start a session' }).click();
-  await expect(phone.getByText('Invite your friends')).toBeVisible();
+  await expect(phone.getByRole('heading', { name: 'New session', level: 1 })).toBeVisible();
 });
 
 test('results appear for everyone once the last person submits, and reactions are live', async ({ newPhone }) => {
@@ -76,52 +76,66 @@ test('two people reacting at the same moment both see the correct totals (BUG-00
   }
 });
 
-test('starting a session never asks for a location, and an unanswered prompt says so instead of hanging (BUG-010)', async ({
+test('setting up never falls back to a default city: an unanswered or blocked prompt says so (BUG-010)', async ({
   newPhone
 }) => {
   const host = await newPhone({ ignoreLocationPrompt: true });
   await startAs(host, 'Sweksha');
-  await expect(host.getByText('Invite your friends')).toBeVisible();
+  await expect(host.getByRole('heading', { name: 'New session', level: 1 })).toBeVisible();
 
-  await host.getByRole('button', { name: 'We already know the area' }).click();
+  await host.getByRole('button', { name: 'Search around an area' }).click();
+  await expect(host.getByRole('button', { name: 'Create session' })).toBeDisabled();
   await host.getByRole('button', { name: /Use my current location/ }).click();
-  // Never a silent default city: a message and the typed option. Firefox leaves
-  // the prompt unanswered (the app gives up after 10 s); Chromium and WebKit
-  // treat a test browser with no permission as blocked.
+  // A message and the typed option. Firefox leaves the prompt unanswered (the
+  // app gives up after 10 s); Chromium and WebKit treat a test browser with no
+  // permission as blocked.
   await expect(host.getByText(/^(No answer to the location prompt|Location is blocked for this site)\./)).toBeVisible({
     timeout: 15_000
   });
+  await expect(host.getByRole('button', { name: 'Create session' })).toBeDisabled();
   await host.getByLabel('Search near: type a place').fill('San Francisco');
   await host.getByRole('button', { name: 'Search' }).click();
   await expect(host.getByText('📍 San Francisco (sample)')).toBeVisible();
+  await host.getByRole('button', { name: 'Create session' }).click();
+  await expect(host.getByText('Your session')).toBeVisible();
 });
 
-test('the host must choose where to meet; friends see the choice', async ({ newPhone }) => {
+test('the host sets up where to meet before the session exists; only the host sees the invite bar', async ({ newPhone }) => {
   const host = await newPhone();
   const friend = await newPhone();
-  const { invite } = await hostSession(host, 'Sweksha', { meeting: false });
+  const { invite } = await hostSession(host, 'Sweksha', { place: 'downtown san jose' });
+  await expect(host.getByText('Searching around downtown san jose (sample)')).toBeVisible();
+
   await joinSession(friend, invite, 'Alex');
-  await expect(friend.getByText('Waiting for Sweksha to choose where to meet.')).toBeVisible();
-  // Friends can't choose.
-  await expect(friend.getByRole('button', { name: 'We already know the area' })).toHaveCount(0);
-
-  await host.getByRole('button', { name: 'We already know the area' }).click();
-  await expect(friend.getByText('Waiting for Sweksha to set the area.')).toBeVisible();
-  await host.getByLabel('Search near: type a place').fill('downtown san jose');
-  await host.getByRole('button', { name: 'Search' }).click();
+  await expect(friend.getByText('Sweksha chose: Search around an area')).toBeVisible();
   await expect(friend.getByText('Meeting near downtown san jose (sample)')).toBeVisible();
-  await expect(friend.getByText('Sweksha chose: We already know the area')).toBeVisible();
+  // Only the host has the code-and-link bar, and only the host can change the area.
+  await expect(friend.getByLabel('Invite link')).toHaveCount(0);
+  await expect(friend.getByRole('button', { name: 'Change' })).toHaveCount(0);
 
+  // The host's bar stays through results.
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(friend.getByText(/^Searched near downtown san jose \(sample\)/)).toBeVisible();
+  await expect(host.getByLabel('Invite link')).toHaveValue(invite);
+});
+
+test('the host can change the area in the lobby', async ({ newPhone }) => {
+  const host = await newPhone();
+  await hostSession(host, 'Sweksha', { place: 'Oakland' });
+  await host.getByRole('button', { name: 'Change' }).click();
+  await host.getByRole('button', { name: 'Change' }).click(); // the place itself, inside the picker
+  await host.getByLabel('Search near: type a place').fill('Berkeley');
+  await host.getByRole('button', { name: 'Search' }).click();
+  await host.getByRole('button', { name: 'Done' }).click();
+  await expect(host.getByText('Searching around Berkeley (sample)')).toBeVisible();
 });
 
 test('meeting between everyone: where you\'re coming from is asked first and stays private', async ({ newPhone }) => {
   const host = await newPhone();
   const friend = await newPhone();
-  const { invite } = await hostSession(host, 'Sweksha', { meeting: false });
-  await host.getByRole('button', { name: 'Find a spot between us' }).click();
+  // The host shares where they're coming from on the setup page.
+  const { invite } = await hostSession(host, 'Sweksha', { mode: 'between' });
   await joinSession(friend, invite, 'Alex');
 
   // Everyone sees what the host chose, and what their location is for.
@@ -134,11 +148,10 @@ test('meeting between everyone: where you\'re coming from is asked first and sta
   await friend.getByLabel(/Where are you coming from\?.*type a place/).fill('Santa Clara');
   await friend.getByRole('button', { name: 'Search' }).click();
   await expect(friend.getByText('📍 Santa Clara (sample)')).toBeVisible();
-  await expect(host.getByText('(1 of 2 shared)')).toBeVisible();
+  await expect(host.getByText("(2 of 2 shared where they're coming from)")).toBeVisible();
   await expect(host.getByText('Santa Clara')).toHaveCount(0);
 
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
-  await host.getByRole('button', { name: /Use my current location/ }).click();
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.locator('article').first()).toBeVisible();
   await expect(host.getByText("Searched around the average of everyone's locations", { exact: false })).toBeVisible();

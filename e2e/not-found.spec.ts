@@ -12,7 +12,7 @@ test('an unknown session link explains itself and offers a way forward', async (
   await expect(phone.getByRole('heading', { level: 1 })).toHaveText("We can't find session ABC123");
 
   await phone.getByRole('button', { name: 'Start a new session' }).click();
-  await expect(phone.getByText('Invite your friends')).toBeVisible();
+  await expect(phone.getByRole('heading', { name: 'New session', level: 1 })).toBeVisible();
 });
 
 test('invite links work in lowercase', async ({ newPhone }) => {

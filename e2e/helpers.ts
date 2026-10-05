@@ -80,25 +80,39 @@ export async function startAs(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Start a session' }).click();
 }
 
-/** As the host: "We already know the area", searching near this phone's location. */
-export async function meetHere(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'We already know the area' }).click();
-  await page.getByRole('button', { name: /Use my current location/ }).click();
-  await expect(page.getByText('📍 Your current location')).toBeVisible();
+export interface Setup {
+  mode?: 'area' | 'between';
+  /** A place to type; without one, "Use my current location". */
+  place?: string;
 }
 
 /**
- * Opens the home page as a new guest and starts a session searching near
- * this phone (unless `meeting: false`). Returns its invite link and code.
+ * On the setup page: chooses where to meet, then "Create session". Ends in
+ * the lobby, with the host's code and link pinned at the top.
  */
-export async function hostSession(
-  page: Page,
-  name: string,
-  { meeting = true }: { meeting?: boolean } = {}
-): Promise<{ invite: string; code: string }> {
+export async function setUpSession(page: Page, { mode = 'area', place }: Setup = {}): Promise<void> {
+  await expect(page.getByRole('heading', { name: 'New session', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: mode === 'area' ? 'Search around an area' : 'Find a spot between us' }).click();
+  const label = mode === 'area' ? 'Search near' : 'Where are you coming from?';
+  if (place) {
+    await page.getByLabel(`${label}: type a place`).fill(place);
+    await page.getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByText(`📍 ${place} (sample)`)).toBeVisible();
+  } else {
+    await page.getByRole('button', { name: /Use my current location/ }).click();
+    await expect(page.getByText('📍 Your current location')).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Create session' }).click();
+  await expect(page.getByText('Your session')).toBeVisible();
+}
+
+/**
+ * Opens the home page as a new guest, sets up a session (by default searching
+ * around this phone's location) and creates it. Returns its invite link and code.
+ */
+export async function hostSession(page: Page, name: string, setup?: Setup): Promise<{ invite: string; code: string }> {
   await startAs(page, name);
-  await expect(page.getByText('Invite your friends')).toBeVisible();
-  if (meeting) await meetHere(page);
+  await setUpSession(page, setup);
   const invite = await page.getByLabel('Invite link').inputValue();
   const code = invite.split('/s/')[1] ?? '';
   expect(code).toMatch(/^[A-Z0-9]{6}$/);

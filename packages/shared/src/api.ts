@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-import { MeetingModeSchema, NamedLocationSchema, PlaceQuerySchema, type MeetingMode, type NamedLocation } from './meeting.js';
+import {
+  MeetingChoiceSchema,
+  MeetingModeSchema,
+  NamedLocationSchema,
+  PlaceQuerySchema,
+  type MeetingMode,
+  type NamedLocation
+} from './meeting.js';
 import { MenuItemSchema, PlaceCandidateSchema } from './place.js';
 import { PreferencesSchema, type Preferences } from './preferences.js';
 import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
@@ -39,8 +46,12 @@ export type CreateGuestResponse = z.infer<typeof CreateGuestResponseSchema>;
 
 export const GetPreferencesResponseSchema = z.object({ preferences: PreferencesSchema.nullable() });
 
-/** Where to search is chosen inside the session (see `meeting` in SessionView), not when starting it. */
-export const CreateSessionRequestSchema = z.object({});
+/**
+ * The host chooses where to meet on the setup page, before the session
+ * exists. Optional only so an older open page can still start one (it's
+ * then chosen in the lobby).
+ */
+export const CreateSessionRequestSchema = z.object({ meeting: MeetingChoiceSchema.optional() });
 export const CreateSessionResponseSchema = z.object({ sessionId: z.string() });
 
 /** Turns typed text ("san francisco", an address) into a point. */

@@ -106,6 +106,17 @@ describe('app', () => {
     expect(theirs.statusCode).toBe(404);
   });
 
+  it('starts a session with the meeting chosen on the setup page, and refuses an invalid one', async () => {
+    app = await buildApp({ webOrigin, logLevel: 'silent' });
+    const { token } = (await app.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: 'Sam' } })).json<{ token: string }>();
+    const create = (payload: object) =>
+      app!.http.inject({ method: 'POST', url: '/api/sessions', payload, headers: { authorization: `Bearer ${token}` } });
+    expect((await create({ meeting: { mode: 'area', area: { center: { lat: 37.3, lng: -121.9 }, label: 'San Jose' } } })).statusCode).toBe(201);
+    expect((await create({ meeting: { mode: 'between', origin: { center: { lat: 37.3, lng: -121.9 } } } })).statusCode).toBe(201);
+    expect((await create({ meeting: { mode: 'area' } })).statusCode).toBe(400);
+    expect((await create({ meeting: { mode: 'area', area: { center: { lat: 200, lng: 0 } } } })).statusCode).toBe(400);
+  });
+
   describe('typed places (/api/geocode)', () => {
     const lookup = async (query: string, token?: string) =>
       app!.http.inject({

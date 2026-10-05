@@ -9,6 +9,7 @@ import {
   PastSessionSchema,
   PastSessionsResponseSchema,
   SessionSummarySchema,
+  type MeetingChoice,
   type Preferences
 } from '@arbiter/shared';
 import { z } from 'zod';
@@ -120,8 +121,10 @@ export const api = {
       throw e;
     }),
 
-  createSession: (token: string) =>
-    request(CreateSessionResponseSchema, '/api/sessions', { method: 'POST', token, body: {} }).then((r) => r.sessionId),
+  createSession: (token: string, meeting: MeetingChoice) =>
+    request(CreateSessionResponseSchema, '/api/sessions', { method: 'POST', token, body: { meeting } }).then(
+      (r) => r.sessionId
+    ),
 
   /** Typed text ("san francisco", an address) to a point and its full name. */
   geocode: (token: string, query: string) =>

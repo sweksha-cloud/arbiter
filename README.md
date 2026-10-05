@@ -184,8 +184,8 @@ pnpm test:e2e                                                                   
 
 ## How a session works
 
-1. The host enters a name and taps Start a session; it gets a 6-letter code. A blank name starts nothing.
-2. **Where to meet:** the host chooses "We already know the area" (sets it with their current location or a typed place) or "Find a spot between us" (everyone privately shares where they're coming from; the search centres on the average, and refuses if someone would come more than 30 miles). Typed places use Google's Geocoding API.
+1. The host enters a name and taps Start a session, which opens a setup page. A blank name starts nothing.
+2. **Where to meet**, chosen before the session exists: "Search around an area" (the host's current location or a typed place) or "Find a spot between us" (everyone privately shares where they're coming from; the search centres on the average, and refuses if someone would come more than 30 miles). Typed places use Google's Geocoding API. **Create session** then makes the session and its 6-letter code; the host sees the code and invite link pinned at the top for the whole session, and can change where to meet until results are shown.
 3. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
 4. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
 5. When everyone has submitted (at least 2 people) and the location is ready, or the host taps **Show results now**, the server:

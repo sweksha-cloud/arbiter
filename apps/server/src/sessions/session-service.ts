@@ -18,6 +18,7 @@ import {
   type DistanceLimit,
   type Guest,
   type LatLng,
+  type MeetingChoice,
   type MeetingMode,
   type MissingDataPolicy,
   type NamedLocation,
@@ -114,7 +115,7 @@ export function locationProblem(room: RoomState): string | undefined {
   const origins = memberOrigins(room).map((o) => o.center);
   if (origins.length === 0) return "Nobody has shared where they're coming from yet.";
   if (tooFarApart(origins)) {
-    return 'You\'re too far apart to meet in the middle: someone is more than 30 miles from it. The host can choose "We already know the area" instead.';
+    return 'You\'re too far apart to meet in the middle: someone is more than 30 miles from it. The host can choose "Search around an area" instead.';
   }
   return undefined;
 }
@@ -180,8 +181,11 @@ function measuredFrom(place: PlaceCandidate, from: LatLng): PlaceCandidate {
 export class SessionService {
   constructor(private readonly options: SessionServiceOptions) {}
 
-  /** `hostIp` is the network scans are charged to (see scanBudget); it stays in memory only. */
-  async create(host: Guest, hostIp?: string): Promise<string> {
+  /**
+   * `meeting` is the host's choice from the setup page. `hostIp` is the
+   * network scans are charged to (see scanBudget); it stays in memory only.
+   */
+  async create(host: Guest, meeting?: MeetingChoice, hostIp?: string): Promise<string> {
     for (;;) {
       const sessionId = newSessionCode();
       try {
@@ -193,7 +197,9 @@ export class SessionService {
           hostId: host.id,
           hostIp,
           status: 'lobby',
-          origins: {},
+          ...(meeting?.mode === 'area' && { meetingMode: 'area' as const, area: meeting.area }),
+          ...(meeting?.mode === 'between' && { meetingMode: 'between' as const }),
+          origins: meeting?.mode === 'between' ? { [host.id]: meeting.origin } : {},
           members: [{ ...host, submitted: false }],
           submissions: {},
           suggestions: [],
