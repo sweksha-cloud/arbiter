@@ -1,5 +1,8 @@
 import {
+  AreaPayloadSchema,
   JoinSessionPayloadSchema,
+  MeetingModePayloadSchema,
+  OriginPayloadSchema,
   ReactPayloadSchema,
   TagPayloadSchema,
   SubmitPreferencesPayloadSchema,
@@ -153,6 +156,43 @@ export function registerSocketHandlers(
         try {
           // May complete the group, which starts the scan; broadcast "scanning" as it begins.
           await sessions.submit(sessionId, guest, preferences, () => broadcast(sessionId));
+        } finally {
+          await broadcast(sessionId);
+        }
+      })
+    );
+
+    // Each of these can complete what results were waiting for, which starts the scan.
+    socket.on('session:meeting-mode', (payload, ack) =>
+      respond(ack, logContext('session:meeting-mode'), async () => {
+        const sessionId = currentSession(socket);
+        const { mode } = MeetingModePayloadSchema.parse(payload);
+        try {
+          await sessions.setMeetingMode(sessionId, guest, mode, () => broadcast(sessionId));
+        } finally {
+          await broadcast(sessionId);
+        }
+      })
+    );
+
+    socket.on('session:area', (payload, ack) =>
+      respond(ack, logContext('session:area'), async () => {
+        const sessionId = currentSession(socket);
+        const { area } = AreaPayloadSchema.parse(payload);
+        try {
+          await sessions.setArea(sessionId, guest, area, () => broadcast(sessionId));
+        } finally {
+          await broadcast(sessionId);
+        }
+      })
+    );
+
+    socket.on('session:origin', (payload, ack) =>
+      respond(ack, logContext('session:origin'), async () => {
+        const sessionId = currentSession(socket);
+        const { origin } = OriginPayloadSchema.parse(payload);
+        try {
+          await sessions.setOrigin(sessionId, guest, origin, () => broadcast(sessionId));
         } finally {
           await broadcast(sessionId);
         }

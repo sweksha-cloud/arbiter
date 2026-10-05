@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { LatLngSchema, MenuItemSchema, PlaceCandidateSchema } from './place.js';
+import { MeetingModeSchema, NamedLocationSchema, PlaceQuerySchema, type MeetingMode, type NamedLocation } from './meeting.js';
+import { MenuItemSchema, PlaceCandidateSchema } from './place.js';
 import { PreferencesSchema, type Preferences } from './preferences.js';
 import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
@@ -38,8 +39,13 @@ export type CreateGuestResponse = z.infer<typeof CreateGuestResponseSchema>;
 
 export const GetPreferencesResponseSchema = z.object({ preferences: PreferencesSchema.nullable() });
 
-export const CreateSessionRequestSchema = z.object({ center: LatLngSchema });
+/** Where to search is chosen inside the session (see `meeting` in SessionView), not when starting it. */
+export const CreateSessionRequestSchema = z.object({});
 export const CreateSessionResponseSchema = z.object({ sessionId: z.string() });
+
+/** Turns typed text ("san francisco", an address) into a point. */
+export const GeocodeRequestSchema = z.object({ query: PlaceQuerySchema });
+export const GeocodeResponseSchema = z.object({ location: NamedLocationSchema.required({ label: true }) });
 
 /** A member's quick check on a session, e.g. to offer "Rejoin" on the home page. */
 export const SessionSummarySchema = z.object({
@@ -72,9 +78,35 @@ export const SuggestionViewSchema = z.object({
    * without any. `fitsYou` is a dish meeting the viewer's own goals, if any;
    * nobody else's goals are used or revealed. The full menu stays on the server.
    */
-  menuNutrition: z.object({ fitsYou: MenuItemSchema.nullable(), source: z.enum(['fatsecret', 'sample']) }).nullable()
+  menuNutrition: z.object({ fitsYou: MenuItemSchema.nullable(), source: z.enum(['fatsecret', 'sample']) }).nullable(),
+  /**
+   * The place's distances are from the viewer's own starting point (when the
+   * group meets between everyone and the viewer shared one), not from the
+   * meeting point.
+   */
+  distanceFromYou: z.boolean()
 });
 export type SuggestionView = z.infer<typeof SuggestionViewSchema>;
+
+/**
+ * Where the group is meeting. Never includes anyone else's starting point:
+ * only how many people shared one.
+ */
+export const MeetingViewSchema = z.object({
+  /** Null until the host chooses. */
+  mode: MeetingModeSchema.nullable(),
+  /** The area the host set ('area' mode). Kept when switching modes, so switching back restores it. */
+  area: NamedLocationSchema.nullable(),
+  /** The viewer's own starting point ('between' mode). */
+  myOrigin: NamedLocationSchema.nullable(),
+  /** Members who have shared a starting point, by id. Ids only, never where. */
+  sharedIds: z.array(z.string()),
+  /** Someone shared a starting point more than 30 miles from the meeting point. */
+  tooFarApart: z.boolean(),
+  /** Once results are in: what the search was near ("San Francisco, CA, USA"), or null if unnamed. */
+  searchedNear: z.string().nullable()
+});
+export type MeetingView = z.infer<typeof MeetingViewSchema>;
 
 export const SessionViewSchema = z.object({
   sessionId: z.string(),
@@ -85,6 +117,13 @@ export const SessionViewSchema = z.object({
   /** Names and submitted flags only. Preferences are never included. */
   members: z.array(SessionMemberSchema),
   suggestions: z.array(SuggestionViewSchema),
+  /**
+   * Other places that fit everyone's must-haves, ranked below the
+   * suggestions. Liking one adds it to the suggestions for everyone.
+   * Distances follow the same rule as `distanceFromYou`.
+   */
+  moreOptions: z.array(PlaceCandidateSchema),
+  meeting: MeetingViewSchema,
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
   /**
@@ -111,6 +150,9 @@ export function newerView(current: SessionView | undefined, incoming: SessionVie
 export const JoinSessionPayloadSchema = z.object({ sessionId: z.string().min(1) });
 export const SubmitPreferencesPayloadSchema = z.object({ preferences: PreferencesSchema });
 export const ReactPayloadSchema = z.object({ placeId: z.string().min(1), reaction: ReactionSchema.nullable() });
+export const MeetingModePayloadSchema = z.object({ mode: MeetingModeSchema });
+export const AreaPayloadSchema = z.object({ area: NamedLocationSchema });
+export const OriginPayloadSchema = z.object({ origin: NamedLocationSchema.nullable() });
 export const TagPayloadSchema = z.object({ placeId: z.string().min(1), tag: NutritionTagSchema, on: z.boolean() });
 
 /** Why an action failed, for clients that react differently (e.g. show a "session not found" screen). */
@@ -121,6 +163,7 @@ export type AckErrorCode =
   | 'invalid_place'
   | 'invalid_request'
   | 'quota'
+  | 'location'
   | 'rate_limited'
   | 'internal';
 
@@ -130,8 +173,15 @@ export interface ClientToServerEvents {
   'session:join': (payload: { sessionId: string }, ack: (result: Ack) => void) => void;
   /** Submits (or resubmits) the sender's preferences for this session. */
   'session:submit': (payload: { preferences: Preferences }, ack: (result: Ack) => void) => void;
+  /** Host only: how the group decides where to meet. */
+  'session:meeting-mode': (payload: { mode: MeetingMode }, ack: (result: Ack) => void) => void;
+  /** Host only: the area to search ('area' mode). */
+  'session:area': (payload: { area: NamedLocation }, ack: (result: Ack) => void) => void;
+  /** The sender's own starting point ('between' mode), or null to take it back. Private to them. */
+  'session:origin': (payload: { origin: NamedLocation | null }, ack: (result: Ack) => void) => void;
   /** Host only: show results before everyone has submitted. */
   'session:start': (ack: (result: Ack) => void) => void;
+  /** Liking one of the more options adds it to the suggestions; nothing else is allowed on them. */
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
   /** Marks (or unmarks) a suggested place as having, e.g., high-protein options. */
   'session:tag': (payload: { placeId: string; tag: NutritionTag; on: boolean }, ack: (result: Ack) => void) => void;

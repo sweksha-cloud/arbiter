@@ -1,5 +1,6 @@
 import type {
-  LatLng,
+  MeetingMode,
+  NamedLocation,
   PlaceCandidate,
   Preferences,
   ReactionsByMember,
@@ -23,11 +24,23 @@ export interface RoomState {
   /** The network scans are charged to. Memory only: IPs are never stored in the database. */
   hostIp?: string;
   status: SessionStatus;
-  center: LatLng;
+  /** How the group decides where to meet; undefined until the host chooses. */
+  meetingMode?: MeetingMode;
+  /** The area the host set, for 'area' mode. Kept if the host switches modes. */
+  area?: NamedLocation;
+  /**
+   * memberId -> where they're coming from, for 'between' mode. Never sent to
+   * anyone but its owner, never logged, never written to the database.
+   */
+  origins: Record<string, NamedLocation>;
+  /** After the scan: the name of where it searched, if known. */
+  searchedNear?: string;
   members: RoomMember[];
   /** memberId -> preferences submitted for this session. Never sent to clients. */
   submissions: Record<string, Preferences>;
   suggestions: PlaceCandidate[];
+  /** Places that also fit everyone's must-haves, ranked below the suggestions. */
+  moreOptions: PlaceCandidate[];
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;

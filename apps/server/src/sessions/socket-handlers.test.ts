@@ -56,17 +56,22 @@ describe('session over Socket.IO', () => {
   const start = (client: Client) => new Promise<Ack>((resolve) => client.emit('session:start', resolve));
   const submit = (client: Client, preferences: Preferences = { hard: {}, soft: {} }) =>
     new Promise<Ack>((resolve) => client.emit('session:submit', { preferences }, resolve));
+  const setMode = (client: Client, mode: 'area' | 'between') =>
+    new Promise<Ack>((resolve) => client.emit('session:meeting-mode', { mode }, resolve));
+  const setArea = (client: Client) => new Promise<Ack>((resolve) => client.emit('session:area', { area: { center } }, resolve));
+  const setOrigin = (client: Client, origin: { center: { lat: number; lng: number }; label?: string } | null) =>
+    new Promise<Ack>((resolve) => client.emit('session:origin', { origin }, resolve));
   const react = (client: Client, placeId: string, reaction: 'like' | 'dislike' | null) =>
     new Promise<Ack>((resolve) => client.emit('session:react', { placeId, reaction }, resolve));
 
-  async function sessionWithTwoPeople() {
+  async function sessionWithTwoPeople({ area = true } = {}) {
     const host = await createGuest('Host');
     const friend = await createGuest('Friend');
     const created = await app.http.inject({
       method: 'POST',
       url: '/api/sessions',
       headers: { authorization: `Bearer ${host.token}` },
-      payload: { center }
+      payload: {}
     });
     const { sessionId } = created.json<{ sessionId: string }>();
 
@@ -76,6 +81,10 @@ describe('session over Socket.IO', () => {
     const hostSeesFriend = nextState(hostClient, (v) => v.members.length === 2);
     expect(await join(friendClient, sessionId)).toEqual({ ok: true });
     await hostSeesFriend;
+    if (area) {
+      expect(await setMode(hostClient, 'area')).toEqual({ ok: true });
+      expect(await setArea(hostClient)).toEqual({ ok: true });
+    }
     return { sessionId, host, friend, hostClient, friendClient };
   }
 
@@ -128,6 +137,36 @@ describe('session over Socket.IO', () => {
     first.disconnect();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(await opened(connectClient(guest.token))).toBe('connected');
+  });
+
+  it('meets between everyone: starting points stay private, and results wait for them', async () => {
+    const { hostClient, friendClient } = await sessionWithTwoPeople({ area: false });
+    expect(await setMode(friendClient, 'between')).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(await setMode(hostClient, 'between')).toEqual({ ok: true });
+
+    const hostSees = nextState(hostClient, (v) => v.meeting.sharedIds.length === 1);
+    expect(await setOrigin(friendClient, { center: { lat: 37.77, lng: -122.42 }, label: 'San Francisco' })).toEqual({ ok: true });
+    const hostView = await hostSees;
+    // The host knows the friend shared, never where from.
+    expect(hostView.meeting.myOrigin).toBeNull();
+    expect(JSON.stringify(hostView)).not.toContain('San Francisco');
+
+    const bothSubmitted = nextState(hostClient, (v) => v.members.every((m) => m.submitted));
+    expect(await submit(hostClient)).toEqual({ ok: true });
+    expect(await submit(friendClient)).toEqual({ ok: true });
+    // Everyone submitted, but the host hasn't shared a starting point yet.
+    expect((await bothSubmitted).status).toBe('lobby');
+
+    const results = nextState(friendClient, (v) => v.status === 'voting');
+    expect(await setOrigin(hostClient, { center })).toEqual({ ok: true });
+    const view = await results;
+    expect(view.meeting.myOrigin?.label).toBe('San Francisco');
+    expect(view.suggestions[0]?.distanceFromYou).toBe(true);
+  });
+
+  it('tells the host what is missing instead of searching nowhere', async () => {
+    const { hostClient } = await sessionWithTwoPeople({ area: false });
+    expect(await start(hostClient)).toMatchObject({ ok: false, code: 'location', error: 'The host needs to choose where to meet first.' });
   });
 
   it('shares nutrition marks live: everyone sees the count, only you see your own', async () => {

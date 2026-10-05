@@ -1,4 +1,5 @@
-import type { PlaceCandidate, PricePerPerson } from './place.js';
+import { distanceMeters } from './geo.js';
+import type { LatLng, PlaceCandidate, PricePerPerson } from './place.js';
 import type { GroupConstraints } from './preferences.js';
 
 export type MissingDataAction = 'keep' | 'eliminate';
@@ -52,11 +53,28 @@ export function fitsBudget(price: PricePerPerson, maxPerPerson: number): boolean
   return price.min < maxPerPerson;
 }
 
+/**
+ * One person's "farthest I'll go", measured from where they start. When
+ * everyone searches from one area, every limit starts there; when the group
+ * meets between everyone, each limit starts at that person's own location.
+ */
+export interface DistanceLimit {
+  from: LatLng;
+  maxMeters: number;
+}
+
+/** A place within every person's distance limit. */
+export function withinReach(place: PlaceCandidate, limits: readonly DistanceLimit[]): boolean {
+  return limits.every((limit) => distanceMeters(limit.from, place.location) <= limit.maxMeters);
+}
+
 export function eliminate(
   places: PlaceCandidate[],
   group: GroupConstraints,
-  policy: MissingDataPolicy
+  policy: MissingDataPolicy,
+  /** Per-person distance limits, checked on top of `group.maxDistanceMeters`. */
+  limits: readonly DistanceLimit[] = []
 ): EliminationResult {
-  const kept = places.filter((place) => passes(place, group, policy));
+  const kept = places.filter((place) => passes(place, group, policy) && withinReach(place, limits));
   return { kept, eliminatedCount: places.length - kept.length };
 }

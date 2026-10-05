@@ -36,7 +36,7 @@ export default function HomePage() {
             <button className="button primary" onClick={start} disabled={busy}>
               {busy ? 'Starting…' : 'Start a session'}
             </button>
-            <p className="muted small">Uses your location as the meeting spot, if you allow it.</p>
+            <p className="muted small">You&apos;ll choose where to meet in the next step.</p>
             {error && <p className="error">{error}</p>}
           </section>
 

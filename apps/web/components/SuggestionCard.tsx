@@ -47,13 +47,14 @@ export function SuggestionCard({
   onReact: (reaction: Reaction | null) => void;
   onTag: (tag: NutritionTag, on: boolean) => void;
 }) {
-  const { place, likes, dislikes, myReaction, tags, menuNutrition } = suggestion;
+  const { place, likes, dislikes, myReaction, tags, menuNutrition, distanceFromYou } = suggestion;
+  const distance = (meters: number) => `${formatDistance(meters)}${distanceFromYou ? ' from you' : ''}`;
   const anyMarks = tags.some((t) => t.count > 0);
   const total = likes + dislikes;
   const likeShare = total === 0 ? 50 : (likes / total) * 100;
   const details = [
     openLabel(place.openNow),
-    formatDistance(place.distanceMeters),
+    distance(place.distanceMeters),
     formatPrice(place.pricePerPerson, place.priceLevel),
     place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`
   ].filter(Boolean);
@@ -112,7 +113,7 @@ export function SuggestionCard({
             {place.otherLocations.map((branch) => (
               <li key={branch.id} className="stack tight">
                 <span>
-                  {[formatDistance(branch.distanceMeters), openLabel(branch.openNow), branch.rating === undefined ? undefined : `★ ${branch.rating.toFixed(1)}`]
+                  {[distance(branch.distanceMeters), openLabel(branch.openNow), branch.rating === undefined ? undefined : `★ ${branch.rating.toFixed(1)}`]
                     .filter(Boolean)
                     .join(' · ')}{' '}
                   · <a href={directionsUrl(branch, source)} target="_blank" rel="noreferrer">Directions</a>

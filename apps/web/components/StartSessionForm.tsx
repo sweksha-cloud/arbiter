@@ -49,7 +49,7 @@ export function StartSessionForm({ onStart }: { onStart: (token: string) => void
       <button className="button primary" disabled={busy}>
         {busy ? 'Starting…' : 'Start a session'}
       </button>
-      <p className="muted small">Uses your location as the meeting spot, if you allow it.</p>
+      <p className="muted small">You&apos;ll choose where to meet in the next step.</p>
       {error && <p className="error">{error}</p>}
       <p className="muted small">
         Have an account? <Link href="/login">Log in</Link>

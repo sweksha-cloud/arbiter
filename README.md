@@ -127,7 +127,7 @@ If someone never submits, the host can tap **Show results now**; that person's m
 3. Create `apps/web/.env.local` with `NEXT_PUBLIC_SERVER_URL=http://192.168.1.20:4000`.
 4. Restart `pnpm dev:server` and `pnpm dev:web`, then open `http://192.168.1.20:3000` on your phone.
 
-Phones won't share location over plain `http`, so sessions started from a phone use a default spot in San Jose. With sample data that doesn't matter.
+Phones won't share location over plain `http`, so on a phone type a place instead of "Use my current location". Without a Google key, typed places get made-up sample points near San Jose (labelled "(sample)").
 
 ### Stop
 
@@ -184,13 +184,14 @@ pnpm test:e2e                                                                   
 
 ## How a session works
 
-1. The host enters a name and taps Start a session; it's created with their location as the center and a 6-letter code. A blank name starts nothing.
-2. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
-3. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
-4. When everyone has submitted (at least 2 people), or the host taps **Show results now**, the server:
+1. The host enters a name and taps Start a session; it gets a 6-letter code. A blank name starts nothing.
+2. **Where to meet:** the host chooses "We already know the area" (sets it with their current location or a typed place) or "Find a spot between us" (everyone privately shares where they're coming from; the search centres on the average, and refuses if someone would come more than 30 miles). Typed places use Google's Geocoding API.
+3. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
+4. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
+5. When everyone has submitted (at least 2 people) and the location is ready, or the host taps **Show results now**, the server:
    - scans once (Google Places with an API key, sample data without),
    - combines everyone's must-haves so the strictest wins (for example, the lowest budget),
-   - removes places that fail any of them,
-   - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines and kinds of place, fast food, vegan options, and nutrition goals for chains with published menus), then rating, then distance, and keeps the top 3, with several branches of one chain sharing a card.
-5. Reactions go to the server. The server checks them, then sends each person their own view: totals for everyone, plus that person's own reaction. Nobody's preferences are ever sent to anyone.
-6. Each state change has a version number, so a phone ignores any update older than the one it's showing.
+   - removes places that fail any of them (each person's distance limit counts from where they start),
+   - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines and kinds of place, fast food, vegan options, and nutrition goals for chains with published menus), then rating, then distance, and keeps the top 3, with several branches of one chain sharing a card. The rest are listed under **More options**; liking one adds it to the main list for everyone.
+6. Reactions go to the server. The server checks them, then sends each person their own view: totals for everyone, plus that person's own reaction. Nobody's preferences are ever sent to anyone.
+7. Each state change has a version number, so a phone ignores any update older than the one it's showing.

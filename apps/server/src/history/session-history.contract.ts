@@ -81,6 +81,21 @@ export function describeSessionHistory(name: string, makeContext: () => HistoryT
       expect((await history.get(code))!.places.map((p) => p.placeId)).toEqual(['a', 'b']);
     });
 
+    it('adds a place liked from "more options" after the others, once, and records reactions to it', async () => {
+      const { history, host, code } = await sessionWithTwo();
+      await history.recordSuggestions(code, ['a', 'b']);
+      await history.addSuggestion(code, 'c');
+      await history.addSuggestion(code, 'c');
+      await history.recordReaction(code, host.id, 'c', 'like', 1);
+
+      const { places } = (await history.get(code))!;
+      expect(places.map(({ placeId, rank, likes }) => ({ placeId, rank, likes }))).toEqual([
+        { placeId: 'a', rank: 0, likes: 0 },
+        { placeId: 'b', rank: 1, likes: 0 },
+        { placeId: 'c', rank: 2, likes: 1 }
+      ]);
+    });
+
     it('totals reactions per place, and a changed or cleared reaction counts once', async () => {
       const { history, host, friend, code } = await sessionWithTwo();
       await history.recordSuggestions(code, ['a', 'b']);

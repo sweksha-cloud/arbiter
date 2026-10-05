@@ -12,6 +12,3 @@ export const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhos
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
 
 export const EMAIL_ENABLED = process.env.NEXT_PUBLIC_EMAIL_ENABLED !== 'false';
-
-/** Used when the browser can't share a location (denied, or not on HTTPS). */
-export const FALLBACK_CENTER = { lat: 37.3352, lng: -121.8811 };

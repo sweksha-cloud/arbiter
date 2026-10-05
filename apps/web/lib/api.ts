@@ -3,12 +3,12 @@ import {
   CreateGuestResponseSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
+  GeocodeResponseSchema,
   GetPreferencesResponseSchema,
   MeResponseSchema,
   PastSessionSchema,
   PastSessionsResponseSchema,
   SessionSummarySchema,
-  type LatLng,
   type Preferences
 } from '@arbiter/shared';
 import { z } from 'zod';
@@ -120,8 +120,10 @@ export const api = {
       throw e;
     }),
 
-  createSession: (token: string, center: LatLng) =>
-    request(CreateSessionResponseSchema, '/api/sessions', { method: 'POST', token, body: { center } }).then(
-      (r) => r.sessionId
-    )
+  createSession: (token: string) =>
+    request(CreateSessionResponseSchema, '/api/sessions', { method: 'POST', token, body: {} }).then((r) => r.sessionId),
+
+  /** Typed text ("san francisco", an address) to a point and its full name. */
+  geocode: (token: string, query: string) =>
+    request(GeocodeResponseSchema, '/api/geocode', { method: 'POST', token, body: { query } }).then((r) => r.location)
 };

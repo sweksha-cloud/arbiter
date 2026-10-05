@@ -25,6 +25,8 @@ export interface RateLimits {
    * can't use up the shared daily Google quota (SECURITY.md).
    */
   scansPerIpPerDay: number;
+  /** Typed-place lookups a day per IP: each can be a paid Google request (TRADEOFFS.md 1b). */
+  geocodesPerIpPerDay: number;
 }
 
 export const DEFAULT_RATE_LIMITS: RateLimits = {
@@ -36,7 +38,8 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
   socketEventsPer10Seconds: 30,
   socketConnectionsPerIp: 20,
   loginFailuresPerAccount: 5,
-  scansPerIpPerDay: 10
+  scansPerIpPerDay: 10,
+  geocodesPerIpPerDay: 60
 };
 
 /** Effectively off: for the E2E suite, which creates many guests from one machine in seconds. */
@@ -49,7 +52,8 @@ export const NO_RATE_LIMITS: RateLimits = {
   socketEventsPer10Seconds: 1_000_000,
   socketConnectionsPerIp: 1_000_000,
   loginFailuresPerAccount: 1_000_000,
-  scansPerIpPerDay: 1_000_000
+  scansPerIpPerDay: 1_000_000,
+  geocodesPerIpPerDay: 1_000_000
 };
 
 /** Largest REST request body. Preferences, the biggest, are about 2 KB at their limits. */

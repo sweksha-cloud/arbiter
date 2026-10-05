@@ -87,7 +87,7 @@ describe('app', () => {
       method: 'POST',
       url: '/api/sessions',
       headers: { authorization: `Bearer ${host}` },
-      payload: { center: { lat: 37.3, lng: -121.9 } }
+      payload: {}
     });
     const { sessionId } = created.json<{ sessionId: string }>();
 
@@ -104,6 +104,46 @@ describe('app', () => {
       headers: { authorization: `Bearer ${outsider}` }
     });
     expect(theirs.statusCode).toBe(404);
+  });
+
+  describe('typed places (/api/geocode)', () => {
+    const lookup = async (query: string, token?: string) =>
+      app!.http.inject({
+        method: 'POST',
+        url: '/api/geocode',
+        payload: { query },
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
+    const newToken = async () =>
+      (await app!.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: 'Sam' } })).json<{ token: string }>().token;
+
+    it('finds a typed place for signed-in people only', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent' });
+      expect((await lookup('san francisco')).statusCode).toBe(401);
+      const found = await lookup('san francisco', await newToken());
+      expect(found.statusCode).toBe(200);
+      expect(found.json()).toMatchObject({ location: { label: 'san francisco (sample)' } });
+    });
+
+    it("says so when nothing matches, and refuses text that's blank or too long", async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent', geocoder: { find: async () => undefined, nameOf: async () => undefined } });
+      const token = await newToken();
+      const missing = await lookup('qwxzzzv', token);
+      expect(missing.statusCode).toBe(404);
+      expect(missing.json()).toEqual({ error: "Couldn't find that place. Try a city, neighborhood or full address." });
+      expect((await lookup(' ', token)).statusCode).toBe(400);
+      expect((await lookup('x'.repeat(200), token)).statusCode).toBe(400);
+    });
+
+    it('limits lookups per network a day, since each can cost money', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, geocodesPerIpPerDay: 2 } });
+      const token = await newToken();
+      expect((await lookup('a place', token)).statusCode).toBe(200);
+      expect((await lookup('a place', token)).statusCode).toBe(200);
+      const refused = await lookup('a place', token);
+      expect(refused.statusCode).toBe(429);
+      expect(refused.json<{ error: string }>().error).toMatch(/^Too many place searches today\. Try again in .+, or use your current location\.$/);
+    });
   });
 
   describe('abuse limits', () => {
@@ -219,7 +259,7 @@ describe('app', () => {
     it('shows past sessions to members with an account, and to nobody else', async () => {
       app = await build();
       const host = (await post('/api/auth/signup', { ...credentials, displayName: 'Sam' })).json<{ token: string }>();
-      const { sessionId } = (await post('/api/sessions', { center: { lat: 37.33, lng: -121.88 } }, host.token)).json<{ sessionId: string }>();
+      const { sessionId } = (await post('/api/sessions', {}, host.token)).json<{ sessionId: string }>();
 
       const list = await get('/api/me/sessions', host.token);
       expect(list.statusCode).toBe(200);

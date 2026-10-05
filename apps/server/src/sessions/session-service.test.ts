@@ -1,9 +1,10 @@
-import type { Guest, PlaceCandidate, Preferences } from '@arbiter/shared';
+import { distanceMeters, meetingPoint, type Guest, type PlaceCandidate, type Preferences } from '@arbiter/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { InMemorySessionHistory, SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import { InMemoryGuestStore } from '../identity/guest-store.js';
 import { FixturePlacesProvider } from '../places/fixture-places-provider.js';
+import { SampleGeocoder, type Geocoder } from '../places/geocoder.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
@@ -30,7 +31,8 @@ async function setup(
   places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')]),
   history: SessionHistory = new InMemorySessionHistory(),
   scanBudget?: SlidingWindowLimiter,
-  menus?: MenuProvider
+  menus?: MenuProvider,
+  geocoder: Geocoder = new SampleGeocoder()
 ) {
   const guests = new InMemoryGuestStore();
   const historyErrors: { error: unknown; action: string }[] = [];
@@ -50,14 +52,23 @@ async function setup(
       }
     },
     places,
+    geocoder,
     placesSource: 'sample',
     radiusMeters: 3000,
     missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' }
   });
   const host = (await guests.create('Host')).guest;
   const friend = (await guests.create('Friend')).guest;
-  const sessionId = await service.create(host, center, '203.0.113.1');
+  const sessionId = await createInArea(service, host, '203.0.113.1');
   return { guests, history, historyErrors, logged, service, host, friend, sessionId };
+}
+
+/** A session searching around `center`, as most tests need. */
+async function createInArea(service: SessionService, host: Guest, ip: string) {
+  const sessionId = await service.create(host, ip);
+  await service.setMeetingMode(sessionId, host, 'area');
+  await service.setArea(sessionId, host, { center });
+  return sessionId;
 }
 
 /** Host and friend both in the lobby, nobody submitted yet. */
@@ -351,7 +362,7 @@ describe('SessionService', () => {
       const a = await setup(undefined, undefined, budget);
       await a.service.start(a.sessionId, a.host);
       const b = await setup(undefined, undefined, budget);
-      const otherNetwork = await b.service.create(b.host, center, '198.51.100.7');
+      const otherNetwork = await createInArea(b.service, b.host, '198.51.100.7');
       expect((await b.service.start(otherNetwork, b.host)).status).toBe('voting');
     });
 
@@ -472,6 +483,182 @@ describe('SessionService', () => {
       const lean: Preferences = { hard: {}, soft: { nutrition: { calories: { max: 700 } } } };
       expect((await scanWithChain(lean)).room.suggestions.map((p) => p.id)).toEqual(['chain-1', 'local']);
       expect((await scanWithChain(noPreferences)).room.suggestions.map((p) => p.id)).toEqual(['local', 'chain-1']);
+    });
+  });
+
+  describe('where to meet', () => {
+    const sanJose = center;
+    const sanFrancisco = { lat: 37.7749, lng: -122.4194 };
+
+    /** A fresh session where nobody has chosen where to meet yet. Host and friend are in. */
+    async function undecided(places?: PlacesProvider, geocoder?: Geocoder) {
+      const ctx = await setup(places, undefined, undefined, undefined, geocoder);
+      const sessionId = await ctx.service.create(ctx.host, '203.0.113.9');
+      await ctx.service.join(sessionId, ctx.friend);
+      return { ...ctx, sessionId };
+    }
+
+    it('says what is missing when results are asked for before the location is ready', async () => {
+      const { service, host, sessionId } = await undecided();
+      await expect(service.start(sessionId, host)).rejects.toMatchObject({ code: 'location', message: 'The host needs to choose where to meet first.' });
+      await service.setMeetingMode(sessionId, host, 'area');
+      await expect(service.start(sessionId, host)).rejects.toThrow('The host needs to set the area to search first.');
+      await service.setMeetingMode(sessionId, host, 'between');
+      await expect(service.start(sessionId, host)).rejects.toThrow("Nobody has shared where they're coming from yet.");
+      expect((await service.get(sessionId)).status).toBe('lobby');
+    });
+
+    it('lets only the host choose the mode and the area, and only before results', async () => {
+      const { service, host, friend, sessionId } = await undecided();
+      await expect(service.setMeetingMode(sessionId, friend, 'area')).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(service.setArea(sessionId, friend, { center })).rejects.toMatchObject({ code: 'forbidden' });
+      await service.setMeetingMode(sessionId, host, 'area');
+      await service.setArea(sessionId, host, { center, label: 'Downtown San Jose' });
+      await service.start(sessionId, host);
+      await expect(service.setMeetingMode(sessionId, host, 'between')).rejects.toMatchObject({ code: 'invalid_state' });
+      await expect(service.setOrigin(sessionId, friend, { center })).rejects.toMatchObject({ code: 'invalid_state' });
+    });
+
+    it('starts on its own once everyone has submitted and the area is set, whichever comes last', async () => {
+      const { service, host, friend, sessionId } = await undecided();
+      await service.submit(sessionId, host, noPreferences);
+      expect((await service.submit(sessionId, friend, noPreferences)).status).toBe('lobby');
+      await service.setMeetingMode(sessionId, host, 'area');
+      expect((await service.setArea(sessionId, host, { center })).status).toBe('voting');
+    });
+
+    it("searches around the average of everyone's starting point: two in San Jose and one in SF lands nearer San Jose", async () => {
+      const provider = new FixturePlacesProvider([place('a')]);
+      const searchNearby = vi.spyOn(provider, 'searchNearby');
+      const { guests, service, host, friend, sessionId } = await undecided(provider);
+      const third = (await guests.create('Third')).guest;
+      await service.join(sessionId, third);
+      await service.setMeetingMode(sessionId, host, 'between');
+      await service.setOrigin(sessionId, host, { center: sanJose });
+      await service.setOrigin(sessionId, friend, { center: sanJose });
+      await service.setOrigin(sessionId, third, { center: sanFrancisco, label: 'San Francisco' });
+      await service.start(sessionId, host);
+
+      const searched = searchNearby.mock.calls[0]![0].center;
+      const fromSanJose = distanceMeters(searched, sanJose);
+      const fromSanFrancisco = distanceMeters(searched, sanFrancisco);
+      expect(fromSanJose * 2).toBeCloseTo(fromSanFrancisco, -3);
+    });
+
+    it('waits for everyone to share a starting point, but the host can go without the missing ones', async () => {
+      const provider = new FixturePlacesProvider([place('a')]);
+      const searchNearby = vi.spyOn(provider, 'searchNearby');
+      const { service, host, friend, sessionId } = await undecided(provider);
+      await service.setMeetingMode(sessionId, host, 'between');
+      await service.setOrigin(sessionId, friend, { center: sanFrancisco });
+      await service.submit(sessionId, host, noPreferences);
+      expect((await service.submit(sessionId, friend, noPreferences)).status).toBe('lobby');
+
+      await service.start(sessionId, host);
+      // Only the friend shared, so the search is around them.
+      expect(searchNearby.mock.calls[0]![0].center).toEqual(sanFrancisco);
+    });
+
+    it('refuses to meet in the middle when someone would come more than 30 miles', async () => {
+      const { service, host, friend, sessionId } = await undecided();
+      await service.setMeetingMode(sessionId, host, 'between');
+      await service.setOrigin(sessionId, host, { center: sanJose });
+      await service.setOrigin(sessionId, friend, { center: { lat: 40.7128, lng: -74.006 } });
+      expect(service.view(await service.get(sessionId), host.id).meeting.tooFarApart).toBe(true);
+      await expect(service.start(sessionId, host)).rejects.toThrow(/too far apart to meet in the middle/);
+
+      // Taking a starting point back fixes it.
+      await service.setOrigin(sessionId, friend, null);
+      expect((await service.start(sessionId, host)).status).toBe('voting');
+    });
+
+    it("measures each person's distance limit from where they start", async () => {
+      const places = new FixturePlacesProvider([place('near-sj', { location: sanJose }), place('near-sf', { location: sanFrancisco })]);
+      const { service, host, friend, sessionId } = await undecided(places);
+      await service.setMeetingMode(sessionId, host, 'between');
+      await service.setOrigin(sessionId, host, { center: sanJose });
+      await service.setOrigin(sessionId, friend, { center: sanFrancisco });
+      await service.submit(sessionId, host, noPreferences);
+      const room = await service.submit(sessionId, friend, { hard: { maxDistanceMeters: 5_000 }, soft: {} });
+      expect(room.suggestions.map((p) => p.id)).toEqual(['near-sf']);
+    });
+
+    it("shows each person distances from their own start, and never anyone else's start", async () => {
+      const middle = meetingPoint([sanJose, sanFrancisco])!;
+      const places = new FixturePlacesProvider([place('middle', { location: middle })]);
+      const { service, host, friend, sessionId } = await undecided(places);
+      await service.setMeetingMode(sessionId, host, 'between');
+      await service.setOrigin(sessionId, host, { center: sanJose, label: 'Home' });
+      await service.setOrigin(sessionId, friend, { center: sanFrancisco, label: 'Work' });
+      const room = await service.start(sessionId, host);
+
+      const forFriend = service.view(room, friend.id);
+      expect(forFriend.suggestions[0]).toMatchObject({
+        distanceFromYou: true,
+        place: { distanceMeters: Math.round(distanceMeters(sanFrancisco, middle)) }
+      });
+      expect(forFriend.meeting).toMatchObject({ myOrigin: { label: 'Work' }, sharedIds: [host.id, friend.id] });
+      expect(JSON.stringify(forFriend)).not.toContain('Home');
+      expect(JSON.stringify(forFriend)).not.toContain(String(sanJose.lat));
+    });
+
+    it("names where it searched: the host's area, or the town the meeting point is in", async () => {
+      const area = await undecided();
+      await area.service.setMeetingMode(area.sessionId, area.host, 'area');
+      await area.service.setArea(area.sessionId, area.host, { center, label: 'Downtown San Jose' });
+      expect((await area.service.start(area.sessionId, area.host)).searchedNear).toBe('Downtown San Jose');
+
+      const named: Geocoder = { find: async () => undefined, nameOf: async () => 'Santa Clara, CA, USA' };
+      const between = await undecided(undefined, named);
+      await between.service.setMeetingMode(between.sessionId, between.host, 'between');
+      await between.service.setOrigin(between.sessionId, between.host, { center });
+      expect((await between.service.start(between.sessionId, between.host)).searchedNear).toBe('Santa Clara, CA, USA');
+
+      // A failed lookup still shows results, just unnamed.
+      const broken: Geocoder = { find: async () => undefined, nameOf: () => Promise.reject(new Error('down')) };
+      const unnamed = await undecided(undefined, broken);
+      await unnamed.service.setMeetingMode(unnamed.sessionId, unnamed.host, 'between');
+      await unnamed.service.setOrigin(unnamed.sessionId, unnamed.host, { center });
+      const room = await unnamed.service.start(unnamed.sessionId, unnamed.host);
+      expect(room.status).toBe('voting');
+      expect(room.searchedNear).toBeUndefined();
+    });
+  });
+
+  describe('more options', () => {
+    const fivePlaces = () =>
+      new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e'].map((id, i) => place(id, { rating: 5 - i * 0.5 })));
+
+    it('keeps the places ranked below the suggestions as more options', async () => {
+      const { service, host, sessionId } = await setup(fivePlaces());
+      const room = await service.start(sessionId, host);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+      expect(service.view(room, host.id).moreOptions.map((p) => p.id)).toEqual(['d', 'e']);
+    });
+
+    it('liking one adds it to the suggestions for everyone, and history keeps it', async () => {
+      const { history, service, host, friend, sessionId } = await lobbyOfTwo(fivePlaces());
+      await service.start(sessionId, host);
+      const room = await service.react(sessionId, friend, 'e', 'like');
+
+      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c', 'e']);
+      expect(room.moreOptions.map((p) => p.id)).toEqual(['d']);
+      expect(service.view(room, host.id).suggestions[3]).toMatchObject({ likes: 1, myReaction: null });
+      expect((await history.get(sessionId))!.places.map((p) => [p.placeId, p.likes])).toEqual([
+        ['a', 0],
+        ['b', 0],
+        ['c', 0],
+        ['e', 1]
+      ]);
+    });
+
+    it('only allows liking them, and only while voting', async () => {
+      const { service, host, sessionId } = await setup(fivePlaces());
+      await service.start(sessionId, host);
+      await expect(service.react(sessionId, host, 'd', 'dislike')).rejects.toMatchObject({ code: 'invalid_place' });
+      await expect(service.tag(sessionId, host, 'd', 'high_protein', true)).rejects.toMatchObject({ code: 'invalid_place' });
+      await service.end(sessionId, host);
+      await expect(service.react(sessionId, host, 'd', 'like')).rejects.toMatchObject({ code: 'invalid_state' });
     });
   });
 });

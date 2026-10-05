@@ -3,6 +3,7 @@ import {
   CreateGuestRequestSchema,
   CreateSessionRequestSchema,
   ForgotPasswordRequestSchema,
+  GeocodeRequestSchema,
   LoginRequestSchema,
   PreferencesSchema,
   ResetPasswordRequestSchema,
@@ -17,7 +18,9 @@ import type { z } from 'zod';
 import type { SessionHistory, SessionRecord } from './history/session-history.js';
 import { AuthError, type AccountService } from './identity/account-service.js';
 import type { GuestStore } from './identity/guest-store.js';
-import type { RateLimits } from './rate-limits.js';
+import type { Geocoder } from './places/geocoder.js';
+import { PlacesQuotaExceededError } from './places/places-provider.js';
+import { describeWait, type RateLimits, type SlidingWindowLimiter } from './rate-limits.js';
 import { SessionError, type SessionService } from './sessions/session-service.js';
 
 /** The guest and token from `Authorization: Bearer <token>`, if valid. */
@@ -61,13 +64,18 @@ export function registerRoutes(
     sessions,
     accounts,
     history,
-    rateLimits
+    rateLimits,
+    geocoder,
+    geocodeBudget
   }: {
     guests: GuestStore;
     sessions: SessionService;
     accounts: AccountService;
     history: SessionHistory;
     rateLimits: RateLimits;
+    geocoder: Geocoder;
+    /** Typed-place lookups per IP per day. */
+    geocodeBudget: SlidingWindowLimiter;
   }
 ) {
   // Tighter limits where each request creates a database row.
@@ -112,8 +120,30 @@ export function registerRoutes(
     if (!guest) return reply;
     const body = await parseBody(CreateSessionRequestSchema, request, reply);
     if (!body) return reply;
-    const sessionId = await sessions.create(guest, body.center, request.ip);
+    const sessionId = await sessions.create(guest, request.ip);
     return reply.code(201).send({ sessionId });
+  });
+
+  // Signed-in only, and limited per network: each lookup can be a paid Google request.
+  http.post('/api/geocode', async (request, reply) => {
+    const guest = await requireGuest(guests, request, reply);
+    if (!guest) return reply;
+    const body = await parseBody(GeocodeRequestSchema, request, reply);
+    if (!body) return reply;
+    const wait = geocodeBudget.take(request.ip);
+    if (wait > 0) {
+      return reply.code(429).send({ error: `Too many place searches today. Try again in ${describeWait(wait)}, or use your current location.` });
+    }
+    try {
+      const found = await geocoder.find(body.query);
+      if (!found) return reply.code(404).send({ error: "Couldn't find that place. Try a city, neighborhood or full address." });
+      return { location: found };
+    } catch (error) {
+      if (error instanceof PlacesQuotaExceededError) {
+        return reply.code(503).send({ error: "Arbiter can't look up places right now. Use your current location instead." });
+      }
+      throw error;
+    }
   });
 
   // ---- Accounts ----

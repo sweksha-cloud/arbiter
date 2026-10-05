@@ -16,6 +16,8 @@ import { io, type Socket } from 'socket.io-client';
 
 import { normalizeSessionCode } from '../../../components/JoinCodeForm';
 import { ConnectionBanner } from '../../../components/ConnectionBanner';
+import { MeetingCard, searchedNearText, type MeetingActions } from '../../../components/MeetingCard';
+import { MoreOptions } from '../../../components/MoreOptions';
 import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SaveProgress } from '../../../components/SaveProgress';
@@ -102,12 +104,25 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   };
   const socket = () => socketRef.current;
 
-  async function submitPreferences(preferences: Preferences) {
+  /** Sends an event and throws its error, for forms that show errors next to themselves. */
+  function connectedSocket(): ArbiterSocket {
     const s = socket();
     if (!s) throw new Error('Not connected yet. Try again in a moment.');
-    const ack = await s.emitWithAck('session:submit', { preferences });
-    if (!ack.ok) throw new Error(ack.error);
+    return s;
   }
+  const failOn = (ack: Ack) => {
+    if (!ack.ok) throw new Error(ack.error);
+  };
+
+  async function submitPreferences(preferences: Preferences) {
+    failOn(await connectedSocket().emitWithAck('session:submit', { preferences }));
+  }
+
+  const meetingActions: MeetingActions = {
+    setMode: async (mode) => failOn(await connectedSocket().emitWithAck('session:meeting-mode', { mode })),
+    setArea: async (area) => failOn(await connectedSocket().emitWithAck('session:area', { area })),
+    setOrigin: async (origin) => failOn(await connectedSocket().emitWithAck('session:origin', { origin }))
+  };
 
   // Also covers a session that vanished while open (e.g. the server restarted).
   if (notFound) return <SessionNotFound code={code} token={identity.token} />;
@@ -138,9 +153,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       {view.status === 'lobby' && (
         <>
           <SubmissionStatus view={view} myId={identity.guest.id} />
+          <MeetingCard view={view} myId={identity.guest.id} token={identity.token} actions={meetingActions} />
           <InviteCard sessionId={view.sessionId} />
           <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
-          {isHost && <ShowResultsNow view={view} onStart={() => socket()?.emit('session:start', handleAck)} />}
+          {isHost && (
+            <ShowResultsNow view={view} onStart={async () => failOn(await connectedSocket().emitWithAck('session:start'))} />
+          )}
         </>
       )}
 
@@ -152,7 +170,8 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
           )}
           <p className="muted small">
-            Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for someone in the group
+            {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for
+            someone in the group
           </p>
 
           {view.status === 'ended' && <SessionEnded token={identity.token} />}
@@ -189,6 +208,16 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 onTag={(tag, on) => socket()?.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck)}
               />
             ))
+          )}
+
+          {view.status === 'voting' && (
+            <MoreOptions
+              options={view.moreOptions}
+              distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
+              onLike={async (placeId) =>
+                failOn(await connectedSocket().emitWithAck('session:react', { placeId, reaction: 'like' }))
+              }
+            />
           )}
 
           {view.suggestions.length > 0 && (
@@ -337,11 +366,25 @@ function MyPreferences({
   );
 }
 
-/** Host fallback so one person who never submits can't stall the group. */
-function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => void }) {
+/** Host fallback so one person who never submits (or shares a starting point) can't stall the group. */
+function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => Promise<void> }) {
+  const [error, setError] = useState<string>();
   const submitted = view.members.filter((m) => m.submitted).length;
   if (submitted === 0) return null;
   const waitingOn = view.members.filter((m) => !m.submitted).map((m) => m.displayName);
+  const notShared =
+    view.meeting.mode === 'between'
+      ? view.members.filter((m) => !view.meeting.sharedIds.includes(m.id)).map((m) => m.displayName)
+      : [];
+
+  async function start() {
+    setError(undefined);
+    try {
+      await onStart();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong');
+    }
+  }
 
   return (
     <section className="stack tight center">
@@ -349,10 +392,13 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => v
         {waitingOn.length > 0
           ? `Still waiting on ${waitingOn.join(', ')}. Their must-haves won't count if you go now.`
           : 'Everyone here has submitted.'}
+        {notShared.length > 0 &&
+          ` ${notShared.join(', ')} ${notShared.length === 1 ? "hasn't" : "haven't"} shared where they're coming from, so the meeting spot won't count them.`}
       </p>
-      <button className="button link" onClick={onStart}>
+      <button className="button link" onClick={start}>
         Show results now
       </button>
+      {error && <p className="error">{error}</p>}
     </section>
   );
 }

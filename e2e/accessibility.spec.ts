@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { becomeGuest, expect, joinSession, test } from './helpers';
+import { becomeGuest, expect, joinSession, meetHere, test } from './helpers';
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
@@ -11,6 +11,8 @@ async function expectNoViolations(page: Page, screen: string) {
 }
 
 test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone }) => {
+  // Many full-page axe scans: Firefox already took ~26 of the default 30 s on a quiet machine (BUG-021).
+  test.slow();
   const host = await newPhone();
 
   await host.goto('/');
@@ -37,6 +39,8 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await host.goto('/');
   await host.getByRole('button', { name: 'Start a session' }).click();
   await expect(host.getByText('Invite your friends')).toBeVisible();
+  await expectNoViolations(host, 'the lobby before choosing where to meet');
+  await meetHere(host);
   const invite = await host.getByLabel('Invite link').inputValue();
   await expectNoViolations(host, 'the session lobby');
 
@@ -76,6 +80,8 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
 });
 
 test('the account pages pass automated WCAG 2.1 AA checks', async ({ newPhone }) => {
+  // Many full-page axe scans: Firefox already took ~26 of the default 30 s on a quiet machine (BUG-021).
+  test.slow();
   const phone = await newPhone();
   for (const [url, heading] of [
     ['/login', 'Log in'],

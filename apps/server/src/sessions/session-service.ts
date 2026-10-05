@@ -2,18 +2,27 @@ import { randomInt } from 'node:crypto';
 
 import {
   combineHardConstraints,
+  DEFAULT_SUGGESTION_COUNT,
+  distanceMeters,
   eliminate,
   fittingItem,
+  MAX_DISTANCE_METERS,
+  meetingPoint,
   rankSuggestions,
   setReaction,
   setTag,
   tallyReactions,
   tallyTags,
+  tooFarApart,
   NUTRITION_TAGS,
+  type DistanceLimit,
   type Guest,
   type LatLng,
+  type MeetingMode,
   type MissingDataPolicy,
+  type NamedLocation,
   type NutritionTag,
+  type PlaceCandidate,
   type Preferences,
   type Reaction,
   type SessionView
@@ -23,6 +32,7 @@ import { SessionCodeTakenError, type SessionHistory } from '../history/session-h
 import type { GuestStore } from '../identity/guest-store.js';
 import { addMenus } from '../nutrition/enrich.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
+import type { Geocoder } from '../places/geocoder.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
@@ -33,7 +43,7 @@ export interface SessionLog {
   error(details: object, message: string): void;
 }
 
-export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place' | 'quota';
+export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place' | 'quota' | 'location';
 
 /** An action the caller isn't allowed to take. Its message is safe to show users. */
 export class SessionError extends Error {
@@ -62,6 +72,8 @@ export interface SessionServiceOptions {
    */
   scanBudget?: SlidingWindowLimiter;
   places: PlacesProvider;
+  /** Names the meeting point when the group meets between everyone. */
+  geocoder: Geocoder;
   /** Chains' published menus (fatsecret). Without it, nutrition goals have no data to act on. */
   menus?: MenuProvider;
   placesSource: SessionView['placesSource'];
@@ -89,6 +101,79 @@ export function everyoneSubmitted(room: RoomState): boolean {
   return room.members.length >= MIN_MEMBERS_FOR_AUTO_START && room.members.every((m) => m.submitted);
 }
 
+/** The starting points of current members, for 'between' mode. */
+function memberOrigins(room: RoomState): NamedLocation[] {
+  return room.members.flatMap((m) => room.origins[m.id] ?? []);
+}
+
+/**
+ * Why the search can't run yet, as a message for people, or undefined if it
+ * knows where to search. With 'between', people who haven't shared a
+ * starting point are left out of the meeting point.
+ */
+export function locationProblem(room: RoomState): string | undefined {
+  if (!room.meetingMode) return 'The host needs to choose where to meet first.';
+  if (room.meetingMode === 'area') return room.area ? undefined : 'The host needs to set the area to search first.';
+  const origins = memberOrigins(room).map((o) => o.center);
+  if (origins.length === 0) return "Nobody has shared where they're coming from yet.";
+  if (tooFarApart(origins)) {
+    return 'You\'re too far apart to meet in the middle: someone is more than 30 miles from it. The host can choose "We already know the area" instead.';
+  }
+  return undefined;
+}
+
+/**
+ * Results start on their own once everyone has submitted and the search
+ * location is ready. In 'between' mode that also waits for everyone's
+ * starting point; the host's "Show results now" goes without the missing ones.
+ */
+export function readyForAutoStart(room: RoomState): boolean {
+  if (!everyoneSubmitted(room) || locationProblem(room)) return false;
+  return room.meetingMode !== 'between' || room.members.every((m) => room.origins[m.id]);
+}
+
+interface SearchPlan {
+  center: LatLng;
+  radiusMeters: number;
+  limits: DistanceLimit[];
+}
+
+/**
+ * Where to search and how far, from the meeting choice and everyone's
+ * distance limits. Each person's limit starts where they do: the area in
+ * 'area' mode, their own starting point in 'between' mode (the meeting point
+ * if they didn't share one). The search only covers what everyone can reach.
+ */
+export function searchPlan(room: RoomState, defaultRadiusMeters: number): SearchPlan {
+  const area = room.meetingMode === 'area' ? room.area?.center : undefined;
+  const center = area ?? meetingPoint(memberOrigins(room).map((o) => o.center));
+  if (!center) throw new SessionError('invalid_state', locationProblem(room) ?? 'Choose where to meet first.');
+
+  const limits: DistanceLimit[] = [];
+  for (const [memberId, preferences] of Object.entries(room.submissions)) {
+    const maxMeters = preferences.hard.maxDistanceMeters;
+    if (maxMeters === undefined) continue;
+    const from = (room.meetingMode === 'between' && room.origins[memberId]?.center) || center;
+    limits.push({ from, maxMeters });
+  }
+  // A place this person can reach is at most this far from the center.
+  const reach = limits.map((l) => distanceMeters(l.from, center) + l.maxMeters);
+  const radiusMeters = reach.length === 0 ? defaultRadiusMeters : Math.ceil(Math.min(...reach));
+  return { center, radiusMeters: Math.min(radiusMeters, MAX_DISTANCE_METERS), limits };
+}
+
+/** The same place with distances measured from `from` (its branches too). */
+function measuredFrom(place: PlaceCandidate, from: LatLng): PlaceCandidate {
+  const distance = (to: LatLng) => Math.round(distanceMeters(from, to));
+  return {
+    ...place,
+    distanceMeters: distance(place.location),
+    ...(place.otherLocations && {
+      otherLocations: place.otherLocations.map((b) => ({ ...b, distanceMeters: distance(b.location) }))
+    })
+  };
+}
+
 /**
  * All session rules live here, on the server. Clients only send requests; this
  * decides whether they are allowed and what the new state is.
@@ -99,7 +184,7 @@ export class SessionService {
   constructor(private readonly options: SessionServiceOptions) {}
 
   /** `hostIp` is the network scans are charged to (see scanBudget); it stays in memory only. */
-  async create(host: Guest, center: LatLng, hostIp?: string): Promise<string> {
+  async create(host: Guest, hostIp?: string): Promise<string> {
     for (;;) {
       const sessionId = newSessionCode();
       try {
@@ -111,10 +196,11 @@ export class SessionService {
           hostId: host.id,
           hostIp,
           status: 'lobby',
-          center,
+          origins: {},
           members: [{ ...host, submitted: false }],
           submissions: {},
           suggestions: [],
+          moreOptions: [],
           reactions: {},
           tags: {},
           scannedCount: 0,
@@ -154,7 +240,8 @@ export class SessionService {
   /**
    * Records a member's preferences for this session (resubmitting replaces
    * them). Also saves them as the member's latest preferences, to prefill next
-   * time. When this completes the group, the scan starts automatically.
+   * time. When this completes the group (and the search location is ready),
+   * the scan starts automatically.
    */
   async submit(
     sessionId: string,
@@ -176,15 +263,40 @@ export class SessionService {
       };
     });
     await this.options.guests.setPreferences(guest.id, preferences);
+    return this.autoStart(room, onScanStarted);
+  }
 
-    if (!everyoneSubmitted(room)) return room;
-    try {
-      return await this.scan(sessionId, onScanStarted);
-    } catch (error) {
-      // Two last submissions at the same moment: the other one started the scan.
-      if (error instanceof SessionError && error.code === 'invalid_state') return this.get(sessionId);
-      throw error;
-    }
+  /** Host only: how the group decides where to meet. Lobby only. */
+  async setMeetingMode(sessionId: string, guest: Guest, mode: MeetingMode, onScanStarted?: () => Promise<void>) {
+    const room = await this.update(sessionId, (current) => {
+      this.requireHost(current, guest);
+      this.requireLobby(current);
+      return { ...current, meetingMode: mode };
+    });
+    return this.autoStart(room, onScanStarted);
+  }
+
+  /** Host only: the area to search, for 'area' mode. Lobby only. */
+  async setArea(sessionId: string, guest: Guest, area: NamedLocation, onScanStarted?: () => Promise<void>) {
+    const room = await this.update(sessionId, (current) => {
+      this.requireHost(current, guest);
+      this.requireLobby(current);
+      return { ...current, area };
+    });
+    return this.autoStart(room, onScanStarted);
+  }
+
+  /** Where this member is coming from ('between' mode), or null to take it back. Lobby only. */
+  async setOrigin(sessionId: string, guest: Guest, origin: NamedLocation | null, onScanStarted?: () => Promise<void>) {
+    const room = await this.update(sessionId, (current) => {
+      if (!current.members.some((m) => m.id === guest.id)) {
+        throw new SessionError('forbidden', 'Join the session first');
+      }
+      this.requireLobby(current);
+      const { [guest.id]: _previous, ...others } = current.origins;
+      return { ...current, origins: origin ? { ...others, [guest.id]: origin } : others };
+    });
+    return this.autoStart(room, onScanStarted);
   }
 
   /** Host only: show results now, without waiting for everyone to submit. */
@@ -194,11 +306,31 @@ export class SessionService {
     return this.scan(sessionId, onScanStarted);
   }
 
+  /**
+   * Likes, dislikes or (with null) clears a reaction to a suggestion. Liking
+   * one of the more options moves it into the suggestions for everyone;
+   * that's the only reaction allowed on them.
+   */
   async react(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
+    let added = false;
     const updated = await this.update(sessionId, (room) => {
-      this.checkCanActOnPlace(room, guest, placeId);
-      return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
+      added = false;
+      const more = room.moreOptions.find((p) => p.id === placeId);
+      if (!more) {
+        this.checkCanActOnPlace(room, guest, placeId);
+        return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
+      }
+      this.checkCanActOnPlace(room, guest, placeId, { includeMore: true });
+      if (reaction !== 'like') throw new SessionError('invalid_place', 'Like a place to add it to the list');
+      added = true;
+      return {
+        ...room,
+        suggestions: [...room.suggestions, more],
+        moreOptions: room.moreOptions.filter((p) => p.id !== placeId),
+        reactions: setReaction(room.reactions, guest.id, placeId, reaction)
+      };
     });
+    if (added) await this.record(sessionId, 'add', () => this.options.history.addSuggestion(sessionId, placeId));
     await this.record(sessionId, 'react', () =>
       this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
     );
@@ -243,6 +375,11 @@ export class SessionService {
     );
     const myTags = room.tags[viewerId] ?? {};
     const myGoals = room.submissions[viewerId]?.soft.nutrition;
+    const myOrigin = room.origins[viewerId];
+    // Meeting between everyone, distances mean most from where you start.
+    const fromYou = room.meetingMode === 'between' && myOrigin !== undefined;
+    const forViewer = (place: PlaceCandidate) => (fromYou ? measuredFrom(place, myOrigin.center) : place);
+    const origins = memberOrigins(room).map((o) => o.center);
     return {
       sessionId: room.sessionId,
       version: room.version,
@@ -250,7 +387,7 @@ export class SessionService {
       hostId: room.hostId,
       members: room.members.map((m) => ({ ...m, online: onlineIds.has(m.id) })),
       suggestions: room.suggestions.map(({ menu, ...place }) => ({
-        place,
+        place: forViewer(place),
         likes: tally[place.id]?.likes ?? 0,
         dislikes: tally[place.id]?.dislikes ?? 0,
         myReaction: mine[place.id] ?? null,
@@ -262,8 +399,18 @@ export class SessionService {
         menuNutrition:
           menu && this.options.menus
             ? { fitsYou: fittingItem({ ...place, menu }, myGoals) ?? null, source: this.options.menus.source }
-            : null
+            : null,
+        distanceFromYou: fromYou
       })),
+      moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
+      meeting: {
+        mode: room.meetingMode ?? null,
+        area: room.area ?? null,
+        myOrigin: myOrigin ?? null,
+        sharedIds: room.members.filter((m) => room.origins[m.id]).map((m) => m.id),
+        tooFarApart: room.meetingMode === 'between' && tooFarApart(origins),
+        searchedNear: room.searchedNear ?? null
+      },
       scannedCount: room.scannedCount,
       eliminatedCount: room.eliminatedCount,
       allergyReminder: Object.values(room.submissions).some((p) => (p.allergies?.length ?? 0) > 0),
@@ -279,6 +426,8 @@ export class SessionService {
   private async scan(sessionId: string, onScanStarted?: () => Promise<void>): Promise<RoomState> {
     const room = await this.update(sessionId, (current) => {
       if (current.status !== 'lobby') throw new SessionError('invalid_state', 'This session has already started');
+      const problem = locationProblem(current);
+      if (problem) throw new SessionError('location', problem);
       return { ...current, status: 'scanning' };
     });
     // Charged only once this request has won the move to 'scanning', so a
@@ -297,27 +446,35 @@ export class SessionService {
 
     try {
       const preferences = Object.values(room.submissions);
-      const group = combineHardConstraints(preferences);
+      // Distance is checked per person by `limits`, from where each one starts.
+      const group = { ...combineHardConstraints(preferences), maxDistanceMeters: undefined };
       // Search exactly as far as the group will go, so a far limit finds far
       // places and a close one spends the scan's results on nearby places.
-      const scanned = await this.options.places.searchNearby({
-        center: room.center,
-        radiusMeters: group.maxDistanceMeters ?? this.options.radiusMeters
-      });
-      const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy);
+      const { center, radiusMeters, limits } = searchPlan(room, this.options.radiusMeters);
+      const [scanned, searchedNear] = await Promise.all([
+        this.options.places.searchNearby({ center, radiusMeters }),
+        this.nameSearchArea(room, center)
+      ]);
+      const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy, limits);
       // Nutrition only adds to places that already fit everyone's must-haves.
       const withMenus = await addMenus(kept, this.options.menus);
-      const suggestions = rankSuggestions(withMenus, preferences);
+      const ranked = rankSuggestions(withMenus, preferences, Number.POSITIVE_INFINITY);
+      const suggestions = ranked.slice(0, DEFAULT_SUGGESTION_COUNT);
+      const moreOptions = ranked.slice(DEFAULT_SUGGESTION_COUNT);
 
       this.options.log?.info(
         {
           sessionId,
           members: room.members.length,
           submitted: preferences.length,
-          radiusMeters: group.maxDistanceMeters ?? this.options.radiusMeters,
+          // Counts only: never where anyone is.
+          meetingMode: room.meetingMode,
+          origins: memberOrigins(room).length,
+          radiusMeters,
           scanned: scanned.length,
           eliminated: eliminatedCount,
           suggested: suggestions.length,
+          moreOptions: moreOptions.length,
           withMenus: withMenus.filter((p) => p.menu).length,
           placesSource: this.options.placesSource,
           durationMs: Math.round(performance.now() - startedAt)
@@ -328,6 +485,8 @@ export class SessionService {
         ...current,
         status: 'voting',
         suggestions,
+        moreOptions,
+        ...(searchedNear !== undefined && { searchedNear }),
         scannedCount: scanned.length,
         eliminatedCount
       }));
@@ -345,6 +504,32 @@ export class SessionService {
       );
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
+    }
+  }
+
+  /** Starts the scan if this change made the session ready; otherwise returns it as is. */
+  private async autoStart(room: RoomState, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+    if (!readyForAutoStart(room)) return room;
+    try {
+      return await this.scan(room.sessionId, onScanStarted);
+    } catch (error) {
+      // Two last changes at the same moment: the other one started the scan.
+      if (error instanceof SessionError && error.code === 'invalid_state') return this.get(room.sessionId);
+      throw error;
+    }
+  }
+
+  /**
+   * What to call the searched area: the host's label, or the town the
+   * meeting point is in. A failed lookup just leaves it unnamed.
+   */
+  private async nameSearchArea(room: RoomState, center: LatLng): Promise<string | undefined> {
+    if (room.meetingMode === 'area') return room.area?.label;
+    try {
+      return await this.options.geocoder.nameOf(center);
+    } catch (error) {
+      this.options.log?.error({ err: error, sessionId: room.sessionId }, 'Could not name the meeting point');
+      return undefined;
     }
   }
 
@@ -370,15 +555,23 @@ export class SessionService {
     }
   }
 
-  /** Reacting and marking: members only, while voting is open, on places that were suggested. */
-  private checkCanActOnPlace(room: RoomState, guest: Guest, placeId: string) {
+  /**
+   * Reacting and marking: members only, while voting is open, on places that
+   * were suggested (or, with includeMore, are among the more options).
+   */
+  private checkCanActOnPlace(room: RoomState, guest: Guest, placeId: string, { includeMore = false } = {}) {
     if (!room.members.some((m) => m.id === guest.id)) {
       throw new SessionError('forbidden', 'Join the session before reacting');
     }
     if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
-    if (!room.suggestions.some((p) => p.id === placeId)) {
+    const known = room.suggestions.some((p) => p.id === placeId) || (includeMore && room.moreOptions.some((p) => p.id === placeId));
+    if (!known) {
       throw new SessionError('invalid_place', 'That place is not one of the suggestions');
     }
+  }
+
+  private requireLobby(room: RoomState) {
+    if (room.status !== 'lobby') throw new SessionError('invalid_state', 'Results are already in; where to meet is set');
   }
 
   private requireHost(room: RoomState, guest: Guest) {

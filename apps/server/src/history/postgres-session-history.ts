@@ -46,6 +46,21 @@ export class PostgresSessionHistory implements SessionHistory {
     });
   }
 
+  async addSuggestion(sessionId: string, placeId: string) {
+    await this.db.transaction(async (tx) => {
+      // Lock the session so two additions can't take the same rank.
+      await tx.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).for('update');
+      const [last] = await tx
+        .select({ rank: sql<number>`max(${sessionPlaces.rank})` })
+        .from(sessionPlaces)
+        .where(eq(sessionPlaces.sessionId, sessionId));
+      await tx
+        .insert(sessionPlaces)
+        .values({ sessionId, placeId, rank: (last?.rank ?? -1) + 1 })
+        .onConflictDoNothing();
+    });
+  }
+
   async recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number) {
     await this.db
       .insert(reactions)

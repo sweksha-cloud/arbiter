@@ -80,10 +80,25 @@ export async function startAs(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Start a session' }).click();
 }
 
-/** Opens the home page as a new guest and starts a session. Returns its invite link and code. */
-export async function hostSession(page: Page, name: string): Promise<{ invite: string; code: string }> {
+/** As the host: "We already know the area", searching near this phone's location. */
+export async function meetHere(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'We already know the area' }).click();
+  await page.getByRole('button', { name: /Use my current location/ }).click();
+  await expect(page.getByText('📍 Your current location')).toBeVisible();
+}
+
+/**
+ * Opens the home page as a new guest and starts a session searching near
+ * this phone (unless `meeting: false`). Returns its invite link and code.
+ */
+export async function hostSession(
+  page: Page,
+  name: string,
+  { meeting = true }: { meeting?: boolean } = {}
+): Promise<{ invite: string; code: string }> {
   await startAs(page, name);
   await expect(page.getByText('Invite your friends')).toBeVisible();
+  if (meeting) await meetHere(page);
   const invite = await page.getByLabel('Invite link').inputValue();
   const code = invite.split('/s/')[1] ?? '';
   expect(code).toMatch(/^[A-Z0-9]{6}$/);

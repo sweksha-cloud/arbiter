@@ -8,6 +8,7 @@ import { PostgresSessionHistory } from './history/postgres-session-history.js';
 import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 import { LogMailer, OutboxMailer, UnconfiguredMailer, type Mailer } from './identity/mailer.js';
 import { FatSecretMenuProvider } from './nutrition/fatsecret-menus.js';
+import { GoogleGeocoder } from './places/geocoder.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
 import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
 
@@ -44,7 +45,12 @@ const { http } = await buildApp({
       }
     : {}),
   ...(config.GOOGLE_PLACES_API_KEY
-    ? { places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }), placesSource: 'google' as const }
+    ? {
+        places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }),
+        // Same key; the Geocoding API must also be enabled for it in Google Cloud.
+        geocoder: new GoogleGeocoder({ apiKey: config.GOOGLE_PLACES_API_KEY }),
+        placesSource: 'google' as const
+      }
     : {})
 });
 http.log.info(

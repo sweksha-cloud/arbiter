@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { eliminate, type MissingDataPolicy } from './elimination.js';
+import { eliminate, withinReach, type MissingDataPolicy } from './elimination.js';
 import { combineHardConstraints } from './preferences.js';
 import { makePlace } from './test-helpers.js';
 
@@ -105,6 +105,23 @@ describe('eliminate', () => {
 
     it('ignores missing data for constraints nobody set', () => {
       expect(eliminate([unknown], combineHardConstraints([]), eliminateMissing).kept).toHaveLength(1);
+    });
+  });
+});
+
+describe('withinReach (per-person distance limits)', () => {
+  const at = (lat: number, lng: number) => ({ lat, lng });
+  const candidate = { id: 'p', name: 'P', location: at(37.5, -122), distanceMeters: 0, cuisines: [] };
+
+  it("keeps a place only if it's within every person's limit from where they start", () => {
+    const near = { from: at(37.5, -122.01), maxMeters: 2_000 };
+    const far = { from: at(37.0, -122), maxMeters: 2_000 };
+    expect(withinReach(candidate, [])).toBe(true);
+    expect(withinReach(candidate, [near])).toBe(true);
+    expect(withinReach(candidate, [near, far])).toBe(false);
+    expect(eliminate([candidate], { vegetarian: false }, { price: 'keep', servesVegetarian: 'keep' }, [near, far])).toEqual({
+      kept: [],
+      eliminatedCount: 1
     });
   });
 });

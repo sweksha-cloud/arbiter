@@ -56,8 +56,10 @@ export default function PrivacyPage() {
       <h3>Sessions</h3>
       <ul>
         <li>
-          <strong>Your location</strong>, if you allow it, is used to search near you. It&apos;s kept in the
-          server&apos;s memory for that session only and <strong>never saved</strong>.
+          <strong>Your location</strong>, if you share it (your device&apos;s location or a place you type), is used only
+          to decide where the group searches. When the group meets between everyone, nobody else in the group sees
+          where you&apos;re coming from; they only see that you shared. It&apos;s kept in the server&apos;s memory for
+          that session only and <strong>never saved</strong>.
         </li>
         <li>
           <strong>The session record</strong>: its code, who joined, which places were suggested (stored only as
@@ -86,8 +88,9 @@ export default function PrivacyPage() {
       <h2>Who your information is shared with</h2>
       <ul>
         <li>
-          <strong>Google Maps Platform</strong> (Places API) receives the location of each search, to find nearby
-          places. It doesn&apos;t receive your name, email or preferences. Use of Google Maps features is subject to
+          <strong>Google Maps Platform</strong> (Places API and Geocoding API) receives the location of each search, to
+          find nearby places; any place you type, to find it on the map; and, when the group meets between everyone,
+          the meeting point, to name the town it&apos;s in. It doesn&apos;t receive your name, email or preferences. Use of Google Maps features is subject to
           the{' '}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">
             Google Privacy Policy

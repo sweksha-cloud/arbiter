@@ -42,6 +42,8 @@ export interface SessionHistory {
   addMember(sessionId: string, member: Guest): Promise<void>;
   /** The suggestions, best first. A session is scanned once, so later calls change nothing. */
   recordSuggestions(sessionId: string, placeIds: readonly string[]): Promise<void>;
+  /** Adds one place after the others (liked from "more options"). Adding it twice changes nothing. */
+  addSuggestion(sessionId: string, placeId: string): Promise<void>;
   /**
    * Sets or (with null) clears a reaction. `version` is the room version the
    * change produced: writes can land out of order, and an older one never
@@ -103,6 +105,11 @@ export class InMemorySessionHistory implements SessionHistory {
   async recordSuggestions(sessionId: string, placeIds: readonly string[]) {
     const record = this.require(sessionId);
     if (record.placeIds.length === 0) record.placeIds = [...placeIds];
+  }
+
+  async addSuggestion(sessionId: string, placeId: string) {
+    const record = this.require(sessionId);
+    if (!record.placeIds.includes(placeId)) record.placeIds.push(placeId);
   }
 
   async recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number) {

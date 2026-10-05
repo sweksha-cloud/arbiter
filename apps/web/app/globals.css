@@ -705,3 +705,24 @@ details.collapsible:not([open]) {
 .hero .privacy-note {
   margin-top: 8px;
 }
+
+/* More options: a compact list under the suggestions. */
+.more-options summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.more-list p {
+  margin: 2px 0 0;
+}

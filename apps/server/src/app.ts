@@ -13,6 +13,7 @@ import type { ScryptParams } from './identity/passwords.js';
 import type { MenuProvider } from './nutrition/fatsecret-menus.js';
 import { SampleMenuProvider } from './nutrition/sample-menus.js';
 import { DemoPlacesProvider } from './places/demo-places-provider.js';
+import { SampleGeocoder, type Geocoder } from './places/geocoder.js';
 import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
 import type { RoomStore } from './rooms/room-store.js';
@@ -29,6 +30,8 @@ export interface AppOptions {
   history?: SessionHistory;
   rooms?: RoomStore;
   places?: PlacesProvider;
+  /** Typed places and naming the meeting point. Defaults to made-up sample answers. */
+  geocoder?: Geocoder;
   /** Tells clients whether places are real. Defaults to 'sample' (the demo provider). */
   placesSource?: SessionView['placesSource'];
   rateLimits?: RateLimits;
@@ -101,6 +104,7 @@ export async function buildApp({
   const guests = deps.guests ?? new InMemoryGuestStore();
   const history = deps.history ?? new InMemorySessionHistory();
   const placesSource = deps.placesSource ?? 'sample';
+  const geocoder = deps.geocoder ?? new SampleGeocoder();
   // Sample places get sample nutrition, so the feature works end to end without
   // credentials. Real places get chain nutrition only with fatsecret set up.
   const menus = deps.menus ?? (placesSource === 'sample' ? new SampleMenuProvider() : undefined);
@@ -119,6 +123,7 @@ export async function buildApp({
     log: http.log,
     scanBudget: new SlidingWindowLimiter(rateLimits.scansPerIpPerDay, 24 * 60 * 60_000),
     places: deps.places ?? new DemoPlacesProvider(),
+    geocoder,
     menus,
     placesSource,
     radiusMeters: SCAN_RADIUS_METERS,
@@ -130,7 +135,15 @@ export async function buildApp({
   // Not logged: Docker and Caddy check it every few seconds.
   http.get('/health', { logLevel: 'silent' }, async () => ({ status: 'ok' }));
 
-  registerRoutes(http, { guests, sessions, accounts, history, rateLimits });
+  registerRoutes(http, {
+    guests,
+    sessions,
+    accounts,
+    history,
+    rateLimits,
+    geocoder,
+    geocodeBudget: new SlidingWindowLimiter(rateLimits.geocodesPerIpPerDay, 24 * 60 * 60_000)
+  });
   registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits, trustProxy });
 
   return { http, io };
