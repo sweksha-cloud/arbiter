@@ -62,6 +62,11 @@ export const SoftPreferencesSchema = z.object({
   dislikedKinds: z.array(PlaceKindSchema).max(5).optional(),
   /** Raises places known to have vegan options (a hint: the data is sparse). */
   veganOptions: z.boolean().optional(),
+  /**
+   * Raises places known to serve vegetarian food. A nice-to-have: unlike the
+   * must-have `hard.vegetarian`, it never removes a place.
+   */
+  vegetarianOptions: z.boolean().optional(),
   nutrition: NutritionGoalsSchema.optional()
 });
 export type SoftPreferences = z.infer<typeof SoftPreferencesSchema>;

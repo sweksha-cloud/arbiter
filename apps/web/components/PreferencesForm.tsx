@@ -156,6 +156,7 @@ export function PreferencesForm({
     return feelings;
   });
   const [veganOptions, setVeganOptions] = useState(start.soft.veganOptions ?? false);
+  const [vegetarianOptions, setVegetarianOptions] = useState(start.soft.vegetarianOptions ?? false);
   const [nutrition, setNutrition] = useState<NutritionText>(() => initialNutrition(start.soft.nutrition));
   const [allergies, setAllergies] = useState<Allergen[]>(() => (start.allergies ?? []) as Allergen[]);
   const [busy, setBusy] = useState(false);
@@ -192,6 +193,7 @@ export function PreferencesForm({
         likedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'like').map(({ kind }) => kind),
         dislikedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'dislike').map(({ kind }) => kind),
         veganOptions: veganOptions || undefined,
+        vegetarianOptions: vegetarianOptions || undefined,
         nutrition: goals
       },
       allergies: allergies.length > 0 ? allergies : undefined
@@ -355,6 +357,14 @@ export function PreferencesForm({
           })}
         </div>
 
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={vegetarianOptions}
+            onChange={(e) => setVegetarianOptions(e.target.checked)}
+          />
+          <span>I&apos;d like vegetarian options</span>
+        </label>
         <label className="check">
           <input type="checkbox" checked={veganOptions} onChange={(e) => setVeganOptions(e.target.checked)} />
           <span>I&apos;d like vegan options</span>

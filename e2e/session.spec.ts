@@ -248,6 +248,7 @@ test('nutrition goals, vegan and allergies are saved, prefilled, and checked', a
   await phone.getByLabel('Calories at most').fill('700');
   await phone.getByLabel('Protein at least (g)').fill('30');
   await phone.getByLabel("I'd like vegan options").check();
+  await phone.getByLabel("I'd like vegetarian options").check();
   await phone.getByLabel('Peanuts').check();
   await phone.getByRole('button', { name: 'Save' }).click();
   await expect(phone.locator('.success')).toBeVisible();
@@ -257,6 +258,7 @@ test('nutrition goals, vegan and allergies are saved, prefilled, and checked', a
   await expect(phone.getByLabel('Calories at least')).toHaveValue('');
   await expect(phone.getByLabel('Protein at least (g)')).toHaveValue('30');
   await expect(phone.getByLabel("I'd like vegan options")).toBeChecked();
+  await expect(phone.getByLabel("I'd like vegetarian options")).toBeChecked();
   await expect(phone.getByLabel('Peanuts')).toBeChecked();
 });
 

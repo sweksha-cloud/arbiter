@@ -16,7 +16,7 @@ function normalize(cuisine: string): string {
  * Kinds of place (restaurant, café…) count like cuisines: +1 per member who
  * likes the place's kind, -1 per member who dislikes it.
  * +1 for each member whose nutrition goals a menu item meets, and for each
- * member who'd like vegan options at a place known to have them. Members who
+ * member who'd like vegan (or vegetarian) options at a place known to have them. Members who
  * left those blank don't count either way (TRADEOFFS.md 2c).
  */
 export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'soft'>[]): number {
@@ -32,6 +32,7 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
     if (place.kind && soft.dislikedKinds?.includes(place.kind)) score -= 1;
     if (fittingItem(place, soft.nutrition)) score += 1;
     if (soft.veganOptions && hasVeganOptions(place)) score += 1;
+    if (soft.vegetarianOptions && place.servesVegetarian === true) score += 1;
   }
   return score;
 }

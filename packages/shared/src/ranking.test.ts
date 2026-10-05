@@ -26,6 +26,22 @@ describe('softScore', () => {
   });
 });
 
+describe('vegetarian options (a nice-to-have)', () => {
+  const wants = { soft: { vegetarianOptions: true } };
+
+  it('raises places known to serve vegetarian food, one per member who would like it', () => {
+    expect(softScore(makePlace({ id: 'p', servesVegetarian: true }), [wants, wants, { soft: {} }])).toBe(2);
+    // Unknown or no: no change, and never removed (that's the must-have).
+    expect(softScore(makePlace({ id: 'p', servesVegetarian: undefined }), [wants])).toBe(0);
+    expect(softScore(makePlace({ id: 'p', servesVegetarian: false }), [wants])).toBe(0);
+  });
+
+  it('puts a vegetarian-friendly place first, keeping the others', () => {
+    const places = [makePlace({ id: 'steak', servesVegetarian: false, rating: 4.9 }), makePlace({ id: 'veg', servesVegetarian: true })];
+    expect(ids(rankSuggestions(places, [wants]))).toEqual(['veg', 'steak']);
+  });
+});
+
 describe('rankSuggestions', () => {
   it('orders by score, then rating, then distance, and returns three by default', () => {
     const places = [
