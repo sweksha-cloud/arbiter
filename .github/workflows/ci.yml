@@ -166,6 +166,11 @@ jobs:
     env:
       IMAGE: ghcr.io/sweksha-cloud/arbiter-server
     steps:
+      # Only the key clean-up script is needed. Checked out first: a checkout
+      # after signing in to Google would delete the sign-in's credentials file.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: gcp
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -193,11 +198,6 @@ jobs:
       - name: Check the live server answers
         run: curl -fsS --retry 5 --retry-delay 3 https://arbiter-sweksha.duckdns.org/health
       # Each run's SSH key would otherwise stay on the VM for good (BUG-023).
-      - name: Get the key clean-up script
-        if: always()
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: gcp
       - name: Remove old CI SSH keys from the server
         if: always()
         run: gcp/prune-ssh-keys.sh "${{ vars.GCP_PROJECT }}" us-west1-b arbiter
