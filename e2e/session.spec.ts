@@ -86,9 +86,8 @@ test('setting up never falls back to a default city: an unanswered or blocked pr
   await host.getByRole('button', { name: 'Search around an area' }).click();
   await expect(host.getByRole('button', { name: 'Create session' })).toBeDisabled();
   await host.getByRole('button', { name: /Use my current location/ }).click();
-  // A message and the typed option. Firefox leaves the prompt unanswered (the
-  // app gives up after 10 s); Chromium and WebKit treat a test browser with no
-  // permission as blocked.
+  // A message and the typed option. Test browsers with no permission treat the
+  // prompt as blocked; a real one left unanswered gives up after 10 s.
   await expect(host.getByText(/^(No answer to the location prompt|Location is blocked for this site)\./)).toBeVisible({
     timeout: 15_000
   });

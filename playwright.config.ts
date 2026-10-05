@@ -24,18 +24,18 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  // Every flow runs in all three engines: Chromium (Chrome, Android),
-  // WebKit (Safari, every iPhone browser) and Firefox.
+  // Every flow runs in both phone engines: Chromium (Chrome, Android) and
+  // WebKit (Safari, every iPhone browser). Firefox was dropped to halve the
+  // wait (few users, mostly on laptops).
   projects: [
     { name: 'flows', testIgnore: /server-restart/, use: chromium },
     { name: 'flows-webkit', testIgnore: /server-restart/, use: { browserName: 'webkit' } },
-    { name: 'flows-firefox', testIgnore: /server-restart/, use: { browserName: 'firefox' } },
     // Stops and restarts the shared API server, so it runs after everything
     // else, one test at a time.
     {
       name: 'server-restart',
       testMatch: /server-restart/,
-      dependencies: ['flows', 'flows-webkit', 'flows-firefox'],
+      dependencies: ['flows', 'flows-webkit'],
       workers: 1,
       use: chromium
     }

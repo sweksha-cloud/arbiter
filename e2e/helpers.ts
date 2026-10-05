@@ -7,15 +7,10 @@ import { OUTBOX_DIR, WEB_URL } from './api-server';
 
 export { expect };
 
-/**
- * A phone for each browser engine: an Android phone in Chromium, an iPhone in
- * WebKit (Safari's engine), and a phone-sized window in Firefox, which has no
- * mobile mode.
- */
+/** A phone for each browser engine: an Android phone in Chromium, an iPhone in WebKit (Safari's engine). */
 const PHONES: Record<string, BrowserContextOptions> = {
   chromium: { ...devices['Pixel 7'], baseURL: WEB_URL },
-  webkit: { ...devices['iPhone 14'], baseURL: WEB_URL },
-  firefox: { ...devices['Desktop Firefox'], viewport: { width: 412, height: 915 }, baseURL: WEB_URL }
+  webkit: { ...devices['iPhone 14'], baseURL: WEB_URL }
 };
 const ALLOWED_LOCATION: BrowserContextOptions = {
   geolocation: { latitude: 37.3352, longitude: -121.8811 },

@@ -59,7 +59,7 @@ Known limits:
 
 - **Live sessions live in server memory.** Accounts, preferences and session history are in Postgres, but a server restart ends any session in progress.
 - **Password reset and email confirmation are switched off in production** until an email provider is set up (locally, the emails are printed in the server log).
-- **Browser tests run in Chromium, WebKit (Safari's engine) and Firefox**; a real iPhone hasn't been tested by hand yet.
+- **Browser tests run in Chromium (Chrome, Android) and WebKit (Safari, every iPhone browser)**; Firefox isn't tested, and a real iPhone hasn't been tested by hand yet.
 
 ## Run it locally
 
