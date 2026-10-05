@@ -49,7 +49,7 @@ async function request<T extends z.ZodType>(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
   } catch {
-    throw new ApiError(0, "Can't reach the Arbiter server. Is it running?");
+    throw new ApiError(0, "Can't reach the Arbiter server.");
   }
 
   if (!response.ok) {

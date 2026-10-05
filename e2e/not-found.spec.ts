@@ -47,6 +47,6 @@ test('an unreachable server gives a clear message instead of spinning forever (B
   await phone.route('**/api/guests', () => new Promise(() => {}));
   await startAs(phone, 'Angel');
   await expect(phone.getByRole('button', { name: 'Starting…' })).toBeVisible();
-  await expect(phone.locator('.error')).toHaveText("Can't reach the Arbiter server. Is it running?", { timeout: 20_000 });
+  await expect(phone.locator('.error')).toHaveText("Can't reach the Arbiter server.", { timeout: 20_000 });
   await expect(phone.getByRole('button', { name: 'Start a session' })).toBeEnabled();
 });
