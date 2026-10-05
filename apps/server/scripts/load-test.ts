@@ -28,7 +28,9 @@ const { values } = parseArgs({
     seconds: { type: 'string', default: '60' },
     /** Each person votes about this often (randomised ±50%). */
     'vote-every-ms': { type: 'string', default: '2000' },
-    verbose: { type: 'boolean', default: false }
+    verbose: { type: 'boolean', default: false },
+    /** Also print one machine-readable summary line: `RESULT {json}`. */
+    json: { type: 'boolean', default: false }
   }
 });
 const URL = values.url!;
@@ -205,6 +207,21 @@ async function main() {
   console.log(`Votes: ${votes.length} in ${elapsed.toFixed(0)} s (${(votes.length / elapsed).toFixed(1)}/s), failed ${failed.length}`);
   if (failed.length) console.log(`  e.g. ${failed[0]!.failed}`);
   if (errors.length) console.log(`Setup errors: ${errors.length}, e.g. ${errors[0]}`);
+  if (values.json) {
+    const sorted = [...everyone].sort((a, b) => a - b);
+    console.log(
+      `RESULT ${JSON.stringify({
+        groups: GROUPS,
+        groupsReady: ready.length,
+        votesPerSecond: Number((votes.length / elapsed).toFixed(1)),
+        p50: Math.round(percentile(sorted, 50)),
+        p95: Math.round(percentile(sorted, 95)),
+        p99: Math.round(percentile(sorted, 99)),
+        failed: failed.length,
+        setupErrors: errors.length
+      })}`
+    );
+  }
 
   for (const members of ready) for (const m of members) m.socket.disconnect();
 }

@@ -46,3 +46,10 @@ From `~/arbiter` on the VM (`ssh -i ~/git/arbiter.pem ubuntu@34.168.132.145`):
 | Build on the VM instead (emergency, e.g. GitHub down) | `git pull && sudo docker compose -f deploy/docker-compose.yml build server-blue`, then `sudo deploy/deploy.sh latest` |
 
 Never run a plain `docker compose up -d` here: it would start both server slots at once.
+
+## Benchmarking
+
+`gcp/benchmark.sh --compare <commit A> <commit B>` load-tests two server versions on this VM (from a laptop, with SSH access): a throwaway copy of Arbiter (its own in-memory Postgres and Redis, sample places, never production data) on a private network, with the load generator running next to it. It refuses to start during a deploy or when the VM is busy, rests the VM 2 minutes before each version (an e2-micro's CPU bursts, then throttles), runs both orders, prints one table and marks numbers that differ by more than 30% between the orders as noise. It cleans up on the VM whatever happens, including Ctrl-C. Options: `--groups 50,75,100`, `--seconds 20`, `--rest 120`, or `--image <commit>` for one version.
+
+Caveats when quoting results: the generator shares the VM's CPU (numbers are slightly pessimistic), phones' own network time isn't included, and the database is in memory (closer to Neon's speed than this VM's standard disk).
+
