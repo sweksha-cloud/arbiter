@@ -27,7 +27,8 @@ const { values } = parseArgs({
     size: { type: 'string', default: '4' },
     seconds: { type: 'string', default: '60' },
     /** Each person votes about this often (randomised ±50%). */
-    'vote-every-ms': { type: 'string', default: '2000' }
+    'vote-every-ms': { type: 'string', default: '2000' },
+    verbose: { type: 'boolean', default: false }
   }
 });
 const URL = values.url!;
@@ -98,26 +99,36 @@ function waitFor(member: Member, predicate: (view: SessionView) => boolean, time
 /** One group from first guest to results. Returns its members, ready to vote. */
 async function setUpGroup(index: number): Promise<Member[]> {
   const started = performance.now();
+  // With --verbose, the first group reports how long each step took.
+  const step = (label: string) => {
+    if (values.verbose && index === 0) console.log(`  group 0: ${label} at ${(performance.now() - started).toFixed(0)} ms`);
+  };
   const guests = await Promise.all(
     Array.from({ length: SIZE }, (_, i) => post<{ token: string }>('/api/guests', { displayName: `Load ${index}-${i}` }))
   );
+  step('guests created');
   const { sessionId } = await post<{ sessionId: string }>(
     '/api/sessions',
     { meeting: { mode: 'area', area: { center: { lat: 37.3352, lng: -121.8811 }, label: 'San Jose' } } },
     guests[0]!.token
   );
+  step('session created');
   const members = await Promise.all(guests.map((g) => connect(g.token)));
+  step('sockets connected');
   for (const member of members) {
     const ack = await emit(member.socket, 'session:join', { sessionId });
     if (!ack.ok) throw new Error(`join: ${ack.error}`);
   }
+  step('everyone joined');
   await Promise.all(
     members.map(async (member) => {
       const ack = await emit(member.socket, 'session:submit', { preferences: { hard: {}, soft: {} } });
       if (!ack.ok) throw new Error(`submit: ${ack.error}`);
     })
   );
+  step('everyone submitted');
   await Promise.all(members.map((m) => waitFor(m, (v) => v.status === 'voting' && v.suggestions.length > 0)));
+  step('results on every phone');
   setupMs.push(performance.now() - started);
   return members;
 }

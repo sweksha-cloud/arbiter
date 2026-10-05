@@ -46,8 +46,29 @@ export default function SessionPage() {
   );
 }
 
+/** Opens once this connection has joined the session; a new, closed one replaces it on every disconnect. */
+interface JoinedGate {
+  promise: Promise<void>;
+  open: () => void;
+  isOpen: boolean;
+}
+
+function closedGate(): JoinedGate {
+  let open!: () => void;
+  const gate: JoinedGate = { promise: new Promise<void>((resolve) => (open = resolve)), open: () => {}, isOpen: false };
+  gate.open = () => {
+    gate.isOpen = true;
+    open();
+  };
+  return gate;
+}
+
+/** How long an action waits for a reconnecting phone before saying so. */
+const READY_WAIT_MS = 15_000;
+
 function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const socketRef = useRef<ArbiterSocket | null>(null);
+  const joinedRef = useRef<JoinedGate>(closedGate());
   const [view, setView] = useState<SessionView>();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
@@ -62,12 +83,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       reconnectionDelayMax: 3_000
     });
     socketRef.current = socket;
+    joinedRef.current = closedGate();
 
     // Joining on every connect also covers reconnects after a dropped connection.
     socket.on('connect', () => {
       setConnected(true);
       socket.emit('session:join', { sessionId: code }, (ack) => {
         if (ack.ok) {
+          joinedRef.current.open();
           setNotFound(false);
           rememberActiveSession(code);
         } else if (ack.code === 'not_found') {
@@ -78,6 +101,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
     });
     socket.on('disconnect', (reason) => {
       setConnected(false);
+      if (joinedRef.current.isOpen) joinedRef.current = closedGate();
       // Socket.IO only retries on its own after network drops. When the server
       // closes the connection itself (a restart or deploy), reconnect manually.
       if (reason === 'io server disconnect') socket.connect();
@@ -103,24 +127,40 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   };
   const socket = () => socketRef.current;
 
-  /** Sends an event and throws its error, for forms that show errors next to themselves. */
-  function connectedSocket(): ArbiterSocket {
+  /**
+   * The socket, once this phone has joined (or, after a restart or dropped
+   * connection, rejoined) the session. Anything sent earlier would reach the
+   * server before the rejoin and be refused, so actions wait here (BUG-026).
+   */
+  async function joinedSocket(): Promise<ArbiterSocket> {
     const s = socket();
     if (!s) throw new Error('Not connected yet. Try again in a moment.');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Not connected yet. Try again in a moment.')), READY_WAIT_MS);
+    });
+    try {
+      await Promise.race([joinedRef.current.promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
     return s;
   }
+  /** For buttons that show errors at the top of the page. */
+  const send = (action: (s: ArbiterSocket) => void) =>
+    void joinedSocket().then(action, (e: unknown) => setError(e instanceof Error ? e.message : 'Something went wrong'));
   const failOn = (ack: Ack) => {
     if (!ack.ok) throw new Error(ack.error);
   };
 
   async function submitPreferences(preferences: Preferences) {
-    failOn(await connectedSocket().emitWithAck('session:submit', { preferences }));
+    failOn(await (await joinedSocket()).emitWithAck('session:submit', { preferences }));
   }
 
   const meetingActions: MeetingActions = {
-    setMode: async (mode) => failOn(await connectedSocket().emitWithAck('session:meeting-mode', { mode })),
-    setArea: async (area) => failOn(await connectedSocket().emitWithAck('session:area', { area })),
-    setOrigin: async (origin) => failOn(await connectedSocket().emitWithAck('session:origin', { origin }))
+    setMode: async (mode) => failOn(await (await joinedSocket()).emitWithAck('session:meeting-mode', { mode })),
+    setArea: async (area) => failOn(await (await joinedSocket()).emitWithAck('session:area', { area })),
+    setOrigin: async (origin) => failOn(await (await joinedSocket()).emitWithAck('session:origin', { origin }))
   };
 
   // Also covers a session that vanished while open (e.g. the server restarted).
@@ -165,7 +205,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
           )}
           {isHost && (
-            <ShowResultsNow view={view} onStart={async () => failOn(await connectedSocket().emitWithAck('session:start'))} />
+            <ShowResultsNow view={view} onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))} />
           )}
         </>
       )}
@@ -217,9 +257,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 source={view.placesSource}
                 canReact={view.status === 'voting'}
                 onReact={(reaction: Reaction | null) =>
-                  socket()?.emit('session:react', { placeId: suggestion.place.id, reaction }, handleAck)
+                  send((s) => s.emit('session:react', { placeId: suggestion.place.id, reaction }, handleAck))
                 }
-                onTag={(tag, on) => socket()?.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck)}
+                onTag={(tag, on) => send((s) => s.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck))}
               />
             ))
           )}
@@ -229,7 +269,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               options={view.moreOptions}
               distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
               onLike={async (placeId) =>
-                failOn(await connectedSocket().emitWithAck('session:react', { placeId, reaction: 'like' }))
+                failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction: 'like' }))
               }
             />
           )}
@@ -244,7 +284,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           {view.placesSource === 'google' && <p className="muted small center">Place data © Google Maps</p>}
 
           {isHost && view.status === 'voting' && (
-            <button className="button" onClick={() => socket()?.emit('session:end', handleAck)}>
+            <button className="button" onClick={() => send((s) => s.emit('session:end', handleAck))}>
               End session
             </button>
           )}
