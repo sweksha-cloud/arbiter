@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploys one server image (built by CI) and rolls back if it isn't healthy.
-# CI runs it on the server over Google's IAP tunnel; by hand, from the repo root:
+# CI runs it on the server after every push to main (aws/README.md); by hand, from the repo root:
 #   sudo deploy/deploy.sh <image tag: a commit SHA, or latest>
 set -euo pipefail
 
