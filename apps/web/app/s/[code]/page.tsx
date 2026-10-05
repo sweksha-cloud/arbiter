@@ -20,7 +20,6 @@ import { MeetingCard, searchedNearText, type MeetingActions } from '../../../com
 import { MoreOptions } from '../../../components/MoreOptions';
 import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
-import { SaveProgress } from '../../../components/SaveProgress';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
@@ -360,7 +359,6 @@ function MyPreferences({
             Change
           </button>
         </section>
-        <SaveProgress />
       </>
     );
   }

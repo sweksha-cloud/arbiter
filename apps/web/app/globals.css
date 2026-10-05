@@ -295,8 +295,27 @@ input:not([type='checkbox']) {
   border-left: 0;
 }
 
-.save-progress p {
+.save-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: calc(100% - 32px);
+  max-width: 448px;
+  margin: 8px auto 0;
+  padding: 6px 6px 6px 14px;
+  background: var(--notice-bg);
+  color: var(--notice-text);
+  border-radius: 10px;
+}
+
+.save-banner p {
   margin: 0;
+}
+
+.save-banner a {
+  color: inherit;
+  font-weight: 700;
 }
 
 /* Too many choices for one row: a grid, with the gaps drawn as dividers. */

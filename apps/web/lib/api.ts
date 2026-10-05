@@ -91,7 +91,8 @@ export const api = {
   signup: (token: string | undefined, body: { displayName?: string; email: string; password: string }) =>
     request(AuthResponseSchema, '/api/auth/signup', { method: 'POST', token, body }),
 
-  login: (token: string | undefined, body: { email: string; password: string }) =>
+  /** `activeSessionId`: the session this device's guest is in, so they stay in it as the account. */
+  login: (token: string | undefined, body: { email: string; password: string; activeSessionId?: string }) =>
     request(AuthResponseSchema, '/api/auth/login', { method: 'POST', token, body }),
 
   logout: (token: string) => request(NoContent, '/api/auth/logout', { method: 'POST', token }),

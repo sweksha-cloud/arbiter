@@ -262,6 +262,27 @@ describe('app', () => {
       expect(right.json()).toMatchObject({ email: 'sam@example.com', guest: { displayName: 'Sam' } });
     });
 
+    it("keeps a guest's progress when they log in to an account: newer preferences, past sessions, the live session", async () => {
+      app = await build();
+      const account = (await post('/api/auth/signup', { ...credentials, displayName: 'Sam' })).json<{ guest: { id: string } }>();
+      const { token: guestToken } = (await post('/api/guests', { displayName: 'Sam on a phone' })).json<{ token: string }>();
+      const newer = { hard: { vegetarian: true }, soft: {} };
+      await app.http.inject({ method: 'PUT', url: '/api/me/preferences', payload: newer, headers: { authorization: `Bearer ${guestToken}` } });
+      const { sessionId } = (await post('/api/sessions', { meeting: { mode: 'area', area: { center: { lat: 37.3, lng: -121.9 } } } }, guestToken)).json<{ sessionId: string }>();
+
+      const login = await post('/api/auth/login', { ...credentials, activeSessionId: sessionId.toLowerCase() }, guestToken);
+      expect(login.statusCode).toBe(200);
+      const { token } = login.json<{ token: string; guest: { id: string } }>();
+      expect(login.json()).toMatchObject({ guest: { id: account.guest.id } });
+
+      expect((await get('/api/me/preferences', token)).json()).toEqual({ preferences: newer });
+      expect((await get('/api/me/sessions', token)).json<{ sessions: { sessionId: string }[] }>().sessions.map((s) => s.sessionId)).toEqual([sessionId]);
+      // Still in the live session, now as the host account.
+      expect((await get(`/api/sessions/${sessionId}`, token)).json()).toEqual({ sessionId, status: 'lobby', isHost: true });
+      // The guest's sign-in on this device is gone.
+      expect((await get('/api/me', guestToken)).statusCode).toBe(401);
+    });
+
     it('rejects a too-short password when signing up', async () => {
       app = await build();
       expect((await post('/api/auth/signup', { ...credentials, displayName: 'Sam', password: 'short' })).statusCode).toBe(400);

@@ -81,6 +81,14 @@ export class PostgresGuestStore implements GuestStore {
       .onConflictDoUpdate({ target: preferences.userId, set: { data, updatedAt: sql`now()` } });
   }
 
+  async moveNewerPreferences(fromId: string, toId: string) {
+    await this.db.execute(sql`
+      insert into preferences (user_id, data, updated_at)
+      select ${toId}, data, updated_at from preferences where user_id = ${fromId}
+      on conflict (user_id) do update set data = excluded.data, updated_at = excluded.updated_at
+      where preferences.updated_at < excluded.updated_at`);
+  }
+
   private async findAccount(where: ReturnType<typeof eq>): Promise<Account | undefined> {
     const [row] = await this.db
       .select({ userId: users.id, email: users.email, passwordHash: users.passwordHash, verifiedAt: users.emailVerifiedAt })

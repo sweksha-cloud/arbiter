@@ -30,7 +30,12 @@ export const SignupRequestSchema = z.object({
 
 // Login doesn't enforce the password rules: a wrong password should get
 // "wrong email or password", never a hint about the rules.
-export const LoginRequestSchema = z.object({ email: EmailSchema, password: z.string().min(1).max(128) });
+export const LoginRequestSchema = z.object({
+  email: EmailSchema,
+  password: z.string().min(1).max(128),
+  /** The session this device's guest is in, so they stay in it as the account (TRADEOFFS.md 4h). */
+  activeSessionId: z.string().trim().min(1).max(20).optional()
+});
 
 export const ForgotPasswordRequestSchema = z.object({ email: EmailSchema });
 

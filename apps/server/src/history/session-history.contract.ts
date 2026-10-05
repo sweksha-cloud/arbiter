@@ -112,6 +112,34 @@ export function describeSessionHistory(name: string, makeContext: () => HistoryT
       ]);
     });
 
+    it("moves a guest's sessions, hosting and reactions to an account, keeping the account's own where both were in", async () => {
+      const ctx = makeContext();
+      const guest = await ctx.newGuest('Guest');
+      const account = await ctx.newGuest('Account');
+      const hosted = newCode();
+      const shared = newCode();
+      await ctx.history.create(hosted, guest, 'google');
+      await ctx.history.recordSuggestions(hosted, ['a']);
+      await ctx.history.recordReaction(hosted, guest.id, 'a', 'like', 1);
+      await ctx.history.create(shared, account, 'google');
+      await ctx.history.addMember(shared, guest);
+      await ctx.history.recordSuggestions(shared, ['b']);
+      await ctx.history.recordReaction(shared, guest.id, 'b', 'dislike', 1);
+      await ctx.history.recordReaction(shared, account.id, 'b', 'like', 2);
+
+      await ctx.history.moveMember(guest.id, account.id);
+
+      const first = (await ctx.history.get(hosted))!;
+      expect(first.hostId).toBe(account.id);
+      expect(first.members.map((m) => m.id)).toEqual([account.id]);
+      expect(first.places).toMatchObject([{ placeId: 'a', likes: 1, dislikes: 0 }]);
+      const second = (await ctx.history.get(shared))!;
+      expect(second.members.map((m) => m.id)).toEqual([account.id]);
+      expect(second.places).toMatchObject([{ placeId: 'b', likes: 1, dislikes: 0 }]);
+      expect((await ctx.history.listForMember(account.id, 10)).map((s) => s.sessionId).sort()).toEqual([hosted, shared].sort());
+      expect(await ctx.history.listForMember(guest.id, 10)).toEqual([]);
+    });
+
     it('ignores a reaction that arrives after a newer one', async () => {
       const { history, host, code } = await sessionWithTwo();
       await history.recordSuggestions(code, ['a']);

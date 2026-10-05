@@ -127,7 +127,13 @@ export async function buildApp({
     webOrigin,
     passwordParams: deps.passwordParams,
     onMailError: (error) => http.log.error({ err: error }, 'Could not send email'),
-    loginFailures: new SlidingWindowLimiter(rateLimits.loginFailuresPerAccount, 15 * 60_000)
+    loginFailures: new SlidingWindowLimiter(rateLimits.loginFailuresPerAccount, 15 * 60_000),
+    // `sessions` is created below; this only runs once a request comes in.
+    moveGuestSessions: async (fromId, to, activeSessionId) => {
+      await history.moveMember(fromId, to.id);
+      if (activeSessionId) await sessions.replaceMember(activeSessionId.toUpperCase(), fromId, to);
+    },
+    onMoveError: (error) => http.log.error({ err: error }, "Could not move a guest's progress to their account")
   });
   const sessions = new SessionService({
     rooms: deps.rooms ?? new InMemoryRoomStore(),

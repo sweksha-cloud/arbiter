@@ -203,3 +203,38 @@ test('the email link from signup confirms the address, and the account page stop
   await expect(phone.getByRole('heading', { name: 'Change your password' })).toBeVisible();
   await expect(phone.getByText('Confirm your email.')).toHaveCount(0);
 });
+
+test('a guest who logs in mid-session stays in it as the same person, and keeps their answers', async ({ newPhone }) => {
+  // An account made earlier, on another device.
+  const laptop = await newPhone();
+  const email = newEmail();
+  await laptop.goto('/signup');
+  await laptop.getByLabel('What should your friends call you?').fill('Mo');
+  await laptop.getByLabel('Email').fill(email);
+  await laptop.getByLabel('Password').fill(password);
+  await laptop.getByRole('button', { name: 'Make my account' }).click();
+  await expect(laptop.getByText('Hi Mo.')).toBeVisible();
+
+  // Today, on a phone, as a guest: hosting a session and submitting.
+  const phone = await newPhone();
+  const { code } = await hostSession(phone, 'Mo on a phone');
+  await phone.getByText('I need vegetarian options').click();
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(phone.getByText('✓ Submitted.')).toBeVisible();
+
+  await phone.getByRole('complementary', { name: 'Save your progress' }).getByRole('link', { name: 'Log in' }).click();
+  await phone.getByLabel('Email').fill(email);
+  await phone.getByLabel('Password').fill(password);
+  await phone.getByRole('button', { name: 'Log in' }).click();
+
+  // Back in the session as the account: still the host, still submitted.
+  await expect(phone).toHaveURL(new RegExp(`/s/${code}$`));
+  await expect(phone.getByText('✓ Submitted.')).toBeVisible();
+  await expect(phone.getByText('Your session')).toBeVisible();
+  await expect(phone.getByText('1 of 1 submitted')).toBeVisible();
+  await expect(phone.getByRole('complementary', { name: 'Save your progress' })).toBeHidden();
+
+  // The answers just used are now the account's saved ones.
+  await phone.goto('/preferences');
+  await expect(phone.getByLabel('I need vegetarian options')).toBeChecked();
+});

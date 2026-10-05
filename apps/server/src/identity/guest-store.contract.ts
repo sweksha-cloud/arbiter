@@ -37,6 +37,31 @@ export function describeGuestStore(name: string, makeStore: (options?: GuestStor
       expect(a.token).not.toBe(b.token);
     });
 
+    it('moves a guest\'s preferences to an account only if they are newer', async () => {
+      const store = makeStore();
+      const guest = (await store.create('Guest')).guest;
+      const account = (await store.create('Account')).guest;
+      const older: Preferences = { hard: {}, soft: { likedCuisines: ['pizza'] } };
+
+      // Nothing saved yet on the account: the guest's are taken.
+      await store.setPreferences(guest.id, prefs);
+      await store.moveNewerPreferences(guest.id, account.id);
+      expect(await store.getPreferences(account.id)).toEqual(prefs);
+
+      // The account saved later: the guest's older ones don't overwrite them.
+      await store.setPreferences(guest.id, older);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await store.setPreferences(account.id, prefs);
+      await store.moveNewerPreferences(guest.id, account.id);
+      expect(await store.getPreferences(account.id)).toEqual(prefs);
+
+      // The guest saved later: theirs win.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await store.setPreferences(guest.id, older);
+      await store.moveNewerPreferences(guest.id, account.id);
+      expect(await store.getPreferences(account.id)).toEqual(older);
+    });
+
     it('has no preferences until some are saved', async () => {
       const store = makeStore();
       const { guest } = await store.create('Ada');

@@ -24,6 +24,11 @@ export interface GuestStore {
   findByToken(token: string): Promise<Guest | undefined>;
   getPreferences(guestId: string): Promise<Preferences | null>;
   setPreferences(guestId: string, preferences: Preferences): Promise<void>;
+  /**
+   * Gives `toId` the preferences `fromId` saved, if they're newer than
+   * `toId`'s own (or `toId` has none). Used when a guest logs in to an account.
+   */
+  moveNewerPreferences(fromId: string, toId: string): Promise<void>;
 
   // ---- Accounts ----
   getAccount(userId: string): Promise<Account | undefined>;
@@ -117,7 +122,9 @@ export class InMemoryGuestStore implements GuestStore {
   private readonly tokens = new Map<string, { userId: string; lastUsedAt: Date }>();
   private readonly resets = new Map<string, SingleUseLink>();
   private readonly verifications = new Map<string, SingleUseLink & { email: string }>();
-  private readonly preferences = new Map<string, Preferences>();
+  /** `saved` orders saves even within the same millisecond. */
+  private readonly preferences = new Map<string, { value: Preferences; saved: number }>();
+  private saves = 0;
   private readonly now: () => Date;
 
   constructor({ now = () => new Date() }: GuestStoreOptions = {}) {
@@ -144,11 +151,17 @@ export class InMemoryGuestStore implements GuestStore {
   }
 
   async getPreferences(guestId: string) {
-    return this.preferences.get(guestId) ?? null;
+    return this.preferences.get(guestId)?.value ?? null;
   }
 
   async setPreferences(guestId: string, preferences: Preferences) {
-    this.preferences.set(guestId, preferences);
+    this.preferences.set(guestId, { value: preferences, saved: ++this.saves });
+  }
+
+  async moveNewerPreferences(fromId: string, toId: string) {
+    const from = this.preferences.get(fromId);
+    const to = this.preferences.get(toId);
+    if (from && (!to || to.saved < from.saved)) this.preferences.set(toId, from);
   }
 
   async getAccount(userId: string) {

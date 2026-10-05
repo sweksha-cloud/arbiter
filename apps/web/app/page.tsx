@@ -4,7 +4,6 @@ import Link from 'next/link';
 
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
-import { SaveProgress } from '../components/SaveProgress';
 import { StartSessionForm } from '../components/StartSessionForm';
 import { useIdentity } from '../lib/identity';
 import { useStartSession } from '../lib/use-start-session';
@@ -18,7 +17,7 @@ export default function HomePage() {
       <header className="hero">
         <h1>Arbiter</h1>
         <p className="muted">Where should we eat? Everyone&apos;s must-haves are respected automatically, then the group reacts live.</p>
-        <p className="privacy-note">🔒 Your answers are never shared: nobody in your group sees what you chose.</p>
+        <p className="privacy-note">🔒 Your answers are never shared with your group.</p>
       </header>
 
       {identity === undefined ? null : identity === null ? (
@@ -41,8 +40,6 @@ export default function HomePage() {
           </section>
 
           <JoinCodeForm />
-
-          <SaveProgress />
 
           <p className="center">
             <Link href="/preferences">Edit my preferences</Link>

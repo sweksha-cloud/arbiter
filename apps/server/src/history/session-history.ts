@@ -51,6 +51,12 @@ export interface SessionHistory {
    */
   recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number): Promise<void>;
   end(sessionId: string): Promise<void>;
+  /**
+   * Gives `toId` everything `fromId` did in past sessions: membership, hosting
+   * and reactions (a guest logging in to an account). Where both were in the
+   * same session, `toId`'s own rows win.
+   */
+  moveMember(fromId: string, toId: string): Promise<void>;
   get(sessionId: string): Promise<SessionRecord | undefined>;
   /** Sessions this user was a member of, newest first. */
   listForMember(userId: string, limit: number): Promise<SessionRecord[]>;
@@ -127,6 +133,21 @@ export class InMemorySessionHistory implements SessionHistory {
     if (record.status === 'ended') return;
     record.status = 'ended';
     record.endedAt = new Date();
+  }
+
+  async moveMember(fromId: string, toId: string) {
+    for (const record of this.sessions.values()) {
+      if (record.hostId === fromId) record.hostId = toId;
+      const from = record.members.find((m) => m.id === fromId);
+      if (from && !record.members.some((m) => m.id === toId)) record.members.push({ ...from, id: toId });
+      record.members = record.members.filter((m) => m.id !== fromId);
+      for (const [key, entry] of [...record.reactions]) {
+        if (entry.memberId !== fromId) continue;
+        record.reactions.delete(key);
+        const moved = `${toId} ${entry.placeId}`;
+        if (!record.reactions.has(moved)) record.reactions.set(moved, { ...entry, memberId: toId });
+      }
+    }
   }
 
   async get(sessionId: string): Promise<SessionRecord | undefined> {

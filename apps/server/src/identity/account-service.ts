@@ -43,6 +43,13 @@ export interface AccountServiceOptions {
    * emails too, so a pause never reveals whether an account exists.
    */
   loginFailures?: SlidingWindowLimiter;
+  /**
+   * Moves a guest's sessions to the account they logged in to: past sessions
+   * in history, and the live one they're in (TRADEOFFS.md 4h).
+   */
+  moveGuestSessions?: (fromId: string, to: Guest, activeSessionId?: string) => Promise<void>;
+  /** Reports a failed move; logging in still succeeds. */
+  onMoveError?: (error: unknown) => void;
 }
 
 const WRONG_CREDENTIALS = 'Wrong email or password';
@@ -115,10 +122,15 @@ export class AccountService {
   }
 
   /**
-   * Signs in to an account. Any guest this device had before is left behind
-   * (its token is revoked); its preferences don't move to the account.
+   * Signs in to an account. If this device was a guest, the guest's progress
+   * moves to the account (TRADEOFFS.md 4h): its preferences if newer than the
+   * account's, its past sessions, and the session it's in right now
+   * (`activeSessionId`), where it carries on as the account.
    */
-  async login(current: { token: string } | undefined, { email, password }: { email: string; password: string }) {
+  async login(
+    current: { guest: Guest; token: string } | undefined,
+    { email, password, activeSessionId }: { email: string; password: string; activeSessionId?: string }
+  ) {
     this.checkNotPaused(email);
     const account = await this.guests.findAccountByEmail(email);
     // Check a password either way, so "no such email" takes as long as "wrong password".
@@ -133,6 +145,9 @@ export class AccountService {
       await this.guests.setPasswordHash(account.userId, await hashPassword(password, this.options.passwordParams));
     }
     const guest = (await this.guests.getGuest(account.userId))!;
+    if (current && current.guest.id !== guest.id && !(await this.guests.getAccount(current.guest.id))) {
+      await this.keepGuestProgress(current.guest.id, guest, activeSessionId);
+    }
     return this.signInFresh(guest, account.email, account.emailVerified, current?.token);
   }
 
@@ -214,6 +229,16 @@ export class AccountService {
    * belongs to (guest → account) without replacing it would let anyone who
    * had copied the old token ride along into the account.
    */
+  /** A failure here is reported, not thrown: logging in matters more than the move. */
+  private async keepGuestProgress(fromId: string, to: Guest, activeSessionId: string | undefined) {
+    try {
+      await this.guests.moveNewerPreferences(fromId, to.id);
+      await this.options.moveGuestSessions?.(fromId, to, activeSessionId);
+    } catch (error) {
+      this.options.onMoveError?.(error);
+    }
+  }
+
   private async signInFresh(
     guest: Guest,
     email: string,

@@ -367,6 +367,39 @@ export class SessionService {
   }
 
   /**
+   * A guest in this session logged in to an account: from now on they're the
+   * account, with their submitted preferences, starting point, reactions,
+   * marks and (if hosting) the host role. If the account was already in the
+   * session, its own entries are kept. Does nothing if the guest isn't in it.
+   */
+  async replaceMember(sessionId: string, fromId: string, to: Guest): Promise<void> {
+    const rekey = <T>(record: Readonly<Record<string, T>>, keepTo: boolean): Record<string, T> => {
+      const { [fromId]: moved, ...rest } = record;
+      return moved === undefined || keepTo ? rest : { ...rest, [to.id]: moved };
+    };
+    await this.options.rooms
+      .update(sessionId, (room) => {
+        const from = room.members.find((m) => m.id === fromId);
+        if (!from) return room;
+        const already = room.members.some((m) => m.id === to.id);
+        return {
+          ...room,
+          hostId: room.hostId === fromId ? to.id : room.hostId,
+          members: already
+            ? room.members.filter((m) => m.id !== fromId)
+            : room.members.map((m) => (m.id === fromId ? { ...m, ...to } : m)),
+          submissions: rekey(room.submissions, already && room.submissions[to.id] !== undefined),
+          origins: rekey(room.origins, already && room.origins[to.id] !== undefined),
+          reactions: rekey(room.reactions, already),
+          tags: rekey(room.tags, already)
+        };
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof RoomNotFoundError)) throw error;
+      });
+  }
+
+  /**
    * What one person sees: totals and their own reactions, never anyone's
    * preferences. `onlineIds` are the members with the session open right now.
    */

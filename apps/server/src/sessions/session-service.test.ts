@@ -630,6 +630,41 @@ describe('SessionService', () => {
     });
   });
 
+  describe('a guest logging in mid-session', () => {
+    it('carries on as the account: same answers, starting point, likes and host role', async () => {
+      const { guests, service, host, friend, sessionId } = await lobbyOfTwo();
+      await service.submit(sessionId, host, { hard: { vegetarian: true }, soft: {} });
+      const account = (await guests.create('Account name')).guest;
+
+      await service.replaceMember(sessionId, host.id, account);
+
+      const room = await service.get(sessionId);
+      expect(room.hostId).toBe(account.id);
+      expect(room.members.map((m) => [m.id, m.displayName, m.submitted])).toEqual([
+        [account.id, 'Account name', true],
+        [friend.id, 'Friend', false]
+      ]);
+      expect(room.submissions[account.id]).toEqual({ hard: { vegetarian: true }, soft: {} });
+      expect(room.submissions[host.id]).toBeUndefined();
+
+      await service.submit(sessionId, friend, noPreferences);
+      const voting = await service.react(sessionId, account, 'a', 'like');
+      expect(service.view(voting, account.id).suggestions.find((s) => s.place.id === 'a')).toMatchObject({ myReaction: 'like', likes: 1 });
+    });
+
+    it("keeps the account's own entries if it was already in the session, and ignores other sessions", async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo();
+      await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
+      await service.submit(sessionId, host, noPreferences);
+      await service.replaceMember(sessionId, friend.id, host);
+      const room = await service.get(sessionId);
+      expect(room.members.map((m) => m.id)).toEqual([host.id]);
+      expect(room.submissions).toEqual({ [host.id]: noPreferences });
+
+      await expect(service.replaceMember('NOPE22', friend.id, host)).resolves.toBeUndefined();
+    });
+  });
+
   describe('more options', () => {
     const fivePlaces = () =>
       new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e'].map((id, i) => place(id, { rating: 5 - i * 0.5 })));

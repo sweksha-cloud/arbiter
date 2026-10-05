@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { useActiveSession } from '../../lib/active-session';
 import { api } from '../../lib/api';
 import { EMAIL_ENABLED } from '../../lib/config';
 import { hasAccount, saveIdentity, useIdentity } from '../../lib/identity';
@@ -13,6 +14,8 @@ export default function LoginPage() {
   const identity = useIdentity();
   const router = useRouter();
   const { handle, busy, error } = useSubmit();
+  // A guest logging in mid-session stays in it as the account.
+  const activeSessionId = useActiveSession() ?? undefined;
 
   if (hasAccount(identity)) {
     return (
@@ -31,7 +34,9 @@ export default function LoginPage() {
       <form
         className="card stack"
         onSubmit={handle(async (value) => {
-          saveIdentity(await api.login(identity?.token, { email: value('email'), password: value('password') }));
+          saveIdentity(
+            await api.login(identity?.token, { email: value('email'), password: value('password'), activeSessionId })
+          );
           router.push(nextPath());
         })}
       >

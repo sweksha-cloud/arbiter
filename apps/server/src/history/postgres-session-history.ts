@@ -73,6 +73,23 @@ export class PostgresSessionHistory implements SessionHistory {
       });
   }
 
+  async moveMember(fromId: string, toId: string) {
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`update sessions set host_id = ${toId} where host_id = ${fromId}`);
+      // Members before reactions: a reaction must belong to a member.
+      await tx.execute(sql`
+        insert into session_members (session_id, user_id, joined_at)
+        select session_id, ${toId}, joined_at from session_members where user_id = ${fromId}
+        on conflict do nothing`);
+      await tx.execute(sql`
+        insert into reactions (session_id, user_id, place_id, reaction, room_version, updated_at)
+        select session_id, ${toId}, place_id, reaction, room_version, updated_at from reactions where user_id = ${fromId}
+        on conflict do nothing`);
+      await tx.execute(sql`delete from reactions where user_id = ${fromId}`);
+      await tx.execute(sql`delete from session_members where user_id = ${fromId}`);
+    });
+  }
+
   async end(sessionId: string) {
     await this.db
       .update(sessions)
