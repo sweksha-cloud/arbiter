@@ -28,9 +28,8 @@ export interface RateLimits {
   /** Typed-place lookups a day per IP, so one network can't use up the day's total. */
   geocodesPerIpPerDay: number;
   /**
-   * Google Geocoding requests a day across everyone, typed places and naming
-   * meeting points together. 280 a day stays under Google's 10,000 free a
-   * month in any month (TRADEOFFS.md 1b).
+   * Google Geocoding requests (typed places) a day across everyone. 280 a day
+   * stays under Google's 10,000 free a month in any month (TRADEOFFS.md 1b).
    */
   geocodesPerDay: number;
 }

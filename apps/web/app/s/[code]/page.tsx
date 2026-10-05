@@ -155,7 +155,13 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           <SubmissionStatus view={view} myId={identity.guest.id} />
           <MeetingCard view={view} myId={identity.guest.id} token={identity.token} actions={meetingActions} />
           <InviteCard sessionId={view.sessionId} />
-          <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
+          {view.meeting.mode === 'between' && !view.meeting.myOrigin ? (
+            <p className="notice">
+              First, share where you&apos;re coming from (above). Then you can fill in your preferences.
+            </p>
+          ) : (
+            <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
+          )}
           {isHost && (
             <ShowResultsNow view={view} onStart={async () => failOn(await connectedSocket().emitWithAck('session:start'))} />
           )}

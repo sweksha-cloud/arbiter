@@ -89,8 +89,7 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <strong>Google Maps Platform</strong> (Places API and Geocoding API) receives the location of each search, to
-          find nearby places; any place you type, to find it on the map; and, when the group meets between everyone,
-          the meeting point, to name the town it&apos;s in. It doesn&apos;t receive your name, email or preferences. Use of Google Maps features is subject to
+          find nearby places, and any place you type, to find it on the map. It doesn&apos;t receive your name, email or preferences. Use of Google Maps features is subject to
           the{' '}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">
             Google Privacy Policy

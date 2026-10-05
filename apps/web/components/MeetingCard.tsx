@@ -5,14 +5,23 @@ import { useState } from 'react';
 
 import { LocationPicker } from './LocationPicker';
 
-const MODES: { mode: MeetingMode; label: string; detail: string }[] = [
-  { mode: 'area', label: 'We already know the area', detail: 'You set it. Nobody else is asked for a location.' },
-  {
-    mode: 'between',
-    label: 'Find a spot between us',
-    detail: "Everyone shares where they're coming from, and Arbiter searches in the middle."
-  }
+const MODES: { mode: MeetingMode; label: string }[] = [
+  { mode: 'area', label: 'We already know the area' },
+  { mode: 'between', label: 'Find a spot between us' }
 ];
+
+/** What the location is for, shown wherever someone is asked for one. */
+const NOTES: Record<MeetingMode, { host: string; everyone: string }> = {
+  area: {
+    host: 'Arbiter searches around this place. Nobody else is asked for a location.',
+    everyone: 'Arbiter searches around this place.'
+  },
+  between: {
+    host: "Everyone shares where they're coming from, and Arbiter searches around the average of everyone's locations.",
+    everyone:
+      "Arbiter searches around the average of everyone's locations. Yours is only used for that: nobody else sees it."
+  }
+};
 
 export interface MeetingActions {
   setMode: (mode: MeetingMode) => Promise<void>;
@@ -66,10 +75,14 @@ export function MeetingCard({
               </button>
             ))}
           </div>
-          {meeting.mode && <p className="small muted">{MODES.find((m) => m.mode === meeting.mode)?.detail}</p>}
+          {meeting.mode && <p className="small muted">{NOTES[meeting.mode].host}</p>}
         </fieldset>
+      ) : meeting.mode === null ? (
+        <p className="muted">Waiting for {hostName} to choose where to meet.</p>
       ) : (
-        meeting.mode === null && <p className="muted">Waiting for {hostName} to choose where to meet.</p>
+        <p>
+          {hostName} chose: <strong>{MODES.find((m) => m.mode === meeting.mode)?.label}</strong>
+        </p>
       )}
       {error && <p className="error">{error}</p>}
 
@@ -77,9 +90,12 @@ export function MeetingCard({
         (isHost ? (
           <LocationPicker token={token} label="Search near" value={meeting.area} onChoose={actions.setArea} />
         ) : meeting.area ? (
-          <p>
-            Meeting near <strong>{meeting.area.label ?? `${hostName}'s current location`}</strong>
-          </p>
+          <>
+            <p>
+              Meeting near <strong>{meeting.area.label ?? `${hostName}'s current location`}</strong>
+            </p>
+            <p className="small muted">{NOTES.area.everyone}</p>
+          </>
         ) : (
           <p className="muted">Waiting for {hostName} to set the area.</p>
         ))}
@@ -87,19 +103,18 @@ export function MeetingCard({
       {meeting.mode === 'between' && (
         <>
           <p>
-            <strong>Meeting spot: between everyone</strong>{' '}
+            <strong>Meeting spot: the average of everyone&apos;s locations</strong>{' '}
             <span className="muted small">
               ({meeting.sharedIds.length} of {view.members.length} shared)
             </span>
           </p>
           <LocationPicker
             token={token}
-            label="Where are you coming from?"
+            label="Where are you coming from? (needed before your preferences)"
             value={meeting.myOrigin}
             onChoose={actions.setOrigin}
-            onClear={() => actions.setOrigin(null)}
           />
-          <p className="small muted">Only used to find a fair place to meet. Nobody else sees it.</p>
+          <p className="small muted">{NOTES.between.everyone}</p>
           {meeting.tooFarApart && (
             <p className="warning small" role="alert">
               You&apos;re too far apart to meet in the middle: someone would come more than 30 miles.
@@ -117,6 +132,6 @@ export function searchedNearText(view: SessionView): string {
   const { meeting } = view;
   const hostName = view.members.find((m) => m.id === view.hostId)?.displayName ?? 'the host';
   if (meeting.searchedNear) return `Searched near ${meeting.searchedNear}`;
-  if (meeting.mode === 'between') return 'Searched around the middle of the group';
+  if (meeting.mode === 'between') return "Searched around the average of everyone's locations";
   return `Searched near ${hostName}'s location`;
 }

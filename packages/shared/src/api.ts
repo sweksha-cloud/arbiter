@@ -103,7 +103,7 @@ export const MeetingViewSchema = z.object({
   sharedIds: z.array(z.string()),
   /** Someone shared a starting point more than 30 miles from the meeting point. */
   tooFarApart: z.boolean(),
-  /** Once results are in: what the search was near ("San Francisco, CA, USA"), or null if unnamed. */
+  /** Once results are in: the name of the host's area ("San Francisco, CA, USA"); null when meeting between everyone or unnamed. */
   searchedNear: z.string().nullable()
 });
 export type MeetingView = z.infer<typeof MeetingViewSchema>;

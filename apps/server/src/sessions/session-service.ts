@@ -32,7 +32,6 @@ import { SessionCodeTakenError, type SessionHistory } from '../history/session-h
 import type { GuestStore } from '../identity/guest-store.js';
 import { addMenus } from '../nutrition/enrich.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
-import type { Geocoder } from '../places/geocoder.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
@@ -72,8 +71,6 @@ export interface SessionServiceOptions {
    */
   scanBudget?: SlidingWindowLimiter;
   places: PlacesProvider;
-  /** Names the meeting point when the group meets between everyone. */
-  geocoder: Geocoder;
   /** Chains' published menus (fatsecret). Without it, nutrition goals have no data to act on. */
   menus?: MenuProvider;
   placesSource: SessionView['placesSource'];
@@ -255,6 +252,10 @@ export class SessionService {
       }
       if (current.status !== 'lobby') {
         throw new SessionError('invalid_state', 'Results are already in; preferences are locked');
+      }
+      // Meeting between everyone, where you're coming from is the first question (TRADEOFFS.md 1b).
+      if (current.meetingMode === 'between' && !current.origins[guest.id]) {
+        throw new SessionError('location', "Share where you're coming from first.");
       }
       return {
         ...current,
@@ -451,10 +452,9 @@ export class SessionService {
       // Search exactly as far as the group will go, so a far limit finds far
       // places and a close one spends the scan's results on nearby places.
       const { center, radiusMeters, limits } = searchPlan(room, this.options.radiusMeters);
-      const [scanned, searchedNear] = await Promise.all([
-        this.options.places.searchNearby({ center, radiusMeters }),
-        this.nameSearchArea(room, center)
-      ]);
+      const scanned = await this.options.places.searchNearby({ center, radiusMeters });
+      // What everyone sees above the results: the host's area, by its name.
+      const searchedNear = room.meetingMode === 'area' ? room.area?.label : undefined;
       const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy, limits);
       // Nutrition only adds to places that already fit everyone's must-haves.
       const withMenus = await addMenus(kept, this.options.menus);
@@ -516,20 +516,6 @@ export class SessionService {
       // Two last changes at the same moment: the other one started the scan.
       if (error instanceof SessionError && error.code === 'invalid_state') return this.get(room.sessionId);
       throw error;
-    }
-  }
-
-  /**
-   * What to call the searched area: the host's label, or the town the
-   * meeting point is in. A failed lookup just leaves it unnamed.
-   */
-  private async nameSearchArea(room: RoomState, center: LatLng): Promise<string | undefined> {
-    if (room.meetingMode === 'area') return room.area?.label;
-    try {
-      return await this.options.geocoder.nameOf(center);
-    } catch (error) {
-      this.options.log?.error({ err: error, sessionId: room.sessionId }, 'Could not name the meeting point');
-      return undefined;
     }
   }
 

@@ -10,15 +10,13 @@ export interface FoundPlace {
 }
 
 /**
- * Turns typed text into a point, and a point into a name. Google when an API
- * key is configured, invented sample answers otherwise. Each call costs at
- * most one paid request (TRADEOFFS.md 1b).
+ * Turns typed text into a point. Google when an API key is configured,
+ * invented sample answers otherwise. Each call costs at most one paid
+ * request (TRADEOFFS.md 1b).
  */
 export interface Geocoder {
   /** Undefined if nothing matches. "san francisco" works as well as a full address. */
   find(query: string): Promise<FoundPlace | undefined>;
-  /** The town or neighbourhood a point is in, for "Meeting near …". Undefined if unnamed. */
-  nameOf(point: LatLng): Promise<string | undefined>;
 }
 
 const ENDPOINT = 'https://maps.googleapis.com/maps/api/geocode/json';
@@ -60,12 +58,6 @@ export class GoogleGeocoder implements Geocoder {
     return first && { center: first.geometry.location, label: first.formatted_address };
   }
 
-  async nameOf({ lat, lng }: LatLng): Promise<string | undefined> {
-    // The town, not a street address: "Santa Clara, CA, USA".
-    const [first] = await this.request({ latlng: `${lat},${lng}`, result_type: 'locality|sublocality|neighborhood' });
-    return first?.formatted_address;
-  }
-
   private async request(params: Record<string, string>) {
     const url = `${ENDPOINT}?${new URLSearchParams({ ...params, key: this.options.apiKey })}`;
     const response = await this.fetch(url, { signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000) });
@@ -89,9 +81,9 @@ export class GeocodeBudgetExceededError extends Error {
 }
 
 /**
- * Caps lookups across everyone (typed places and naming meeting points
- * alike), so Google's free monthly amount is never passed. In memory, like
- * the other limits: a restart resets the count (SECURITY.md).
+ * Caps lookups across everyone, so Google's free monthly amount is never
+ * passed. In memory, like the other limits: a restart resets the count
+ * (SECURITY.md).
  */
 export class BudgetedGeocoder implements Geocoder {
   constructor(
@@ -102,12 +94,6 @@ export class BudgetedGeocoder implements Geocoder {
   async find(query: string): Promise<FoundPlace | undefined> {
     if (this.budget.take('all') > 0) throw new GeocodeBudgetExceededError();
     return this.inner.find(query);
-  }
-
-  /** Over budget, the meeting point just goes unnamed. */
-  async nameOf(point: LatLng): Promise<string | undefined> {
-    if (this.budget.take('all') > 0) return undefined;
-    return this.inner.nameOf(point);
   }
 }
 
@@ -130,9 +116,5 @@ export class SampleGeocoder implements Geocoder {
       center: { lat: SAMPLE_ORIGIN.lat + north, lng: SAMPLE_ORIGIN.lng + east },
       label: `${query.trim()} (sample)`
     };
-  }
-
-  async nameOf(): Promise<string | undefined> {
-    return undefined;
   }
 }

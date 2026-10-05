@@ -139,7 +139,7 @@ describe('session over Socket.IO', () => {
     expect(await opened(connectClient(guest.token))).toBe('connected');
   });
 
-  it('meets between everyone: starting points stay private, and results wait for them', async () => {
+  it('meets between everyone: starting points come first and stay private', async () => {
     const { hostClient, friendClient } = await sessionWithTwoPeople({ area: false });
     expect(await setMode(friendClient, 'between')).toMatchObject({ ok: false, code: 'forbidden' });
     expect(await setMode(hostClient, 'between')).toEqual({ ok: true });
@@ -151,14 +151,13 @@ describe('session over Socket.IO', () => {
     expect(hostView.meeting.myOrigin).toBeNull();
     expect(JSON.stringify(hostView)).not.toContain('San Francisco');
 
-    const bothSubmitted = nextState(hostClient, (v) => v.members.every((m) => m.submitted));
+    // Where you're coming from is the first question.
+    expect(await submit(hostClient)).toMatchObject({ ok: false, code: 'location' });
+    expect(await setOrigin(hostClient, { center })).toEqual({ ok: true });
     expect(await submit(hostClient)).toEqual({ ok: true });
-    expect(await submit(friendClient)).toEqual({ ok: true });
-    // Everyone submitted, but the host hasn't shared a starting point yet.
-    expect((await bothSubmitted).status).toBe('lobby');
 
     const results = nextState(friendClient, (v) => v.status === 'voting');
-    expect(await setOrigin(hostClient, { center })).toEqual({ ok: true });
+    expect(await submit(friendClient)).toEqual({ ok: true });
     const view = await results;
     expect(view.meeting.myOrigin?.label).toBe('San Francisco');
     expect(view.suggestions[0]?.distanceFromYou).toBe(true);

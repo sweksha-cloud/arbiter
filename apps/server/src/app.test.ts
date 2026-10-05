@@ -126,7 +126,7 @@ describe('app', () => {
     });
 
     it("says so when nothing matches, and refuses text that's blank or too long", async () => {
-      app = await buildApp({ webOrigin, logLevel: 'silent', geocoder: { find: async () => undefined, nameOf: async () => undefined } });
+      app = await buildApp({ webOrigin, logLevel: 'silent', geocoder: { find: async () => undefined } });
       const token = await newToken();
       const missing = await lookup('qwxzzzv', token);
       expect(missing.statusCode).toBe(404);
@@ -136,7 +136,7 @@ describe('app', () => {
     });
 
     it('offers the current location instead when Google refuses, without passing on its message (BUG-022)', async () => {
-      const refusing = { find: () => Promise.reject(new Error('Geocoding API REQUEST_DENIED: key not authorized')), nameOf: async () => undefined };
+      const refusing = { find: () => Promise.reject(new Error('Geocoding API REQUEST_DENIED: key not authorized')) };
       app = await buildApp({ webOrigin, logLevel: 'silent', geocoder: refusing });
       const response = await lookup('san francisco', await newToken());
       expect(response.statusCode).toBe(503);

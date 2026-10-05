@@ -30,14 +30,6 @@ describe('GoogleGeocoder', () => {
     expect(await geocoder.find('qwxzzzv')).toBeUndefined();
   });
 
-  it('names a point by its town', async () => {
-    const fetch = reply({ status: 'OK', results: [{ ...sanFrancisco, formatted_address: 'Santa Clara, CA, USA' }] });
-    expect(await new GoogleGeocoder({ apiKey: 'key', fetch }).nameOf({ lat: 37.35, lng: -121.95 })).toBe('Santa Clara, CA, USA');
-    const url = new URL(String(fetch.mock.calls[0]![0]));
-    expect(url.searchParams.get('latlng')).toBe('37.35,-121.95');
-    expect(url.searchParams.get('result_type')).toContain('locality');
-  });
-
   it('reports quota limits as such, and other errors without the key', async () => {
     await expect(new GoogleGeocoder({ apiKey: 'key', fetch: reply({ status: 'OVER_QUERY_LIMIT' }) }).find('x')).rejects.toBeInstanceOf(
       PlacesQuotaExceededError
@@ -60,16 +52,10 @@ describe('SampleGeocoder', () => {
 });
 
 describe('BudgetedGeocoder', () => {
-  it('shares one daily total between typed places and naming meeting points', async () => {
-    const inner = new SampleGeocoder();
-    const geocoder = new BudgetedGeocoder(
-      { find: (q) => inner.find(q), nameOf: async () => 'Santa Clara, CA, USA' },
-      new SlidingWindowLimiter(2, 24 * 60 * 60_000)
-    );
+  it('stops at the daily total across everyone', async () => {
+    const geocoder = new BudgetedGeocoder(new SampleGeocoder(), new SlidingWindowLimiter(2, 24 * 60 * 60_000));
     expect(await geocoder.find('Oakland')).toBeDefined();
-    expect(await geocoder.nameOf({ lat: 37.35, lng: -121.95 })).toBe('Santa Clara, CA, USA');
+    expect(await geocoder.find('Fremont')).toBeDefined();
     await expect(geocoder.find('Oakland')).rejects.toBeInstanceOf(GeocodeBudgetExceededError);
-    // Over budget, naming is skipped instead of failing the search.
-    expect(await geocoder.nameOf({ lat: 37.35, lng: -121.95 })).toBeUndefined();
   });
 });

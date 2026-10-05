@@ -136,7 +136,6 @@ export async function buildApp({
     log: http.log,
     scanBudget: new SlidingWindowLimiter(rateLimits.scansPerIpPerDay, 24 * 60 * 60_000),
     places: deps.places ?? new DemoPlacesProvider(),
-    geocoder,
     menus,
     placesSource,
     radiusMeters: SCAN_RADIUS_METERS,

@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { InMemorySessionHistory, SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
 import { InMemoryGuestStore } from '../identity/guest-store.js';
 import { FixturePlacesProvider } from '../places/fixture-places-provider.js';
-import { SampleGeocoder, type Geocoder } from '../places/geocoder.js';
 import type { PlacesProvider } from '../places/places-provider.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
@@ -31,8 +30,7 @@ async function setup(
   places: PlacesProvider = new FixturePlacesProvider([place('a'), place('b'), place('c'), place('d')]),
   history: SessionHistory = new InMemorySessionHistory(),
   scanBudget?: SlidingWindowLimiter,
-  menus?: MenuProvider,
-  geocoder: Geocoder = new SampleGeocoder()
+  menus?: MenuProvider
 ) {
   const guests = new InMemoryGuestStore();
   const historyErrors: { error: unknown; action: string }[] = [];
@@ -52,7 +50,6 @@ async function setup(
       }
     },
     places,
-    geocoder,
     placesSource: 'sample',
     radiusMeters: 3000,
     missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' }
@@ -491,8 +488,8 @@ describe('SessionService', () => {
     const sanFrancisco = { lat: 37.7749, lng: -122.4194 };
 
     /** A fresh session where nobody has chosen where to meet yet. Host and friend are in. */
-    async function undecided(places?: PlacesProvider, geocoder?: Geocoder) {
-      const ctx = await setup(places, undefined, undefined, undefined, geocoder);
+    async function undecided(places?: PlacesProvider) {
+      const ctx = await setup(places);
       const sessionId = await ctx.service.create(ctx.host, '203.0.113.9');
       await ctx.service.join(sessionId, ctx.friend);
       return { ...ctx, sessionId };
@@ -545,14 +542,26 @@ describe('SessionService', () => {
       expect(fromSanJose * 2).toBeCloseTo(fromSanFrancisco, -3);
     });
 
+    it('asks where you are coming from before your preferences', async () => {
+      const { service, host, sessionId } = await undecided();
+      await service.setMeetingMode(sessionId, host, 'between');
+      await expect(service.submit(sessionId, host, noPreferences)).rejects.toMatchObject({
+        code: 'location',
+        message: "Share where you're coming from first."
+      });
+      await service.setOrigin(sessionId, host, { center: sanJose });
+      expect((await service.submit(sessionId, host, noPreferences)).members[0]!.submitted).toBe(true);
+    });
+
     it('waits for everyone to share a starting point, but the host can go without the missing ones', async () => {
       const provider = new FixturePlacesProvider([place('a')]);
       const searchNearby = vi.spyOn(provider, 'searchNearby');
       const { service, host, friend, sessionId } = await undecided(provider);
-      await service.setMeetingMode(sessionId, host, 'between');
-      await service.setOrigin(sessionId, friend, { center: sanFrancisco });
+      // Both submitted before the host chose; then only the friend shares.
       await service.submit(sessionId, host, noPreferences);
-      expect((await service.submit(sessionId, friend, noPreferences)).status).toBe('lobby');
+      await service.submit(sessionId, friend, noPreferences);
+      await service.setMeetingMode(sessionId, host, 'between');
+      expect((await service.setOrigin(sessionId, friend, { center: sanFrancisco })).status).toBe('lobby');
 
       await service.start(sessionId, host);
       // Only the friend shared, so the search is around them.
@@ -602,26 +611,16 @@ describe('SessionService', () => {
       expect(JSON.stringify(forFriend)).not.toContain(String(sanJose.lat));
     });
 
-    it("names where it searched: the host's area, or the town the meeting point is in", async () => {
+    it("names the host's area above the results; meeting between everyone needs no lookup", async () => {
       const area = await undecided();
       await area.service.setMeetingMode(area.sessionId, area.host, 'area');
       await area.service.setArea(area.sessionId, area.host, { center, label: 'Downtown San Jose' });
       expect((await area.service.start(area.sessionId, area.host)).searchedNear).toBe('Downtown San Jose');
 
-      const named: Geocoder = { find: async () => undefined, nameOf: async () => 'Santa Clara, CA, USA' };
-      const between = await undecided(undefined, named);
+      const between = await undecided();
       await between.service.setMeetingMode(between.sessionId, between.host, 'between');
       await between.service.setOrigin(between.sessionId, between.host, { center });
-      expect((await between.service.start(between.sessionId, between.host)).searchedNear).toBe('Santa Clara, CA, USA');
-
-      // A failed lookup still shows results, just unnamed.
-      const broken: Geocoder = { find: async () => undefined, nameOf: () => Promise.reject(new Error('down')) };
-      const unnamed = await undecided(undefined, broken);
-      await unnamed.service.setMeetingMode(unnamed.sessionId, unnamed.host, 'between');
-      await unnamed.service.setOrigin(unnamed.sessionId, unnamed.host, { center });
-      const room = await unnamed.service.start(unnamed.sessionId, unnamed.host);
-      expect(room.status).toBe('voting');
-      expect(room.searchedNear).toBeUndefined();
+      expect((await between.service.start(between.sessionId, between.host)).searchedNear).toBeUndefined();
     });
   });
 

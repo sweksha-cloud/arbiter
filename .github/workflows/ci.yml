@@ -5,7 +5,9 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push cancels older runs, except on main, where a cancelled run
+  # could stop a deploy halfway.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -58,3 +60,72 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  # Every push to main that passes all checks goes live (TRADEOFFS.md 8c).
+  # No SSH and no stored AWS keys: GitHub signs in to AWS for this run only
+  # (OIDC), and AWS Systems Manager runs deploy/deploy.sh on the server, which
+  # rolls back if the new version isn't healthy.
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      IMAGE: ghcr.io/sweksha-cloud/arbiter-server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Deploy on the server and wait for its health check
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          SHA: ${{ github.sha }}
+        run: |
+          commands=$(jq -cn --arg sha "$SHA" '{commands: [
+            "set -e",
+            "cd /home/ubuntu/arbiter",
+            "sudo -u ubuntu git fetch -q origin main",
+            ("sudo -u ubuntu git reset -q --hard " + $sha),
+            ("deploy/deploy.sh " + $sha)
+          ]}')
+          id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name AWS-RunShellScript \
+            --comment "Deploy $SHA" --timeout-seconds 600 --parameters "$commands" \
+            --query Command.CommandId --output text)
+          echo "SSM command $id"
+          for _ in $(seq 1 120); do
+            sleep 5
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Result: $status"
+          [ "$status" = Success ]
+      - name: Check the live server answers
+        run: curl -fsS --retry 5 --retry-delay 3 https://arbiter-sweksha.duckdns.org/health
