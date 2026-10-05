@@ -28,14 +28,14 @@ export const CHAINS: readonly Chain[] = [
   { name: 'Sonic Drive-In', aliases: ['Sonic'] },
   { name: 'White Castle' },
   { name: 'The Habit Burger Grill', aliases: ['Habit Burger'] },
-  { name: "Freddy's Frozen Custard & Steakburgers", aliases: ["Freddy's"] },
+  { name: "Freddy's Frozen Custard & Steakburgers", aliases: ["Freddy's", "Freddy's Frozen Custard"] },
   { name: "Steak 'n Shake" },
   { name: 'Red Robin' },
   { name: "Arby's" },
   { name: 'Dairy Queen' },
   // Chicken
   { name: 'Chick-fil-A' },
-  { name: 'Popeyes' },
+  { name: 'Popeyes', aliases: ['Popeyes Chicken & Biscuits'] },
   { name: 'KFC' },
   { name: "Raising Cane's" },
   { name: "Zaxby's" },
@@ -48,10 +48,10 @@ export const CHAINS: readonly Chain[] = [
   // Mexican
   { name: 'Chipotle', aliases: ['Chipotle Mexican Grill'] },
   { name: 'Taco Bell' },
-  { name: 'Qdoba' },
+  { name: 'Qdoba', aliases: ['Qdoba Mexican Grill'] },
   { name: "Moe's Southwest Grill" },
   { name: 'Del Taco' },
-  { name: 'Baja Fresh' },
+  { name: 'Baja Fresh', aliases: ['Baja Fresh Mexican Grill'] },
   // Sandwiches
   { name: 'Subway' },
   { name: "Jersey Mike's" },
@@ -61,7 +61,7 @@ export const CHAINS: readonly Chain[] = [
   { name: "Jason's Deli" },
   { name: "McAlister's Deli" },
   { name: 'Panera Bread', aliases: ['Panera'] },
-  { name: 'Corner Bakery' },
+  { name: 'Corner Bakery', aliases: ['Corner Bakery Cafe'] },
   // Bowls, salads, Mediterranean
   { name: 'Sweetgreen' },
   { name: 'Cava' },
@@ -70,11 +70,11 @@ export const CHAINS: readonly Chain[] = [
   { name: "P.F. Chang's" },
   { name: 'Pei Wei' },
   // Pizza
-  { name: "Domino's" },
+  { name: "Domino's", aliases: ["Domino's Pizza"] },
   { name: 'Pizza Hut' },
   { name: "Papa John's" },
   { name: 'Little Caesars' },
-  { name: "Papa Murphy's" },
+  { name: "Papa Murphy's", aliases: ["Papa Murphy's Pizza"] },
   { name: 'Blaze Pizza' },
   { name: 'MOD Pizza' },
   // Sit-down
@@ -90,7 +90,7 @@ export const CHAINS: readonly Chain[] = [
   { name: "BJ's Restaurant", aliases: ["BJ's Restaurant & Brewhouse"] },
   { name: 'Ruby Tuesday' },
   { name: "Maggiano's" },
-  { name: "Carrabba's" },
+  { name: "Carrabba's", aliases: ["Carrabba's Italian Grill"] },
   { name: 'Benihana' },
   // Breakfast and coffee
   { name: 'IHOP' },
@@ -100,12 +100,12 @@ export const CHAINS: readonly Chain[] = [
   { name: 'Bob Evans' },
   { name: 'Starbucks' },
   { name: "Dunkin'", aliases: ['Dunkin', "Dunkin' Donuts"] },
-  { name: "Peet's Coffee" },
+  { name: "Peet's Coffee", aliases: ["Peet's Coffee & Tea"] },
   { name: 'Tim Hortons' },
-  { name: 'Einstein Bros. Bagels', aliases: ['Einstein Bros'] },
+  { name: 'Einstein Bros. Bagels', aliases: ['Einstein Bros', 'Einstein Brothers Bagels'] },
   { name: 'Tropical Smoothie Cafe' },
   { name: 'Smoothie King' },
-  { name: 'Jamba' },
+  { name: 'Jamba', aliases: ['Jamba Juice'] },
   { name: 'Krispy Kreme' }
 ];
 
