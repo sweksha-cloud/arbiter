@@ -153,6 +153,9 @@ export async function buildApp({
   // Not logged: Docker and Caddy check it every few seconds.
   http.get('/health', { logLevel: 'silent' }, async () => ({ status: 'ok' }));
 
+  // History writes happen in the background; finish them before shutting down (every deploy).
+  http.addHook('onClose', () => sessions.settleHistory());
+
   registerRoutes(http, {
     guests,
     sessions,

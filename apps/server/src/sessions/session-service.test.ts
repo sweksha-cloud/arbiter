@@ -274,6 +274,7 @@ describe('SessionService', () => {
       await service.react(sessionId, friend, 'a', 'like');
       await service.react(sessionId, friend, 'b', 'dislike');
       await service.end(sessionId, host);
+      await service.settleHistory();
 
       const record = await history.get(sessionId);
       expect(record).toMatchObject({ hostId: host.id, status: 'ended', placesSource: 'sample', members: [host, friend] });
@@ -308,6 +309,7 @@ describe('SessionService', () => {
       await service.start(sessionId, host);
 
       const room = await service.react(sessionId, host, 'a', 'like');
+      await service.settleHistory();
 
       expect(room.reactions[host.id]).toEqual({ a: 'like' });
       expect(historyErrors).toEqual([{ error: new Error('database down'), action: 'react' }]);
@@ -320,7 +322,33 @@ describe('SessionService', () => {
       await service.start(sessionId, host);
       const first = await service.react(sessionId, host, 'a', 'like');
       const second = await service.react(sessionId, host, 'a', null);
+      await service.settleHistory();
       expect(recordReaction.mock.calls.map((c) => c[4])).toEqual([first.version, second.version]);
+    });
+
+    it('writes history in the background: the vote doesn\'t wait for the database, and writes stay in order', async () => {
+      const history = new InMemorySessionHistory();
+      let release!: () => void;
+      const slow = new Promise<void>((resolve) => (release = resolve));
+      const original = history.recordReaction.bind(history);
+      const order: string[] = [];
+      vi.spyOn(history, 'recordReaction').mockImplementation(async (...args) => {
+        if (order.length === 0) await slow; // The database is slow for the first write.
+        order.push(String(args[3]));
+        return original(...args);
+      });
+      const { service, host, sessionId } = await setup(undefined, history);
+      await service.start(sessionId, host);
+
+      // Both votes return while the first write is still waiting on the database.
+      await service.react(sessionId, host, 'a', 'like');
+      await service.react(sessionId, host, 'a', 'dislike');
+      expect(order).toEqual([]);
+
+      release();
+      await service.settleHistory();
+      expect(order).toEqual(['like', 'dislike']);
+      expect((await history.get(sessionId))!.places.find((p) => p.placeId === 'a')).toMatchObject({ likes: 0, dislikes: 1 });
     });
   });
 
@@ -727,6 +755,7 @@ describe('SessionService', () => {
       expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c', 'd', 'f']);
       expect(room.moreOptions.map((p) => p.id)).toEqual(['e']);
       expect(service.view(room, host.id).suggestions[4]).toMatchObject({ likes: 1, myReaction: null });
+      await service.settleHistory();
       expect((await history.get(sessionId))!.places.map((p) => [p.placeId, p.likes])).toEqual([
         ['a', 0],
         ['b', 0],

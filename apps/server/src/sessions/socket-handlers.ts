@@ -18,6 +18,7 @@ import { ZodError } from 'zod';
 import type { GuestStore } from '../identity/guest-store.js';
 import { PlacesQuotaExceededError } from '../places/places-provider.js';
 import { ConcurrencyLimiter, WindowCounter, type RateLimits } from '../rate-limits.js';
+import type { RoomState } from '../rooms/room-store.js';
 import { SessionError, type SessionService } from './session-service.js';
 
 interface SocketData {
@@ -75,9 +76,10 @@ export function registerSocketHandlers(
    * Concurrent broadcasts can still arrive out of order; clients keep the
    * highest `version` (see newerView).
    */
-  async function broadcast(sessionId: string) {
+  async function broadcast(sessionId: string, latest?: RoomState) {
     const sockets = await io.in(roomName(sessionId)).fetchSockets();
-    const room = await sessions.get(sessionId).catch(() => undefined);
+    // The room an action just saved, when there is one: no need to read it back.
+    const room = latest ?? (await sessions.get(sessionId).catch(() => undefined));
     if (!room) return;
     const onlineIds = new Set(sockets.map((s) => s.data.guest.id));
     for (const socket of sockets) {
@@ -139,13 +141,13 @@ export function registerSocketHandlers(
     socket.on('session:join', (payload, ack) =>
       respond(ack, logContext('session:join'), async () => {
         const { sessionId } = JoinSessionPayloadSchema.parse(payload);
-        await sessions.join(sessionId, guest);
+        const room = await sessions.join(sessionId, guest);
         if (socket.data.sessionId && socket.data.sessionId !== sessionId) {
           await socket.leave(roomName(socket.data.sessionId));
         }
         socket.data.sessionId = sessionId;
         await socket.join(roomName(sessionId));
-        await broadcast(sessionId);
+        await broadcast(sessionId, room);
       })
     );
 
@@ -153,11 +155,12 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:submit'), async () => {
         const sessionId = currentSession(socket);
         const { preferences } = SubmitPreferencesPayloadSchema.parse(payload);
+        let latest: RoomState | undefined;
         try {
           // May complete the group, which starts the scan; broadcast "scanning" as it begins.
-          await sessions.submit(sessionId, guest, preferences, () => broadcast(sessionId));
+          latest = await sessions.submit(sessionId, guest, preferences, () => broadcast(sessionId));
         } finally {
-          await broadcast(sessionId);
+          await broadcast(sessionId, latest);
         }
       })
     );
@@ -167,10 +170,11 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:meeting-mode'), async () => {
         const sessionId = currentSession(socket);
         const { mode } = MeetingModePayloadSchema.parse(payload);
+        let latest: RoomState | undefined;
         try {
-          await sessions.setMeetingMode(sessionId, guest, mode, () => broadcast(sessionId));
+          latest = await sessions.setMeetingMode(sessionId, guest, mode, () => broadcast(sessionId));
         } finally {
-          await broadcast(sessionId);
+          await broadcast(sessionId, latest);
         }
       })
     );
@@ -179,10 +183,11 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:area'), async () => {
         const sessionId = currentSession(socket);
         const { area } = AreaPayloadSchema.parse(payload);
+        let latest: RoomState | undefined;
         try {
-          await sessions.setArea(sessionId, guest, area, () => broadcast(sessionId));
+          latest = await sessions.setArea(sessionId, guest, area, () => broadcast(sessionId));
         } finally {
-          await broadcast(sessionId);
+          await broadcast(sessionId, latest);
         }
       })
     );
@@ -191,10 +196,11 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:origin'), async () => {
         const sessionId = currentSession(socket);
         const { origin } = OriginPayloadSchema.parse(payload);
+        let latest: RoomState | undefined;
         try {
-          await sessions.setOrigin(sessionId, guest, origin, () => broadcast(sessionId));
+          latest = await sessions.setOrigin(sessionId, guest, origin, () => broadcast(sessionId));
         } finally {
-          await broadcast(sessionId);
+          await broadcast(sessionId, latest);
         }
       })
     );
@@ -202,11 +208,12 @@ export function registerSocketHandlers(
     socket.on('session:start', (ack) =>
       respond(ack, logContext('session:start'), async () => {
         const sessionId = currentSession(socket);
+        let latest: RoomState | undefined;
         try {
-          await sessions.start(sessionId, guest, () => broadcast(sessionId));
+          latest = await sessions.start(sessionId, guest, () => broadcast(sessionId));
         } finally {
           // On failure the session is back in the lobby; everyone should see that too.
-          await broadcast(sessionId);
+          await broadcast(sessionId, latest);
         }
       })
     );
@@ -215,8 +222,7 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:react'), async () => {
         const sessionId = currentSession(socket);
         const { placeId, reaction } = ReactPayloadSchema.parse(payload);
-        await sessions.react(sessionId, guest, placeId, reaction);
-        await broadcast(sessionId);
+        await broadcast(sessionId, await sessions.react(sessionId, guest, placeId, reaction));
       })
     );
 
@@ -224,16 +230,14 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:tag'), async () => {
         const sessionId = currentSession(socket);
         const { placeId, tag, on } = TagPayloadSchema.parse(payload);
-        await sessions.tag(sessionId, guest, placeId, tag, on);
-        await broadcast(sessionId);
+        await broadcast(sessionId, await sessions.tag(sessionId, guest, placeId, tag, on));
       })
     );
 
     socket.on('session:end', (ack) =>
       respond(ack, logContext('session:end'), async () => {
         const sessionId = currentSession(socket);
-        await sessions.end(sessionId, guest);
-        await broadcast(sessionId);
+        await broadcast(sessionId, await sessions.end(sessionId, guest));
       })
     );
   });

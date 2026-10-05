@@ -33,6 +33,9 @@ return 1`;
 
 const key = (sessionId: string) => `room:${sessionId}`;
 
+/** Decoded rooms kept per process; the oldest are dropped past this many. */
+const CACHE_LIMIT = 1_000;
+
 /**
  * Live sessions in Redis, so they survive the server restarting (every
  * deploy) and could be shared by several server processes (TRADEOFFS.md 10b).
@@ -41,20 +44,44 @@ const key = (sessionId: string) => `room:${sessionId}`;
  * shared connection.
  */
 export class RedisRoomStore implements RoomStore {
+  /**
+   * The last version of each room this process saw, already decoded. When
+   * Redis still holds that version, reading the room skips fetching and
+   * decoding its JSON (TRADEOFFS.md 17h). Rooms are never mutated in place,
+   * so sharing them is safe.
+   */
+  private readonly cache = new Map<string, RoomState>();
+
   constructor(
     private readonly redis: Redis,
     private readonly ttlMs: number = ROOM_TTL_MS
   ) {}
 
   async get(sessionId: string): Promise<RoomState | undefined> {
-    const [version, state] = await this.redis.hmget(key(sessionId), 'version', 'state');
-    if (version == null || state == null) return undefined;
-    return { ...(JSON.parse(state) as Omit<RoomState, 'version'>), version: Number(version) };
+    const version = await this.redis.hget(key(sessionId), 'version');
+    if (version === null) {
+      this.cache.delete(sessionId);
+      return undefined;
+    }
+    const cached = this.cache.get(sessionId);
+    if (cached?.version === Number(version)) return cached;
+
+    const [freshVersion, state] = await this.redis.hmget(key(sessionId), 'version', 'state');
+    if (freshVersion == null || state == null) return undefined;
+    return this.remember({ ...(JSON.parse(state) as Omit<RoomState, 'version'>), version: Number(freshVersion) });
+  }
+
+  private remember(room: RoomState): RoomState {
+    this.cache.delete(room.sessionId);
+    this.cache.set(room.sessionId, room);
+    if (this.cache.size > CACHE_LIMIT) this.cache.delete(this.cache.keys().next().value!);
+    return room;
   }
 
   async create(state: Omit<RoomState, 'version'>): Promise<void> {
     const created = await this.redis.eval(CREATE, 1, key(state.sessionId), JSON.stringify(state), this.ttlMs);
     if (created !== 1) throw new RoomExistsError(state.sessionId);
+    this.remember({ ...state, version: 0 });
   }
 
   async update(sessionId: string, change: (current: RoomState) => RoomState): Promise<RoomState> {
@@ -73,13 +100,14 @@ export class RedisRoomStore implements RoomStore {
         JSON.stringify(changed),
         this.ttlMs
       );
-      if (result === 1) return next;
+      if (result === 1) return this.remember(next);
       if (result === -1) throw new RoomNotFoundError(sessionId);
     }
     throw new Error(`Room ${sessionId}: too many simultaneous changes`);
   }
 
   async delete(sessionId: string): Promise<void> {
+    this.cache.delete(sessionId);
     await this.redis.del(key(sessionId));
   }
 }

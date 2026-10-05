@@ -180,6 +180,9 @@ function measuredFrom(place: PlaceCandidate, from: LatLng): PlaceCandidate {
  * Lifecycle: lobby (people join and submit preferences) → scanning → voting → ended.
  */
 export class SessionService {
+  /** sessionId -> the last history write queued for it. */
+  private readonly historyWrites = new Map<string, Promise<void>>();
+
   constructor(private readonly options: SessionServiceOptions) {}
 
   /**
@@ -240,7 +243,7 @@ export class SessionService {
             ]
           }
     );
-    await this.record(sessionId, 'join', () => this.options.history.addMember(sessionId, guest));
+    this.record(sessionId, 'join', () => this.options.history.addMember(sessionId, guest));
     return room;
   }
 
@@ -341,8 +344,8 @@ export class SessionService {
         reactions: setReaction(room.reactions, guest.id, placeId, reaction)
       };
     });
-    if (added) await this.record(sessionId, 'add', () => this.options.history.addSuggestion(sessionId, placeId));
-    await this.record(sessionId, 'react', () =>
+    if (added) this.record(sessionId, 'add', () => this.options.history.addSuggestion(sessionId, placeId));
+    this.record(sessionId, 'react', () =>
       this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
     );
     return updated;
@@ -365,7 +368,7 @@ export class SessionService {
       this.requireHost(current, guest);
       return { ...current, status: 'ended' };
     });
-    await this.record(sessionId, 'end', () => this.options.history.end(sessionId));
+    this.record(sessionId, 'end', () => this.options.history.end(sessionId));
     this.options.log?.info({ sessionId, members: room.members.length }, 'Session ended');
     return room;
   }
@@ -543,7 +546,7 @@ export class SessionService {
         scannedCount: scanned.length,
         eliminatedCount
       }));
-      await this.record(sessionId, 'suggestions', () =>
+      this.record(sessionId, 'suggestions', () =>
         this.options.history.recordSuggestions(
           sessionId,
           suggestions.map((p) => p.id)
@@ -582,16 +585,26 @@ export class SessionService {
   }
 
   /**
-   * Writes to history after a live change has already succeeded. A failure is
-   * reported, not thrown: the group's session shouldn't break because the
-   * permanent record couldn't be written.
+   * Writes to history after a live change has already succeeded, in the
+   * background: nobody's vote waits on the database (TRADEOFFS.md 17h).
+   * Writes for one session stay in order (a reaction needs its member and
+   * place recorded first). A failure is reported, not thrown: the group's
+   * session shouldn't break because the permanent record couldn't be written.
    */
-  private async record(sessionId: string, action: string, write: () => Promise<void>) {
-    try {
-      await write();
-    } catch (error) {
+  private record(sessionId: string, action: string, write: () => Promise<void>): void {
+    const previous = this.historyWrites.get(sessionId) ?? Promise.resolve();
+    const next = previous.then(write).catch((error: unknown) => {
       this.options.log?.error({ err: error, sessionId, action }, 'Could not save session history');
-    }
+    });
+    this.historyWrites.set(sessionId, next);
+    void next.then(() => {
+      if (this.historyWrites.get(sessionId) === next) this.historyWrites.delete(sessionId);
+    });
+  }
+
+  /** Waits for every history write in flight: on shutdown, and in tests. */
+  async settleHistory(): Promise<void> {
+    while (this.historyWrites.size > 0) await Promise.all(this.historyWrites.values());
   }
 
   /**
