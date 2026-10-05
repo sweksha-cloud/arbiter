@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { GoogleGeocoder, SampleGeocoder } from './geocoder.js';
+import { SlidingWindowLimiter } from '../rate-limits.js';
+import { BudgetedGeocoder, GeocodeBudgetExceededError, GoogleGeocoder, SampleGeocoder } from './geocoder.js';
 import { PlacesQuotaExceededError } from './places-provider.js';
 
 const reply = (body: unknown, status = 200) => vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status }));
@@ -55,5 +56,20 @@ describe('SampleGeocoder', () => {
     expect(first?.center).toEqual((await geocoder.find(' brooklyn '))?.center);
     expect(first?.label).toBe('Brooklyn (sample)');
     expect(await geocoder.find('Oakland')).not.toEqual(first);
+  });
+});
+
+describe('BudgetedGeocoder', () => {
+  it('shares one daily total between typed places and naming meeting points', async () => {
+    const inner = new SampleGeocoder();
+    const geocoder = new BudgetedGeocoder(
+      { find: (q) => inner.find(q), nameOf: async () => 'Santa Clara, CA, USA' },
+      new SlidingWindowLimiter(2, 24 * 60 * 60_000)
+    );
+    expect(await geocoder.find('Oakland')).toBeDefined();
+    expect(await geocoder.nameOf({ lat: 37.35, lng: -121.95 })).toBe('Santa Clara, CA, USA');
+    await expect(geocoder.find('Oakland')).rejects.toBeInstanceOf(GeocodeBudgetExceededError);
+    // Over budget, naming is skipped instead of failing the search.
+    expect(await geocoder.nameOf({ lat: 37.35, lng: -121.95 })).toBeUndefined();
   });
 });

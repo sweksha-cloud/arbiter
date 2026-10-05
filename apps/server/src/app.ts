@@ -13,7 +13,7 @@ import type { ScryptParams } from './identity/passwords.js';
 import type { MenuProvider } from './nutrition/fatsecret-menus.js';
 import { SampleMenuProvider } from './nutrition/sample-menus.js';
 import { DemoPlacesProvider } from './places/demo-places-provider.js';
-import { SampleGeocoder, type Geocoder } from './places/geocoder.js';
+import { BudgetedGeocoder, SampleGeocoder, type Geocoder } from './places/geocoder.js';
 import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
 import type { RoomStore } from './rooms/room-store.js';
@@ -104,7 +104,10 @@ export async function buildApp({
   const guests = deps.guests ?? new InMemoryGuestStore();
   const history = deps.history ?? new InMemorySessionHistory();
   const placesSource = deps.placesSource ?? 'sample';
-  const geocoder = deps.geocoder ?? new SampleGeocoder();
+  const geocoder = new BudgetedGeocoder(
+    deps.geocoder ?? new SampleGeocoder(),
+    new SlidingWindowLimiter(rateLimits.geocodesPerDay, 24 * 60 * 60_000)
+  );
   // Sample places get sample nutrition, so the feature works end to end without
   // credentials. Real places get chain nutrition only with fatsecret set up.
   const menus = deps.menus ?? (placesSource === 'sample' ? new SampleMenuProvider() : undefined);

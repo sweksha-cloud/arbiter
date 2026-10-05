@@ -18,7 +18,7 @@ import type { z } from 'zod';
 import type { SessionHistory, SessionRecord } from './history/session-history.js';
 import { AuthError, type AccountService } from './identity/account-service.js';
 import type { GuestStore } from './identity/guest-store.js';
-import type { Geocoder } from './places/geocoder.js';
+import { GeocodeBudgetExceededError, type Geocoder } from './places/geocoder.js';
 import { PlacesQuotaExceededError } from './places/places-provider.js';
 import { describeWait, type RateLimits, type SlidingWindowLimiter } from './rate-limits.js';
 import { SessionError, type SessionService } from './sessions/session-service.js';
@@ -139,7 +139,7 @@ export function registerRoutes(
       if (!found) return reply.code(404).send({ error: "Couldn't find that place. Try a city, neighborhood or full address." });
       return { location: found };
     } catch (error) {
-      if (error instanceof PlacesQuotaExceededError) {
+      if (error instanceof PlacesQuotaExceededError || error instanceof GeocodeBudgetExceededError) {
         return reply.code(503).send({ error: "Arbiter can't look up places right now. Use your current location instead." });
       }
       throw error;

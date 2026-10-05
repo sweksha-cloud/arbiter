@@ -135,6 +135,14 @@ describe('app', () => {
       expect((await lookup('x'.repeat(200), token)).statusCode).toBe(400);
     });
 
+    it('caps lookups across everyone a day, so the free monthly amount is never passed', async () => {
+      app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, geocodesPerDay: 1 } });
+      expect((await lookup('a place', await newToken())).statusCode).toBe(200);
+      const refused = await lookup('a place', await newToken());
+      expect(refused.statusCode).toBe(503);
+      expect(refused.json()).toEqual({ error: "Arbiter can't look up places right now. Use your current location instead." });
+    });
+
     it('limits lookups per network a day, since each can cost money', async () => {
       app = await buildApp({ webOrigin, logLevel: 'silent', rateLimits: { ...DEFAULT_RATE_LIMITS, geocodesPerIpPerDay: 2 } });
       const token = await newToken();

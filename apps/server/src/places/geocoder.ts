@@ -1,6 +1,7 @@
 import type { LatLng } from '@arbiter/shared';
 import { z } from 'zod';
 
+import type { SlidingWindowLimiter } from '../rate-limits.js';
 import { PlacesQuotaExceededError } from './places-provider.js';
 
 export interface FoundPlace {
@@ -76,6 +77,37 @@ export class GoogleGeocoder implements Geocoder {
     // The URL holds the key, so only Google's status and message are reported.
     if (body.status !== 'OK') throw new Error(`Geocoding API ${body.status}: ${body.error_message ?? 'no details'}`);
     return body.results ?? [];
+  }
+}
+
+/** The day's total of lookups is used up. */
+export class GeocodeBudgetExceededError extends Error {
+  constructor() {
+    super("Today's place lookups are used up");
+    this.name = 'GeocodeBudgetExceededError';
+  }
+}
+
+/**
+ * Caps lookups across everyone (typed places and naming meeting points
+ * alike), so Google's free monthly amount is never passed. In memory, like
+ * the other limits: a restart resets the count (SECURITY.md).
+ */
+export class BudgetedGeocoder implements Geocoder {
+  constructor(
+    private readonly inner: Geocoder,
+    private readonly budget: SlidingWindowLimiter
+  ) {}
+
+  async find(query: string): Promise<FoundPlace | undefined> {
+    if (this.budget.take('all') > 0) throw new GeocodeBudgetExceededError();
+    return this.inner.find(query);
+  }
+
+  /** Over budget, the meeting point just goes unnamed. */
+  async nameOf(point: LatLng): Promise<string | undefined> {
+    if (this.budget.take('all') > 0) return undefined;
+    return this.inner.nameOf(point);
   }
 }
 
