@@ -41,6 +41,9 @@ export const SessionMemberSchema = GuestSchema.extend({
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
 
 export const CreateGuestRequestSchema = z.object({ displayName: DisplayNameSchema });
+/** Renames you, guest or account. */
+export const ChangeNameRequestSchema = z.object({ displayName: DisplayNameSchema });
+export const ChangeNameResponseSchema = z.object({ guest: GuestSchema });
 export const CreateGuestResponseSchema = z.object({ guest: GuestSchema, token: z.string() });
 export type CreateGuestResponse = z.infer<typeof CreateGuestResponseSchema>;
 

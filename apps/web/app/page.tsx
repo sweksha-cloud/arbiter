@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { Greeting } from '../components/Greeting';
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
 import { StartSessionForm } from '../components/StartSessionForm';
@@ -29,9 +30,7 @@ export default function HomePage() {
         <>
           <RejoinBanner token={identity.token} />
           <section className="card stack">
-            <p>
-              Hi <strong>{identity.guest.displayName}</strong>.
-            </p>
+            <Greeting identity={identity} />
             <button className="button primary" onClick={start} disabled={busy}>
               {busy ? 'Starting…' : 'Start a session'}
             </button>

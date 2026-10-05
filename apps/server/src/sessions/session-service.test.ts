@@ -86,6 +86,12 @@ describe('SessionService', () => {
     expect(room.members.map((m) => m.displayName)).toEqual(['Host', 'Friend']);
   });
 
+  it('shows a new name when someone who renamed themselves rejoins', async () => {
+    const { service, friend, sessionId } = await lobbyOfTwo();
+    const room = await service.join(sessionId, { ...friend, displayName: 'New name' });
+    expect(room.members.map((m) => m.displayName)).toEqual(['Host', 'New name']);
+  });
+
   it('counts nobody as submitted on join, even with preferences saved from before', async () => {
     const { guests, service, friend, sessionId } = await setup();
     await guests.setPreferences(friend.id, noPreferences);

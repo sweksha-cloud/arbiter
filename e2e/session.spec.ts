@@ -417,3 +417,22 @@ test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
   await expect(phone.getByRole('button', { name: 'Liked, Restaurant', exact: true })).toBeVisible();
   await expect(phone.getByRole('button', { name: 'Disliked, Café', exact: true })).toBeVisible();
 });
+
+test('the home page greeting can change your name, or forget you on a shared phone', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await becomeGuest(phone, 'Angel');
+  await phone.goto('/');
+  await expect(phone.getByText('Hi Angel.')).toBeVisible();
+
+  await phone.getByRole('button', { name: 'Change name' }).click();
+  await phone.getByLabel('What should your friends call you?').fill('Sweksha');
+  await phone.getByRole('button', { name: 'Save name' }).click();
+  await expect(phone.getByText('Hi Sweksha.')).toBeVisible();
+  await phone.reload();
+  await expect(phone.getByText('Hi Sweksha.')).toBeVisible();
+
+  await phone.getByRole('button', { name: 'Not you?' }).click();
+  // Back to the first-visit form, with no name remembered.
+  await expect(phone.getByLabel('What should your friends call you?')).toHaveValue('');
+  await expect(phone.getByText('Hi Sweksha.')).toHaveCount(0);
+});

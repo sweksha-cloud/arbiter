@@ -62,6 +62,13 @@ export function describeGuestStore(name: string, makeStore: (options?: GuestStor
       expect(await store.getPreferences(account.id)).toEqual(older);
     });
 
+    it('renames someone', async () => {
+      const store = makeStore();
+      const { guest, token } = await store.create('Angel');
+      await store.setDisplayName(guest.id, 'Sweksha');
+      expect(await store.findByToken(token)).toEqual({ id: guest.id, displayName: 'Sweksha' });
+    });
+
     it('has no preferences until some are saved', async () => {
       const store = makeStore();
       const { guest } = await store.create('Ada');

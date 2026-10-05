@@ -1,6 +1,7 @@
 import {
   AuthResponseSchema,
   CreateGuestResponseSchema,
+  ChangeNameResponseSchema,
   CreateSessionResponseSchema,
   ErrorResponseSchema,
   GeocodeResponseSchema,
@@ -71,6 +72,9 @@ const NoContent = z.undefined();
 export const api = {
   createGuest: (displayName: string) =>
     request(CreateGuestResponseSchema, '/api/guests', { method: 'POST', body: { displayName } }),
+
+  changeName: (token: string, displayName: string) =>
+    request(ChangeNameResponseSchema, '/api/me/name', { method: 'PUT', token, body: { displayName } }),
 
   getPreferences: (token: string) =>
     request(GetPreferencesResponseSchema, '/api/me/preferences', { token }).then((r) => r.preferences),

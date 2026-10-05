@@ -223,11 +223,14 @@ export class SessionService {
     return room;
   }
 
-  /** Adds the guest. Joining again (a reconnect) changes nothing. */
+  /** Adds the guest. Joining again (a reconnect) only picks up a changed name. */
   async join(sessionId: string, guest: Guest): Promise<RoomState> {
     const room = await this.update(sessionId, (current) =>
       current.members.some((m) => m.id === guest.id)
-        ? current
+        ? {
+            ...current,
+            members: current.members.map((m) => (m.id === guest.id ? { ...m, displayName: guest.displayName } : m))
+          }
         : {
             ...current,
             members: [

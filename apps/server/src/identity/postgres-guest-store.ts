@@ -81,6 +81,10 @@ export class PostgresGuestStore implements GuestStore {
       .onConflictDoUpdate({ target: preferences.userId, set: { data, updatedAt: sql`now()` } });
   }
 
+  async setDisplayName(userId: string, displayName: string) {
+    await this.db.update(users).set({ displayName }).where(eq(users.id, userId));
+  }
+
   async moveNewerPreferences(fromId: string, toId: string) {
     await this.db.execute(sql`
       insert into preferences (user_id, data, updated_at)

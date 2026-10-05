@@ -117,6 +117,18 @@ describe('app', () => {
     expect((await create({ meeting: { mode: 'area', area: { center: { lat: 200, lng: 0 } } } })).statusCode).toBe(400);
   });
 
+  it('renames you, and refuses a blank name', async () => {
+    app = await buildApp({ webOrigin, logLevel: 'silent' });
+    const { token } = (await app.http.inject({ method: 'POST', url: '/api/guests', payload: { displayName: 'Angel' } })).json<{ token: string }>();
+    const rename = (displayName: string) =>
+      app!.http.inject({ method: 'PUT', url: '/api/me/name', payload: { displayName }, headers: { authorization: `Bearer ${token}` } });
+    expect((await rename('  Sweksha ')).json()).toMatchObject({ guest: { displayName: 'Sweksha' } });
+    expect((await rename('   ')).statusCode).toBe(400);
+    expect((await app.http.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${token}` } })).json()).toMatchObject({
+      guest: { displayName: 'Sweksha' }
+    });
+  });
+
   describe('typed places (/api/geocode)', () => {
     const lookup = async (query: string, token?: string) =>
       app!.http.inject({

@@ -1,4 +1,5 @@
 import {
+  ChangeNameRequestSchema,
   ChangePasswordRequestSchema,
   CreateGuestRequestSchema,
   CreateSessionRequestSchema,
@@ -85,6 +86,15 @@ export function registerRoutes(
     const body = await parseBody(CreateGuestRequestSchema, request, reply);
     if (!body) return reply;
     return reply.code(201).send(await guests.create(body.displayName));
+  });
+
+  http.put('/api/me/name', async (request, reply) => {
+    const guest = await requireGuest(guests, request, reply);
+    if (!guest) return reply;
+    const body = await parseBody(ChangeNameRequestSchema, request, reply);
+    if (!body) return reply;
+    await guests.setDisplayName(guest.id, body.displayName);
+    return { guest: { id: guest.id, displayName: body.displayName } };
   });
 
   http.get('/api/me/preferences', async (request, reply) => {

@@ -21,6 +21,8 @@ export interface GuestStore {
   /** A new guest, signed in on this device. */
   create(displayName: string): Promise<{ guest: Guest; token: string }>;
   getGuest(userId: string): Promise<Guest | undefined>;
+  /** The name other people see, in new sessions and in past ones. */
+  setDisplayName(userId: string, displayName: string): Promise<void>;
   findByToken(token: string): Promise<Guest | undefined>;
   getPreferences(guestId: string): Promise<Preferences | null>;
   setPreferences(guestId: string, preferences: Preferences): Promise<void>;
@@ -140,6 +142,11 @@ export class InMemoryGuestStore implements GuestStore {
   async getGuest(userId: string) {
     const user = this.users.get(userId);
     return user && { id: user.id, displayName: user.displayName };
+  }
+
+  async setDisplayName(userId: string, displayName: string) {
+    const user = this.users.get(userId);
+    if (user) user.displayName = displayName;
   }
 
   async findByToken(token: string) {
