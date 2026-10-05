@@ -9,7 +9,7 @@ Arbiter quickly helps a friend group decide where to eat. Everyone sets their pr
 | Part | Runs on |
 | --- | --- |
 | Web app (Next.js) | Vercel |
-| Server (Fastify + Socket.IO, Docker) | AWS EC2 in `us-west-2`, behind Caddy for HTTPS, at a free DuckDNS address |
+| Server (Fastify + Socket.IO, Docker) | Google Cloud e2-micro in `us-west1` (Oregon), behind Caddy for HTTPS, at a free DuckDNS address |
 | Database (Postgres) | Neon, `us-west-2` |
 | Places | Google Places API (New), one Nearby Search per session, with a hard daily quota |
 | Chain nutrition | fatsecret Platform API (free plan), cached at most 24 hours |
@@ -35,7 +35,7 @@ flowchart LR
     B[Browser B]
   end
   A & B -- pages --> V[Next.js on Vercel]
-  A & B -- REST + Socket.IO<br/>over HTTPS --> C[Caddy on EC2]
+  A & B -- REST + Socket.IO<br/>over HTTPS --> C[Caddy on a Google Cloud VM]
   C --> S[Fastify server in Docker<br/>session rules]
   S -- room state --> R[(In memory<br/>Redis later)]
   S -- accounts, preferences,<br/>session history --> P[(Postgres on Neon)]
@@ -156,8 +156,8 @@ pnpm test:e2e                                                                   
 ## Deploying
 
 - **Web app:** Vercel builds `apps/web` on every push to `main` (`apps/web/vercel.json`). Settings: `NEXT_PUBLIC_SERVER_URL` (the server's HTTPS address) and `NEXT_PUBLIC_EMAIL_ENABLED=false` until email is set up.
-- **Server:** one EC2 instance running `deploy/docker-compose.yml`: the server image (`apps/server/Dockerfile`) behind Caddy, which gets the HTTPS certificate on its own. Secrets live in `deploy/server.env` on the instance (git-ignored; template in `deploy/server.env.example`), and `deploy/.env` holds `DOMAIN`. Migrations run when the server starts.
-- **Updating the server:** automatic. Every push to `main` that passes CI builds the server image, and AWS Systems Manager runs `deploy/deploy.sh` on the instance, which waits for the health check and rolls back if it fails (no SSH, no stored AWS keys). By hand in an emergency: `sudo deploy/deploy.sh <commit SHA>` on the instance. After changing `server.env`, run `sudo docker compose -f deploy/docker-compose.yml up -d --force-recreate server` so the container picks it up.
+- **Server:** one Google Cloud e2-micro running `deploy/docker-compose.yml` (set up with `deploy/gcp-setup.sh` and `deploy/provision-vm.sh`): the server image (`apps/server/Dockerfile`) behind Caddy, which gets the HTTPS certificate on its own. Secrets live in `deploy/server.env` on the instance (git-ignored; template in `deploy/server.env.example`), and `deploy/.env` holds `DOMAIN`. Migrations run when the server starts.
+- **Updating the server:** automatic. Every push to `main` that passes CI builds the server image, signs in to Google Cloud with a short-lived token (no stored keys), and runs `deploy/deploy.sh` on the server through Google's IAP tunnel; the script waits for the health check and rolls back if it fails. By hand in an emergency: `sudo deploy/deploy.sh <commit SHA>` on the instance. After changing `server.env`, run `sudo docker compose -f deploy/docker-compose.yml up -d --force-recreate server` so the container picks it up.
 - **Google key:** restricted to Places API (New) and to the server's IP address, with a hard daily quota.
 
 ## Troubleshooting

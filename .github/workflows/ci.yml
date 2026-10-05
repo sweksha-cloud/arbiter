@@ -62,9 +62,10 @@ jobs:
           retention-days: 14
 
   # Every push to main that passes all checks goes live (TRADEOFFS.md 8c).
-  # No SSH and no stored AWS keys: GitHub signs in to AWS for this run only
-  # (OIDC), and AWS Systems Manager runs deploy/deploy.sh on the server, which
-  # rolls back if the new version isn't healthy.
+  # No stored keys: GitHub signs in to Google Cloud for this run only
+  # (Workload Identity Federation), then runs deploy/deploy.sh on the server
+  # through Google's IAP tunnel. The script rolls back if the new version
+  # isn't healthy.
   deploy:
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -97,35 +98,20 @@ jobs:
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: google-github-actions/auth@v3
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
       - name: Deploy on the server and wait for its health check
         env:
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
           SHA: ${{ github.sha }}
         run: |
-          commands=$(jq -cn --arg sha "$SHA" '{commands: [
-            "set -e",
-            "cd /home/ubuntu/arbiter",
-            "sudo -u ubuntu git fetch -q origin main",
-            ("sudo -u ubuntu git reset -q --hard " + $sha),
-            ("deploy/deploy.sh " + $sha)
-          ]}')
-          id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name AWS-RunShellScript \
-            --comment "Deploy $SHA" --timeout-seconds 600 --parameters "$commands" \
-            --query Command.CommandId --output text)
-          echo "SSM command $id"
-          for _ in $(seq 1 120); do
-            sleep 5
-            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
-              --query Status --output text 2>/dev/null || echo Pending)
-            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
-          done
-          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
-            --query '[StandardOutputContent, StandardErrorContent]' --output text
-          echo "Result: $status"
-          [ "$status" = Success ]
+          gcloud compute ssh ubuntu@arbiter --project "${{ vars.GCP_PROJECT }}" --zone us-west1-b \
+            --tunnel-through-iap --quiet --command "set -e
+              cd ~/arbiter
+              git fetch -q origin main
+              git reset -q --hard $SHA
+              sudo deploy/deploy.sh $SHA"
       - name: Check the live server answers
         run: curl -fsS --retry 5 --retry-delay 3 https://arbiter-sweksha.duckdns.org/health

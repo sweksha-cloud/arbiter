@@ -101,8 +101,8 @@ export default function PrivacyPage() {
           anything about you.
         </li>
         <li>
-          <strong>Hosting providers</strong> that store or carry the data on Arbiter&apos;s behalf: Amazon Web
-          Services (the server), Neon (the database) and Vercel (the website). They may keep their own technical logs,
+          <strong>Hosting providers</strong> that store or carry the data on Arbiter&apos;s behalf: Google Cloud
+          (the server), Neon (the database) and Vercel (the website). They may keep their own technical logs,
           such as IP addresses.
         </li>
         <li>
