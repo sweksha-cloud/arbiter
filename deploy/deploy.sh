@@ -11,7 +11,9 @@ COMPOSE=(docker compose -f deploy/docker-compose.yml)
 STATE=deploy/.deployed-tag
 PREVIOUS="$(cat "$STATE" 2>/dev/null || true)"
 
-start() { SERVER_TAG="$1" "${COMPOSE[@]}" up -d --no-build --remove-orphans; }
+# Compose itself gives up early on a slow-starting server ("dependency failed
+# to start"), so its exit code isn't the verdict: healthy() below is (BUG-024).
+start() { SERVER_TAG="$1" "${COMPOSE[@]}" up -d --no-build --remove-orphans || true; }
 
 # The image's own health check (GET /health) must pass within 90 s. Migrations
 # run on startup, so a server that can't migrate never becomes healthy.

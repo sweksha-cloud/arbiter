@@ -25,6 +25,7 @@ COPY --from=build /out/dist ./dist
 COPY --from=build /out/drizzle ./drizzle
 USER node
 EXPOSE 4000
-HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+# 60 s to start: migrations wait on the database, which may be waking up (Neon).
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=3 \
   CMD wget -qO- http://127.0.0.1:4000/health || exit 1
 CMD ["node", "dist/index.js"]
