@@ -182,6 +182,10 @@ pnpm test:e2e                                                                   
 | `apps/server` | Fastify REST API and Socket.IO live sessions. Session rules live in `src/sessions/session-service.ts` |
 | `apps/web` | Next.js app: home, preferences, and the live session page (`app/s/[code]`) |
 
+## Monitoring
+
+Every 15 minutes a GitHub workflow (`.github/workflows/monitor.yml`) checks that the website and server answer over HTTPS, the certificate has more than 14 days left, the server, Redis and Caddy containers are healthy, and the server logged no errors; a failure emails the repo owner.
+
 ## On your phone
 
 Arbiter installs like an app (a progressive web app): on an iPhone, open the site in Safari → Share → **Add to Home Screen**; on Android, Chrome offers **Install app**. It then opens full screen from its own icon. There's no offline mode, since a live session needs the server. The manifest is `apps/web/app/manifest.ts`; icons are in `apps/web/public/icons/`.

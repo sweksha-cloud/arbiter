@@ -1,0 +1,77 @@
+name: Monitor
+
+# Every 15 minutes: is Arbiter up, and has the server logged errors? A failed
+# run makes GitHub email the repo owner (TRADEOFFS.md 17f). Free on a public
+# repo; no accounts. GitHub pauses scheduled runs after 60 days with no
+# commits, and runs can start a few minutes late.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WEB: https://arbiter-topaz.vercel.app
+      API: arbiter-sweksha.duckdns.org
+    steps:
+      - name: The website and the server answer
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors -o /dev/null "$WEB/"
+          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors "https://$API/health"
+          echo
+
+      # Caddy renews it on its own about 30 days before it ends; this catches renewal failing.
+      - name: The HTTPS certificate has more than 14 days left
+        run: |
+          end=$(echo | openssl s_client -connect "$API:443" -servername "$API" 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
+          days=$(( ($(date -d "$end" +%s) - $(date +%s)) / 86400 ))
+          echo "Certificate ends $end ($days days)"
+          [ "$days" -gt 14 ]
+
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: gcp
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Server, Redis and Caddy are healthy, and no errors in the last 15 minutes
+        run: |
+          # The command runs on the server, so it's single-quoted on purpose.
+          # shellcheck disable=SC2016
+          report=$(gcloud compute ssh ubuntu@arbiter --project "${{ vars.GCP_PROJECT }}" --zone us-west1-b \
+            --tunnel-through-iap --quiet --ssh-key-expire-after=15m --command '
+              cd ~/arbiter
+              ids=$(sudo docker compose -f deploy/docker-compose.yml ps -aq)
+              sudo docker inspect -f "container {{index .Config.Labels \"com.docker.compose.service\"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}" $ids
+              sudo docker compose -f deploy/docker-compose.yml logs --since 16m --no-log-prefix server 2>/dev/null | grep -E "\"level\":(50|60)" | sed "s/^/error /" || true')
+          echo "$report"
+          problems=0
+          for service in server redis caddy; do
+            line=$(echo "$report" | grep "^container $service " || true)
+            if [ -z "$line" ]; then echo "::error::$service isn't running"; problems=1; continue; fi
+            read -r _ _ state health <<< "$line"
+            if [ "$state" != running ] || { [ "$health" != - ] && [ "$health" != healthy ]; }; then
+              echo "::error::$service is $state ($health)"; problems=1
+            fi
+          done
+          errors=$(echo "$report" | grep -c "^error " || true)
+          if [ "$errors" -gt 0 ]; then echo "::error::The server logged $errors error(s) in the last 15 minutes (above)"; problems=1; fi
+          exit $problems
+
+      - name: Remove old CI SSH keys from the server
+        if: always()
+        run: gcp/prune-ssh-keys.sh "${{ vars.GCP_PROJECT }}" us-west1-b arbiter

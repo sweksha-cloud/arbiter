@@ -185,10 +185,19 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           gcloud compute ssh ubuntu@arbiter --project "${{ vars.GCP_PROJECT }}" --zone us-west1-b \
-            --tunnel-through-iap --quiet --command "set -e
+            --tunnel-through-iap --quiet --ssh-key-expire-after=15m --command "set -e
               cd ~/arbiter
               git fetch -q origin main
               git reset -q --hard $SHA
               sudo deploy/deploy.sh $SHA"
       - name: Check the live server answers
         run: curl -fsS --retry 5 --retry-delay 3 https://arbiter-sweksha.duckdns.org/health
+      # Each run's SSH key would otherwise stay on the VM for good (BUG-023).
+      - name: Get the key clean-up script
+        if: always()
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: gcp
+      - name: Remove old CI SSH keys from the server
+        if: always()
+        run: gcp/prune-ssh-keys.sh "${{ vars.GCP_PROJECT }}" us-west1-b arbiter
