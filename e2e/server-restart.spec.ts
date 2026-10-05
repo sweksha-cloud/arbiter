@@ -4,6 +4,9 @@ import { expect, hostSession, joinSession, test } from './helpers';
 test('a live session survives a server restart (a deploy): phones reconnect and carry on (BUG-003, BUG-004, OPEN-001)', async ({
   newPhone
 }) => {
+  // Stopping and starting a real server, then two phones reconnecting, takes
+  // longer than the default 30 s (it timed out at 30.6 s once).
+  test.setTimeout(90_000);
   const host = await newPhone();
   const friend = await newPhone();
   const { invite } = await hostSession(host, 'Sweksha');
