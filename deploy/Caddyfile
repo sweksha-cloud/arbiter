@@ -1,10 +1,21 @@
 # HTTPS in front of the Arbiter server. Caddy gets and renews a Let's Encrypt
 # certificate for $DOMAIN automatically, and passes WebSockets through.
+#
+# Two server slots (TRADEOFFS.md 8e): normally only one runs. During a deploy
+# both do for a moment, then the old one stops. Caddy sends each request to
+# the first healthy slot, and a request that arrives mid-switch is retried on
+# the other slot for up to 10 s instead of failing.
 {$DOMAIN} {
 	encode gzip
-	reverse_proxy server:4000 {
-		# Only send traffic to a server that reports healthy.
+	reverse_proxy server-blue:4000 server-green:4000 {
+		lb_policy first
+		lb_try_duration 10s
+		lb_try_interval 250ms
+		# Only send traffic to a slot that reports healthy.
 		health_uri /health
-		health_interval 5s
+		health_interval 2s
+		health_timeout 2s
+		# A slot that refuses a connection is skipped for a while, even between checks.
+		fail_duration 10s
 	}
 }

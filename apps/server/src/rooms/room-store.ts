@@ -46,6 +46,8 @@ export interface RoomState {
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;
+  /** When the current scan started (ms since epoch), to spot one that died mid-way. */
+  scanStartedAt?: number;
   scannedCount: number;
   eliminatedCount: number;
 }

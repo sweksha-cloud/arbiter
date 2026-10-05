@@ -79,7 +79,16 @@ export interface SessionServiceOptions {
   /** Search area when nobody in the group set a distance limit. */
   radiusMeters: number;
   missingDataPolicy: MissingDataPolicy;
+  /** For tests. */
+  now?: () => number;
 }
+
+/**
+ * A session still "scanning" after this long lost its scan (the server
+ * stopped or crashed mid-way); the next person to (re)join puts it back in
+ * the lobby. A real scan takes a few seconds.
+ */
+export const STALE_SCAN_MS = 60_000;
 
 /**
  * Results appear on their own once everyone has submitted, but only with at
@@ -182,6 +191,8 @@ function measuredFrom(place: PlaceCandidate, from: LatLng): PlaceCandidate {
 export class SessionService {
   /** sessionId -> the last history write queued for it. */
   private readonly historyWrites = new Map<string, Promise<void>>();
+  /** Scans running in this process, finished before shutting down. */
+  private readonly scansInFlight = new Set<Promise<unknown>>();
 
   constructor(private readonly options: SessionServiceOptions) {}
 
@@ -227,10 +238,18 @@ export class SessionService {
     return room;
   }
 
-  /** Adds the guest. Joining again (a reconnect) only picks up a changed name. */
+  /**
+   * Adds the guest. Joining again (a reconnect) only picks up a changed name.
+   * A scan that died mid-way (STALE_SCAN_MS) goes back to the lobby, and
+   * results start again if the group was ready.
+   */
   async join(sessionId: string, guest: Guest): Promise<RoomState> {
-    const room = await this.update(sessionId, (current) =>
-      current.members.some((m) => m.id === guest.id)
+    let recovered = false;
+    const room = await this.update(sessionId, (found) => {
+      const stale = found.status === 'scanning' && this.now() - (found.scanStartedAt ?? 0) > STALE_SCAN_MS;
+      recovered = stale;
+      const current: RoomState = stale ? { ...found, status: 'lobby' } : found;
+      return current.members.some((m) => m.id === guest.id)
         ? {
             ...current,
             members: current.members.map((m) => (m.id === guest.id ? { ...m, displayName: guest.displayName } : m))
@@ -241,9 +260,13 @@ export class SessionService {
               ...current.members,
               { ...guest, submitted: false, ...(current.status !== 'lobby' && { joinedAfterResults: true }) }
             ]
-          }
-    );
+          };
+    });
     this.record(sessionId, 'join', () => this.options.history.addMember(sessionId, guest));
+    if (recovered) {
+      this.options.log?.info({ sessionId }, 'Recovered a scan that stopped mid-way');
+      return this.autoStart(room);
+    }
     return room;
   }
 
@@ -471,12 +494,20 @@ export class SessionService {
    * session. Moves through 'scanning' first so a second request can't trigger
    * a second (paid) scan.
    */
-  private async scan(sessionId: string, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+  private scan(sessionId: string, onScanStarted?: () => Promise<void>): Promise<RoomState> {
+    const running = this.runScan(sessionId, onScanStarted);
+    this.scansInFlight.add(running);
+    const done = () => this.scansInFlight.delete(running);
+    running.then(done, done);
+    return running;
+  }
+
+  private async runScan(sessionId: string, onScanStarted?: () => Promise<void>): Promise<RoomState> {
     const room = await this.update(sessionId, (current) => {
       if (current.status !== 'lobby') throw new SessionError('invalid_state', 'This session has already started');
       const problem = locationProblem(current);
       if (problem) throw new SessionError('location', problem);
-      return { ...current, status: 'scanning' };
+      return { ...current, status: 'scanning', scanStartedAt: this.now() };
     });
     // Charged only once this request has won the move to 'scanning', so a
     // refused duplicate never uses up the budget.
@@ -600,6 +631,19 @@ export class SessionService {
     void next.then(() => {
       if (this.historyWrites.get(sessionId) === next) this.historyWrites.delete(sessionId);
     });
+  }
+
+  /**
+   * Before shutting down (every deploy): lets scans in progress finish, so no
+   * session is left "scanning", then writes the history they queued.
+   */
+  async settle(): Promise<void> {
+    await Promise.allSettled([...this.scansInFlight]);
+    await this.settleHistory();
+  }
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
   }
 
   /** Waits for every history write in flight: on shutdown, and in tests. */

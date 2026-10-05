@@ -25,6 +25,8 @@ The API server runs on a free-tier **e2-micro** VM in Google Cloud, behind Caddy
 
 ## Automatic deploys
 
+Deploys have **no downtime**: there are two server slots, blue and green. `deploy/deploy.sh` starts the new version in the idle slot, waits until it's healthy, hands Caddy its config, then stops the old slot; Caddy always sends traffic to a healthy slot and retries a request caught mid-switch. Phones on the old slot reconnect to the new one in about a second (the "Reconnecting…" banner waits 1.5 s, so it doesn't show). If the new version never gets healthy, its slot is stopped and the old one keeps running: there's nothing to roll back. Before stopping, a server finishes any search in progress and its queued history writes; a session left "searching" by a crash recovers when someone rejoins.
+
 Every push to `main` that passes CI goes live: CI builds `ghcr.io/sweksha-cloud/arbiter-server:<sha>`, signs in to Google Cloud through Workload Identity Federation (a short-lived token; no stored keys), and runs `deploy/deploy.sh <sha>` on the VM over Google's IAP tunnel. The script waits up to 90 s for the health check and rolls back to the previous image if it fails; the Actions log then shows the new version's last 50 log lines.
 
 GitHub repo variables (Settings → Secrets and variables → Actions → Variables): `GCP_PROJECT`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`. The image is public (it follows the repo's visibility) and holds no secrets; secrets live only in `deploy/server.env` on the VM.
@@ -36,7 +38,11 @@ From `~/arbiter` on the VM (`ssh -i ~/git/arbiter.pem ubuntu@34.168.132.145`):
 | Task | Command |
 | --- | --- |
 | Deploy a version | `sudo deploy/deploy.sh <commit SHA>` |
+| Which server slot is live | `cat deploy/.env` (`ACTIVE_SLOT`, and each slot's image tag) |
+| Restart the server with no downtime (e.g. after changing `deploy/server.env`) | `sudo deploy/deploy.sh "$(cat deploy/.deployed-tag)"` |
 | Look inside live sessions (Redis) | `sudo docker compose -f deploy/docker-compose.yml exec redis redis-cli --scan --pattern 'room:*'` |
-| Follow the server's logs | `sudo docker compose -f deploy/docker-compose.yml logs -f server` |
-| Change a setting | edit `deploy/server.env`, then `sudo docker compose -f deploy/docker-compose.yml up -d --force-recreate server` |
-| Build on the VM instead (emergency, e.g. GitHub down) | `git pull && sudo docker compose -f deploy/docker-compose.yml up -d --build` |
+| Follow the server's logs | `sudo docker compose -f deploy/docker-compose.yml logs -f server-blue server-green` |
+| Change a setting | edit `deploy/server.env`, then restart with no downtime (above) |
+| Build on the VM instead (emergency, e.g. GitHub down) | `git pull && sudo docker compose -f deploy/docker-compose.yml build server-blue`, then `sudo deploy/deploy.sh latest` |
+
+Never run a plain `docker compose up -d` here: it would start both server slots at once.

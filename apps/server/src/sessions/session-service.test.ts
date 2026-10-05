@@ -8,7 +8,7 @@ import type { PlacesProvider } from '../places/places-provider.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
 import { InMemoryRoomStore } from '../rooms/in-memory-room-store.js';
-import { SessionService } from './session-service.js';
+import { SessionService, STALE_SCAN_MS } from './session-service.js';
 
 const center = { lat: 37.3352, lng: -121.8811 };
 const noPreferences: Preferences = { hard: {}, soft: {} };
@@ -698,6 +698,62 @@ describe('SessionService', () => {
       const room = await service.submit(sessionId, friend, { hard: {}, soft: { likedKinds: ['restaurant'] } });
       expect(room.suggestions).toHaveLength(4);
       expect(service.view(room, host.id).closestMatches).toBe(false);
+    });
+  });
+
+  describe('a scan cut off mid-way (the server stopped or crashed)', () => {
+    it('finishes scans in progress before shutting down', async () => {
+      let release!: () => void;
+      const slow: PlacesProvider = {
+        searchNearby: () => new Promise((resolve) => (release = () => resolve([place('a')] as never)))
+      };
+      const { service, host, friend, sessionId } = await lobbyOfTwo(slow);
+      await service.submit(sessionId, host, noPreferences);
+      const scanning = service.submit(sessionId, friend, noPreferences);
+      await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+
+      let settled = false;
+      const shutdown = service.settle().then(() => (settled = true));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(settled).toBe(false);
+      release();
+      await shutdown;
+      expect((await scanning).status).toBe('voting');
+    });
+
+    it('puts a session stuck "scanning" back in the lobby when someone rejoins, and starts results again', async () => {
+      const rooms = new InMemoryRoomStore();
+      let clock = 1_000_000;
+      const guests = new InMemoryGuestStore();
+      const service = new SessionService({
+        rooms,
+        guests,
+        history: new InMemorySessionHistory(),
+        places: new FixturePlacesProvider([place('a')]),
+        placesSource: 'sample',
+        radiusMeters: 3000,
+        missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' },
+        now: () => clock
+      });
+      const host = (await guests.create('Host')).guest;
+      const friend = (await guests.create('Friend')).guest;
+      const sessionId = await service.create(host, { mode: 'area', area: { center } });
+      await service.join(sessionId, friend);
+      await service.submit(sessionId, host, noPreferences);
+      // The friend's submission started a scan that "died": it's stuck scanning.
+      await rooms.update(sessionId, (room) => ({
+        ...room,
+        status: 'scanning',
+        scanStartedAt: clock,
+        members: room.members.map((m) => ({ ...m, submitted: true })),
+        submissions: { ...room.submissions, [friend.id]: noPreferences }
+      }));
+
+      clock += 30_000; // Still plausibly running: left alone.
+      expect((await service.join(sessionId, friend)).status).toBe('scanning');
+
+      clock += STALE_SCAN_MS; // Long dead: recovered, and since everyone had submitted, results start again.
+      expect((await service.join(sessionId, friend)).status).toBe('voting');
     });
   });
 
