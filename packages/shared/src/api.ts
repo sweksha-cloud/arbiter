@@ -138,6 +138,11 @@ export const SessionViewSchema = z.object({
    */
   moreOptions: z.array(PlaceCandidateSchema),
   meeting: MeetingViewSchema,
+  /**
+   * The group agreed on a kind of place (e.g. everyone who picked liked
+   * cafés) but none nearby fits, so the suggestions are the closest matches.
+   */
+  closestMatches: z.boolean(),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
   /**

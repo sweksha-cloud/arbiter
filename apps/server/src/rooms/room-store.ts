@@ -41,6 +41,8 @@ export interface RoomState {
   suggestions: PlaceCandidate[];
   /** Places that also fit everyone's must-haves, ranked below the suggestions. */
   moreOptions: PlaceCandidate[];
+  /** Nothing matched the kind of place the group agreed on, so these are the closest matches. */
+  closestMatches?: boolean;
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;

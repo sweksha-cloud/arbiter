@@ -164,16 +164,16 @@ test('liking a place from "more options" adds it to the list for everyone', asyn
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
-  await expect(host.locator('article')).toHaveCount(3);
+  await expect(host.locator('article')).toHaveCount(4);
 
   await friend.getByText(/^More options \(\d+\)$/).click();
   const extra = friend.locator('.more-list li').first();
   const name = (await extra.locator('strong').textContent())!;
   await extra.getByRole('button', { name: /add it to the list/ }).click();
 
-  await expect(host.locator('article')).toHaveCount(4);
-  await expect(host.locator('article').nth(3).locator('h3')).toHaveText(name);
-  await expect(host.locator('article').nth(3).getByRole('button', { name: '👍 1' })).toBeVisible();
+  await expect(host.locator('article')).toHaveCount(5);
+  await expect(host.locator('article').nth(4).locator('h3')).toHaveText(name);
+  await expect(host.locator('article').nth(4).getByRole('button', { name: '👍 1' })).toBeVisible();
 });
 
 test('a custom distance limits results for the group, and "Don\'t care" adds no limit', async ({ newPhone }) => {

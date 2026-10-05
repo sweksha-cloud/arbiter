@@ -115,7 +115,7 @@ describe('SessionService', () => {
     await service.submit(sessionId, host, noPreferences);
     const room = await service.submit(sessionId, friend, noPreferences);
     expect(room.status).toBe('voting');
-    expect(room.suggestions).toHaveLength(3);
+    expect(room.suggestions).toHaveLength(4);
   });
 
   it('does not auto-start with a single person, so the host can wait for friends', async () => {
@@ -143,7 +143,7 @@ describe('SessionService', () => {
     expect(room.members.filter((m) => m.joinedAfterResults)).toHaveLength(1);
   });
 
-  it("applies this session's submissions: every hard constraint, then the top three", async () => {
+  it("applies this session's submissions: every hard constraint, then the top four", async () => {
     const places = new FixturePlacesProvider([
       place('cheap', { priceLevel: 1, pricePerPerson: { min: 1, max: 10 }, rating: 4.1 }),
       place('pricey', { priceLevel: 4, pricePerPerson: { min: 50, max: 100 } }),
@@ -162,7 +162,7 @@ describe('SessionService', () => {
 
     expect(room.scannedCount).toBe(7);
     expect(room.eliminatedCount).toBe(3);
-    expect(room.suggestions.map((p) => p.id)).toEqual(['liked', 'ok', 'cheap']);
+    expect(room.suggestions.map((p) => p.id)).toEqual(['liked', 'ok', 'cheap', 'also-ok']);
   });
 
   it('lets people change their answers until results are in, then locks them', async () => {
@@ -331,7 +331,7 @@ describe('SessionService', () => {
       await service.submit(sessionId, friend, noPreferences);
 
       const scan = logged.find((l) => l.message === 'Scan finished');
-      expect(scan?.details).toMatchObject({ sessionId, members: 2, submitted: 2, scanned: 4, suggested: 3 });
+      expect(scan?.details).toMatchObject({ sessionId, members: 2, submitted: 2, scanned: 4, suggested: 4 });
       expect(scan?.details.durationMs).toEqual(expect.any(Number));
       expect(JSON.stringify(logged)).not.toMatch(/vegetarian|maxPricePerPerson|thai|likedCuisines/);
     });
@@ -636,6 +636,43 @@ describe('SessionService', () => {
     });
   });
 
+  describe('a kind of place the group agrees on', () => {
+    const mixed = () =>
+      new FixturePlacesProvider([
+        place('sushi', { kind: 'restaurant', rating: 4.9 }),
+        place('steak', { kind: 'restaurant', rating: 4.8 }),
+        place('bean', { kind: 'cafe', rating: 3.9 }),
+        place('brew', { kind: 'cafe', rating: 3.5 })
+      ]);
+    const cafes: Preferences = { hard: {}, soft: { likedKinds: ['cafe'] } };
+
+    it('fills the main list only with that kind; the others stay under more options', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
+      await service.submit(sessionId, host, cafes);
+      // The friend picked no kinds, so they don't block the agreement.
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['bean', 'brew']);
+      expect(room.moreOptions.map((p) => p.id)).toEqual(['sushi', 'steak']);
+      expect(service.view(room, host.id).closestMatches).toBe(false);
+    });
+
+    it('shows the closest matches, and says so, when nothing nearby is that kind', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
+      await service.submit(sessionId, host, { hard: {}, soft: { likedKinds: ['bar'] } });
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['sushi', 'steak', 'bean', 'brew']);
+      expect(service.view(room, host.id).closestMatches).toBe(true);
+    });
+
+    it('is only a ranking boost when the group disagrees', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
+      await service.submit(sessionId, host, cafes);
+      const room = await service.submit(sessionId, friend, { hard: {}, soft: { likedKinds: ['restaurant'] } });
+      expect(room.suggestions).toHaveLength(4);
+      expect(service.view(room, host.id).closestMatches).toBe(false);
+    });
+  });
+
   describe('a guest logging in mid-session', () => {
     it('carries on as the account: same answers, starting point, likes and host role', async () => {
       const { guests, service, host, friend, sessionId } = await lobbyOfTwo();
@@ -672,39 +709,40 @@ describe('SessionService', () => {
   });
 
   describe('more options', () => {
-    const fivePlaces = () =>
-      new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e'].map((id, i) => place(id, { rating: 5 - i * 0.5 })));
+    const sixPlaces = () =>
+      new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e', 'f'].map((id, i) => place(id, { rating: 5 - i * 0.5 })));
 
     it('keeps the places ranked below the suggestions as more options', async () => {
-      const { service, host, sessionId } = await setup(fivePlaces());
+      const { service, host, sessionId } = await setup(sixPlaces());
       const room = await service.start(sessionId, host);
-      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c']);
-      expect(service.view(room, host.id).moreOptions.map((p) => p.id)).toEqual(['d', 'e']);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c', 'd']);
+      expect(service.view(room, host.id).moreOptions.map((p) => p.id)).toEqual(['e', 'f']);
     });
 
     it('liking one adds it to the suggestions for everyone, and history keeps it', async () => {
-      const { history, service, host, friend, sessionId } = await lobbyOfTwo(fivePlaces());
+      const { history, service, host, friend, sessionId } = await lobbyOfTwo(sixPlaces());
       await service.start(sessionId, host);
-      const room = await service.react(sessionId, friend, 'e', 'like');
+      const room = await service.react(sessionId, friend, 'f', 'like');
 
-      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c', 'e']);
-      expect(room.moreOptions.map((p) => p.id)).toEqual(['d']);
-      expect(service.view(room, host.id).suggestions[3]).toMatchObject({ likes: 1, myReaction: null });
+      expect(room.suggestions.map((p) => p.id)).toEqual(['a', 'b', 'c', 'd', 'f']);
+      expect(room.moreOptions.map((p) => p.id)).toEqual(['e']);
+      expect(service.view(room, host.id).suggestions[4]).toMatchObject({ likes: 1, myReaction: null });
       expect((await history.get(sessionId))!.places.map((p) => [p.placeId, p.likes])).toEqual([
         ['a', 0],
         ['b', 0],
         ['c', 0],
-        ['e', 1]
+        ['d', 0],
+        ['f', 1]
       ]);
     });
 
     it('only allows liking them, and only while voting', async () => {
-      const { service, host, sessionId } = await setup(fivePlaces());
+      const { service, host, sessionId } = await setup(sixPlaces());
       await service.start(sessionId, host);
-      await expect(service.react(sessionId, host, 'd', 'dislike')).rejects.toMatchObject({ code: 'invalid_place' });
-      await expect(service.tag(sessionId, host, 'd', 'high_protein', true)).rejects.toMatchObject({ code: 'invalid_place' });
+      await expect(service.react(sessionId, host, 'e', 'dislike')).rejects.toMatchObject({ code: 'invalid_place' });
+      await expect(service.tag(sessionId, host, 'e', 'high_protein', true)).rejects.toMatchObject({ code: 'invalid_place' });
       await service.end(sessionId, host);
-      await expect(service.react(sessionId, host, 'd', 'like')).rejects.toMatchObject({ code: 'invalid_state' });
+      await expect(service.react(sessionId, host, 'e', 'like')).rejects.toMatchObject({ code: 'invalid_state' });
     });
   });
 });

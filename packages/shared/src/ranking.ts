@@ -1,8 +1,25 @@
 import { fittingItem, hasVeganOptions } from './nutrition.js';
-import type { PlaceCandidate } from './place.js';
+import type { PlaceCandidate, PlaceKind } from './place.js';
 import type { Preferences } from './preferences.js';
 
-export const DEFAULT_SUGGESTION_COUNT = 3;
+/** Shown as the main list. More cost nothing: the one search returns up to 20 places. */
+export const DEFAULT_SUGGESTION_COUNT = 4;
+
+/**
+ * Kinds of place (café, restaurant…) the group agrees on, which then count as
+ * a must-have for the main list (TRADEOFFS.md 2g): liked by everyone who
+ * liked any kind, and disliked by nobody. People who picked no kinds don't
+ * block it. Undefined when there's no agreement.
+ */
+export function agreedKinds(members: Pick<Preferences, 'soft'>[]): PlaceKind[] | undefined {
+  const pickers = members.filter(({ soft }) => (soft.likedKinds?.length ?? 0) > 0);
+  if (pickers.length === 0) return undefined;
+  const disliked = new Set(members.flatMap(({ soft }) => soft.dislikedKinds ?? []));
+  const agreed = pickers[0]!.soft.likedKinds!.filter(
+    (kind) => !disliked.has(kind) && pickers.every(({ soft }) => soft.likedKinds!.includes(kind))
+  );
+  return agreed.length > 0 ? agreed : undefined;
+}
 
 function normalize(cuisine: string): string {
   return cuisine.trim().toLowerCase();

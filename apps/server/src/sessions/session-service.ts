@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 
 import {
+  agreedKinds,
   combineHardConstraints,
   DEFAULT_SUGGESTION_COUNT,
   distanceMeters,
@@ -454,6 +455,7 @@ export class SessionService {
         tooFarApart: room.meetingMode === 'between' && tooFarApart(origins),
         searchedNear: room.searchedNear ?? null
       },
+      closestMatches: room.closestMatches ?? false,
       scannedCount: room.scannedCount,
       eliminatedCount: room.eliminatedCount,
       allergyReminder: Object.values(room.submissions).some((p) => (p.allergies?.length ?? 0) > 0),
@@ -501,8 +503,14 @@ export class SessionService {
       // Nutrition only adds to places that already fit everyone's must-haves.
       const withMenus = await addMenus(kept, this.options.menus);
       const ranked = rankSuggestions(withMenus, preferences, Number.POSITIVE_INFINITY);
-      const suggestions = ranked.slice(0, DEFAULT_SUGGESTION_COUNT);
-      const moreOptions = ranked.slice(DEFAULT_SUGGESTION_COUNT);
+      // A kind of place the group agrees on is a must-have for the main list
+      // (TRADEOFFS.md 2g); the rest stay under "more options". If nothing
+      // matches, the group gets the closest matches and is told so.
+      const agreed = agreedKinds(preferences);
+      const fitting = agreed ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind)) : ranked;
+      const closestMatches = agreed !== undefined && fitting.length === 0 && ranked.length > 0;
+      const suggestions = (closestMatches ? ranked : fitting).slice(0, DEFAULT_SUGGESTION_COUNT);
+      const moreOptions = ranked.filter((p) => !suggestions.includes(p));
 
       this.options.log?.info(
         {
@@ -516,6 +524,8 @@ export class SessionService {
           scanned: scanned.length,
           eliminated: eliminatedCount,
           suggested: suggestions.length,
+          agreedKinds: agreed,
+          closestMatches,
           moreOptions: moreOptions.length,
           withMenus: withMenus.filter((p) => p.menu).length,
           placesSource: this.options.placesSource,
@@ -528,6 +538,7 @@ export class SessionService {
         status: 'voting',
         suggestions,
         moreOptions,
+        closestMatches,
         ...(searchedNear !== undefined && { searchedNear }),
         scannedCount: scanned.length,
         eliminatedCount

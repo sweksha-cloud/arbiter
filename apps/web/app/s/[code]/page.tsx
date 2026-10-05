@@ -192,6 +192,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             </p>
           )}
 
+          {view.closestMatches && (
+            <p className="notice small" role="note">
+              Nothing nearby fits all your preferences, so here are the closest matches.
+            </p>
+          )}
+
           {view.allergyReminder && (
             <p className="notice small" role="note">
               Someone in your group has a food allergy. Check with the restaurant before ordering.

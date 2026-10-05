@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { branchKey, majorityAvoidsFastFood, rankSuggestions, softScore } from './ranking.js';
+import { agreedKinds, branchKey, majorityAvoidsFastFood, rankSuggestions, softScore } from './ranking.js';
 import { makePlace } from './test-helpers.js';
 
 const ids = (places: { id: string }[]) => places.map((p) => p.id);
@@ -42,8 +42,24 @@ describe('vegetarian options (a nice-to-have)', () => {
   });
 });
 
+describe('agreedKinds', () => {
+  const likes = (...likedKinds: ('cafe' | 'restaurant' | 'bar')[]) => ({ soft: { likedKinds } });
+
+  it('is what everyone who picked a kind likes; people who picked none don\'t block it', () => {
+    // Ana and Ben like cafés, Cal picked nothing.
+    expect(agreedKinds([likes('cafe'), likes('cafe', 'restaurant'), { soft: {} }])).toEqual(['cafe']);
+    expect(agreedKinds([likes('cafe')])).toEqual(['cafe']);
+  });
+
+  it('is nothing when pickers disagree, someone dislikes it, or nobody picked', () => {
+    expect(agreedKinds([likes('cafe'), likes('restaurant')])).toBeUndefined();
+    expect(agreedKinds([likes('cafe'), { soft: { dislikedKinds: ['cafe'] } }])).toBeUndefined();
+    expect(agreedKinds([{ soft: {} }, { soft: { dislikedKinds: ['bar'] } }])).toBeUndefined();
+  });
+});
+
 describe('rankSuggestions', () => {
-  it('orders by score, then rating, then distance, and returns three by default', () => {
+  it('orders by score, then rating, then distance, and returns four by default', () => {
     const places = [
       makePlace({ id: 'close', rating: 4, distanceMeters: 100 }),
       makePlace({ id: 'far', rating: 4, distanceMeters: 900 }),
@@ -54,7 +70,7 @@ describe('rankSuggestions', () => {
 
     const result = rankSuggestions(places, [{ soft: { likedCuisines: ['thai'] } }]);
 
-    expect(ids(result)).toEqual(['liked', 'best-rated', 'close']);
+    expect(ids(result)).toEqual(['liked', 'best-rated', 'close', 'far']);
   });
 
   describe('fast food', () => {
