@@ -8,7 +8,7 @@ export interface Email {
 }
 
 /**
- * Sends email. Production needs a real provider (AWS SES or similar), which
+ * Sends email. Production needs a real provider (Resend or similar), which
  * isn't chosen yet (BUGS.md OPEN-007); these cover development and tests.
  */
 export interface Mailer {

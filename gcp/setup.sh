@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # One-time Google Cloud setup for Arbiter's server (TRADEOFFS.md 8b, 8c).
 # Run in Cloud Shell with the Arbiter project selected:
-#   bash deploy/gcp-setup.sh "ssh-rsa AAAA… (public key for the 'ubuntu' user)"
+#   bash gcp/setup.sh "ssh-rsa AAAA… (public key for the 'ubuntu' user)"
 # Safe to run again: steps that already exist are skipped.
 set -uo pipefail
 
 SSH_PUBLIC_KEY="${1:?Pass the public SSH key for the ubuntu user}"
-REGION=us-west1 # Oregon: one of the three free-tier regions, near Neon (AWS us-west-2)
+REGION=us-west1 # Oregon: one of the three free-tier regions, near Neon's Oregon region
 ZONE=us-west1-b
 VM=arbiter
 REPO=sweksha-cloud/arbiter

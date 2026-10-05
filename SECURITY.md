@@ -54,5 +54,5 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 ## Secrets
 
 - `.env` files are git-ignored; `.env.example` holds only safe defaults.
-- In production, secrets come from AWS Parameter Store (spec section 7), never from the repo or the image.
+- In production, secrets live only in `deploy/server.env` on the server (readable only by its owner), never in the repo or the image. Moving them to a cloud secret store is a later hardening step (spec section 7).
 - Restrict the Google API key to the Places API (New).
