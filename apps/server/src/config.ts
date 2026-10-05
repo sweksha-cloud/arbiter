@@ -7,6 +7,11 @@ const EnvSchema = z.object({
   /** The only origin allowed to call the API (the Next.js app). */
   WEB_ORIGIN: z.url(),
   DATABASE_URL: z.string().min(1),
+  /**
+   * Live sessions in Redis, so they survive restarts and deploys
+   * (TRADEOFFS.md 10b). Without it, they're kept in memory and a restart ends them.
+   */
+  REDIS_URL: z.string().min(1).optional(),
   /** Real places from Google when set; invented sample places when not. */
   GOOGLE_PLACES_API_KEY: z.string().min(1).optional(),
   /** fatsecret Platform API (OAuth 2.0 client). Both or neither; without them, no chain nutrition. */

@@ -21,12 +21,37 @@ services:
       PORT: '4000'
       # Caddy is the only way in, so its X-Forwarded-For is trustworthy.
       TRUST_PROXY: 'true'
+      # Live sessions, kept through restarts and deploys (TRADEOFFS.md 10b).
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     # Not published: only Caddy can reach it.
     expose:
       - '4000'
     logging:
       driver: json-file
       options: { max-size: 10m, max-file: '5' }
+
+  # Live session state. Never restarted by deploys (deploy.sh only replaces
+  # the server), and saved to disk every second, so a VM reboot keeps
+  # sessions too. Not published: only the server reaches it.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >-
+      redis-server --appendonly yes --appendfsync everysec
+      --maxmemory 64mb --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
 
   caddy:
     image: caddy:2-alpine
@@ -47,5 +72,6 @@ services:
       - caddy-config:/config
 
 volumes:
+  redis-data:
   caddy-data:
   caddy-config:

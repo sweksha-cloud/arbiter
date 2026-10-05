@@ -26,6 +26,8 @@ export async function startApiServer(): Promise<void> {
       PORT: '4000',
       WEB_ORIGIN: WEB_URL,
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://arbiter:arbiter@localhost:5432/arbiter',
+      // Live sessions in Redis, as in production, so they survive the restart test.
+      REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
       LOG_LEVEL: 'warn',
       // The suite creates dozens of guests from one machine in seconds.
       RATE_LIMITS: 'off',

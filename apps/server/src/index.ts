@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger } from 'fastify';
+import { Redis } from 'ioredis';
 
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
@@ -11,6 +12,7 @@ import { FatSecretMenuProvider } from './nutrition/fatsecret-menus.js';
 import { GoogleGeocoder } from './places/geocoder.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
 import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
+import { RedisRoomStore } from './rooms/redis-room-store.js';
 
 const config = loadConfig();
 
@@ -26,6 +28,7 @@ function mailer(log: FastifyBaseLogger): Mailer {
 const pool = createPool(config.DATABASE_URL);
 const db = createDb(pool);
 const guests = new PostgresGuestStore(db);
+const redis = config.REDIS_URL ? new Redis(config.REDIS_URL) : undefined;
 const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
@@ -33,6 +36,7 @@ const { http } = await buildApp({
   rateLimits: config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS,
   guests,
   history: new PostgresSessionHistory(db),
+  ...(redis ? { rooms: new RedisRoomStore(redis) } : {}),
   mailer,
   ...(config.FATSECRET_CLIENT_ID && config.FATSECRET_CLIENT_SECRET
     ? {
@@ -61,8 +65,13 @@ http.log.info(
   { placesSource: config.GOOGLE_PLACES_API_KEY ? 'google' : 'sample' },
   config.GOOGLE_PLACES_API_KEY ? 'Using Google Places' : 'No GOOGLE_PLACES_API_KEY: using sample places'
 );
+http.log.info(
+  { liveSessions: redis ? 'redis' : 'memory' },
+  redis ? 'Live sessions in Redis: they survive restarts' : 'No REDIS_URL: live sessions in memory, a restart ends them'
+);
 http.addHook('onClose', async () => {
   await pool.end();
+  await redis?.quit();
 });
 
 await connectWithRetry(pool, {

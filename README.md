@@ -57,7 +57,7 @@ Accounts are optional: sign up, log in and out, and change your password from an
 
 Known limits:
 
-- **Live sessions live in server memory.** Accounts, preferences and session history are in Postgres, but a server restart ends any session in progress.
+- **A deploy briefly disconnects phones.** Live sessions are kept in Redis, so they survive restarts and deploys; during the few seconds the server restarts, phones show "Reconnecting…" and then carry on. Removing even that blip needs two server copies swapped one at a time (not built).
 - **Password reset and email confirmation are switched off in production** until an email provider is set up (locally, the emails are printed in the server log).
 - **Browser tests run in Chromium (Chrome, Android) and WebKit (Safari, every iPhone browser)**; Firefox isn't tested, and a real iPhone hasn't been tested by hand yet.
 

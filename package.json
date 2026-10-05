@@ -20,7 +20,7 @@
     "typecheck": "pnpm -r typecheck && tsc -p e2e",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
-    "db:up": "docker compose up -d --wait postgres",
+    "db:up": "docker compose up -d --wait postgres redis",
     "db:down": "docker compose down",
     "test:e2e": "pnpm build && playwright test"
   },

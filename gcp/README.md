@@ -36,6 +36,7 @@ From `~/arbiter` on the VM (`ssh -i ~/git/arbiter.pem ubuntu@34.168.132.145`):
 | Task | Command |
 | --- | --- |
 | Deploy a version | `sudo deploy/deploy.sh <commit SHA>` |
+| Look inside live sessions (Redis) | `sudo docker compose -f deploy/docker-compose.yml exec redis redis-cli --scan --pattern 'room:*'` |
 | Follow the server's logs | `sudo docker compose -f deploy/docker-compose.yml logs -f server` |
 | Change a setting | edit `deploy/server.env`, then `sudo docker compose -f deploy/docker-compose.yml up -d --force-recreate server` |
 | Build on the VM instead (emergency, e.g. GitHub down) | `git pull && sudo docker compose -f deploy/docker-compose.yml up -d --build` |

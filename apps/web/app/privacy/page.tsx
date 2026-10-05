@@ -58,8 +58,9 @@ export default function PrivacyPage() {
         <li>
           <strong>Your location</strong>, if you share it (your device&apos;s location or a place you type), is used only
           to decide where the group searches. When the group meets between everyone, nobody else in the group sees
-          where you&apos;re coming from; they only see that you shared. It&apos;s kept in the server&apos;s memory for
-          that session only and <strong>never saved</strong>.
+          where you&apos;re coming from; they only see that you shared. It&apos;s kept with the live session on
+          Arbiter&apos;s server (so a restart doesn&apos;t end the session) and deleted automatically 24 hours after
+          the session&apos;s last activity. It&apos;s <strong>never saved</strong> to the database or to your history.
         </li>
         <li>
           <strong>The session record</strong>: its code, who joined, which places were suggested (stored only as
@@ -118,7 +119,10 @@ export default function PrivacyPage() {
         <li>Session records: until you ask for your data to be deleted.</li>
         <li>Sign-in tokens: they stop working after 90 days without use, and are deleted after that.</li>
         <li>Password-reset links (1 hour) and email-confirmation links (24 hours): deleted within a week after use or expiry.</li>
-        <li>Your location, nutrition marks and Google&apos;s place details (names, prices, hours): only during the session.</li>
+        <li>
+          Your location, nutrition marks and Google&apos;s place details (names, prices, hours): only for the live
+          session, deleted automatically 24 hours after its last activity.
+        </li>
       </ul>
 
       <h2>Your choices</h2>
