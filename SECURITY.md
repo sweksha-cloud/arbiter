@@ -40,7 +40,7 @@ Please open a [private security advisory](https://github.com/sweksha-cloud/arbit
 | One person using up everyone's daily Google quota | At most 10 scans a day per network, charged to the host's IP (kept in memory only, never stored). A duplicate request that's refused anyway is never charged. | `session-service.ts`, `rate-limits.ts` |
 | Leaking the API key | Only the server calls Google; the browser never sees the key. Errors from Google are logged without it (tested). | `google-places-provider.ts` |
 | Rate limits seeing the proxy's IP, not visitors' | `TRUST_PROXY=true` behind Caddy, so limits use each visitor's IP. | `config.ts` |
-| Vulnerable dependencies | CI fails on high or critical advisories (`pnpm audit`); Dependabot opens weekly update PRs. `drizzle-kit`'s outdated esbuild is overridden to a patched version, so the audit is clean. | `.github/`, `package.json` (`pnpm.overrides`) |
+| Vulnerable dependencies | CI fails on high or critical advisories (`pnpm audit`); GitHub Dependabot alerts email the owner about newly found vulnerabilities, even between pushes. `drizzle-kit`'s outdated esbuild is overridden to a patched version, so the audit is clean. | `.github/workflows/ci.yml`, repo settings, `package.json` (`pnpm.overrides`) |
 
 ## Known gaps
 
