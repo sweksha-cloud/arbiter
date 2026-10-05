@@ -94,7 +94,7 @@ test('setting up never falls back to a default city: an unanswered or blocked pr
   });
   await expect(host.getByRole('button', { name: 'Create session' })).toBeDisabled();
   await host.getByLabel('Search near: type a place').fill('San Francisco');
-  await host.getByRole('button', { name: 'Search' }).click();
+  await host.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(host.getByText('📍 San Francisco (sample)')).toBeVisible();
   await host.getByRole('button', { name: 'Create session' }).click();
   await expect(host.getByText('Your session')).toBeVisible();
@@ -126,7 +126,7 @@ test('the host can change the area in the lobby', async ({ newPhone }) => {
   await host.getByRole('button', { name: 'Change' }).click();
   await host.getByRole('button', { name: 'Change' }).click(); // the place itself, inside the picker
   await host.getByLabel('Search near: type a place').fill('Berkeley');
-  await host.getByRole('button', { name: 'Search' }).click();
+  await host.getByRole('button', { name: 'Search', exact: true }).click();
   await host.getByRole('button', { name: 'Done' }).click();
   await expect(host.getByText('Searching around Berkeley (sample)')).toBeVisible();
 });
@@ -146,7 +146,7 @@ test('meeting between everyone: where you\'re coming from is asked first and sta
   await expect(friend.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
 
   await friend.getByLabel(/Where are you coming from\?.*type a place/).fill('Santa Clara');
-  await friend.getByRole('button', { name: 'Search' }).click();
+  await friend.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(friend.getByText('📍 Santa Clara (sample)')).toBeVisible();
   await expect(host.getByText("(2 of 2 shared where they're coming from)")).toBeVisible();
   await expect(host.getByText('Santa Clara')).toHaveCount(0);

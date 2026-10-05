@@ -96,7 +96,7 @@ export async function setUpSession(page: Page, { mode = 'area', place }: Setup =
   const label = mode === 'area' ? 'Search near' : 'Where are you coming from?';
   if (place) {
     await page.getByLabel(`${label}: type a place`).fill(place);
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByText(`📍 ${place} (sample)`)).toBeVisible();
   } else {
     await page.getByRole('button', { name: /Use my current location/ }).click();
