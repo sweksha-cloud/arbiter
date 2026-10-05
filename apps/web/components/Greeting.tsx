@@ -15,7 +15,15 @@ import { useSubmit } from '../lib/use-submit';
 export function Greeting({ identity }: { identity: Identity }) {
   const [editing, setEditing] = useState(false);
   const rename = useSubmit();
-  const forget = useSubmit();
+  const [leaving, setLeaving] = useState(false);
+
+  // Signs this device out (a guest's sign-in too), so the next person starts fresh.
+  async function notYou() {
+    setLeaving(true);
+    await api.logout(identity.token).catch(() => {});
+    forgetActiveSession();
+    clearIdentity();
+  }
 
   if (editing) {
     return (
@@ -58,26 +66,15 @@ export function Greeting({ identity }: { identity: Identity }) {
       <p>
         Hi <strong>{identity.guest.displayName}</strong>.
       </p>
-      <form
-        className="row nowrap small"
-        onSubmit={forget.handle(async () => {
-          // Signs this device out (a guest's sign-in too), so the next person starts fresh.
-          await api.logout(identity.token).catch(() => {});
-          forgetActiveSession();
-          clearIdentity();
-        })}
-      >
-        <button type="button" className="button link small" onClick={() => setEditing(true)}>
+      <p className="small muted">
+        <button type="button" className="inline-link" onClick={() => setEditing(true)}>
           Change name
         </button>
-        <span className="muted" aria-hidden="true">
-          ·
-        </span>
-        <button className="button link small" disabled={forget.busy}>
+        {' · '}
+        <button type="button" className="inline-link" onClick={notYou} disabled={leaving}>
           Not you?
         </button>
-      </form>
-      {forget.error && <p className="error">{forget.error}</p>}
+      </p>
     </div>
   );
 }

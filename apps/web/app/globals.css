@@ -768,3 +768,15 @@ details.collapsible:not([open]) {
 .host-bar .invite-url {
   padding: 6px 10px;
 }
+
+/* A button that reads as a link inside a sentence ("Change name · Not you?"). */
+.inline-link {
+  font: inherit;
+  color: var(--link);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  min-height: 24px;
+  cursor: pointer;
+}
