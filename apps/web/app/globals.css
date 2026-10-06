@@ -653,7 +653,7 @@ body > main {
   margin: 0 auto;
   padding: 12px 16px 20px;
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   line-height: 1.4;
   /* Faded on purpose (owner, 2026-10-06); the accessibility check skips the footer. */
   opacity: 0.85;
