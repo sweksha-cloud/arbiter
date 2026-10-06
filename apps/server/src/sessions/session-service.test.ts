@@ -843,6 +843,20 @@ describe('SessionService', () => {
   });
 
   describe('searching again for more options (TRADEOFFS.md 2k)', () => {
+    it('searches wider when nothing is within anyone\'s reach, and shows the closest matches', async () => {
+      // One place about 2 km away; the host will go at most 500 m.
+      const far = place('far', { location: { lat: center.lat + 0.018, lng: center.lng } });
+      const provider = new FixturePlacesProvider([far]);
+      const searchNearby = vi.spyOn(provider, 'searchNearby');
+      const { service, host, friend, sessionId } = await lobbyOfTwo(provider);
+      await service.submit(sessionId, host, { hard: { maxDistanceMeters: 500 }, soft: {} });
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(searchNearby.mock.calls[1]![0].radiusMeters).toBe(8_000);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['far']);
+      expect(service.view(room, host.id).closestMatches).toBe(true);
+      expect(service.view(room, host.id).missesForYou.far).toEqual(['distance']);
+    });
+
     const many = (n: number, prefix: string, extra: Partial<PlaceCandidate> = {}) =>
       Array.from({ length: n }, (_, i) => place(`${prefix}${i}`, { cuisines: ['american'], ...extra }));
 
