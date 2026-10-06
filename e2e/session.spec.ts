@@ -456,3 +456,22 @@ test('the home page greeting can change your name, or forget you on a shared pho
   await expect(phone.getByLabel('What should your friends call you?')).toHaveValue('');
   await expect(phone.getByText('Hi Sweksha.')).toHaveCount(0);
 });
+
+test('after results, editing preferences re-sorts the list for everyone without saying who', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(host.locator('article').first()).toBeVisible();
+
+  await host.getByRole('button', { name: 'Change' }).click();
+  await host.getByLabel('I need vegetarian options').check();
+  await host.getByRole('button', { name: 'Update' }).click();
+
+  await expect(host.getByText('Your changes are in, so the options have been reorganized.')).toBeVisible();
+  await expect(friend.getByText('Someone changed their preferences, so the options have been reorganized.')).toBeVisible();
+  await friend.getByRole('button', { name: 'Close this note' }).click();
+  await expect(friend.getByText(/options have been reorganized/)).toHaveCount(0);
+});

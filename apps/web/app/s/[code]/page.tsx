@@ -232,6 +232,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             </p>
           )}
 
+          {view.status === 'voting' && me?.submitted && (
+            <MyPreferences token={identity.token} submitted afterResults onSubmit={submitPreferences} />
+          )}
+
+          <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
+
           {view.closestMatches && (
             <p className="notice small" role="note">
               Nothing nearby fits all your preferences, so here are the closest matches.
@@ -255,6 +261,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 key={suggestion.place.id}
                 suggestion={suggestion}
                 missed={view.missesForYou[suggestion.place.id]}
+                noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
                 source={view.placesSource}
                 canReact={view.status === 'voting'}
                 onReact={(reaction: Reaction | null) =>
@@ -383,10 +390,13 @@ function HostBar({ sessionId }: { sessionId: string }) {
 function MyPreferences({
   token,
   submitted,
+  afterResults = false,
   onSubmit
 }: {
   token: string;
   submitted: boolean;
+  /** Editing after results re-sorts the list for everyone (TRADEOFFS.md 2i). */
+  afterResults?: boolean;
   onSubmit: (preferences: Preferences) => Promise<void>;
 }) {
   // Last time's answers, to prefill the form. They don't count until submitted here.
@@ -401,7 +411,12 @@ function MyPreferences({
       <>
         <section className="card row spread">
           <p>
-            <strong>✓ Submitted.</strong> <span className="muted small">Nobody else can see your answers.</span>
+            <strong>✓ Submitted.</strong>{' '}
+            <span className="muted small">
+              {afterResults
+                ? 'Changing your answers re-sorts the list for everyone. Nobody sees what you changed.'
+                : 'Nobody else can see your answers.'}
+            </span>
           </p>
           <button className="button" onClick={() => setEditing(true)}>
             Change
@@ -510,3 +525,42 @@ function Members({ view, myId }: { view: SessionView; myId: string }) {
     </section>
   );
 }
+
+/**
+ * "Someone changed their preferences…" after an edit re-sorted the list. Never
+ * says who. Closing it hides this edit's note (remembered for the tab), and a
+ * later edit shows a new one.
+ */
+function ReorganizedNote({ sessionId, reorganized }: { sessionId: string; reorganized: SessionView['reorganized'] }) {
+  const key = `arbiter.reorganized-seen.${sessionId}`;
+  const [seen, setSeen] = useState(0);
+  useEffect(() => {
+    try {
+      setSeen(Number(sessionStorage.getItem(key) ?? 0));
+    } catch {
+      // Storage blocked: the note just shows until closed.
+    }
+  }, [key]);
+  if (!reorganized || reorganized.count <= seen) return null;
+  const close = () => {
+    setSeen(reorganized.count);
+    try {
+      sessionStorage.setItem(key, String(reorganized.count));
+    } catch {
+      // Storage blocked: closed for now only.
+    }
+  };
+  return (
+    <div className="notice small row spread nowrap" role="status">
+      <p>
+        {reorganized.byYou
+          ? 'Your changes are in, so the options have been reorganized.'
+          : 'Someone changed their preferences, so the options have been reorganized.'}
+      </p>
+      <button className="button link" onClick={close} aria-label="Close this note">
+        OK
+      </button>
+    </div>
+  );
+}
+

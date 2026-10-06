@@ -39,10 +39,20 @@ export interface RoomState {
   /** memberId -> preferences submitted for this session. Never sent to clients. */
   submissions: Record<string, Preferences>;
   suggestions: PlaceCandidate[];
-  /** Places that also fit everyone's must-haves, ranked below the suggestions. */
+  /** Other places from the same search, ranked below the suggestions. */
   moreOptions: PlaceCandidate[];
-  /** Nothing matched the kind of place the group agreed on, so these are the closest matches. */
+  /** Nothing fits everyone's must-haves, so these are the closest matches. */
   closestMatches?: boolean;
+  /**
+   * Everything the search found (with menus), kept so the results can be
+   * re-filtered for free when someone edits their preferences (TRADEOFFS.md 2i).
+   * Never sent to clients as is.
+   */
+  candidates?: PlaceCandidate[];
+  /** Places people voted on that no longer fit after someone's edit. */
+  noLongerFits?: string[];
+  /** How many times an edit re-filtered the results, and by whom (never sent: only "you" or "someone"). */
+  reorganized?: { count: number; by: string };
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;

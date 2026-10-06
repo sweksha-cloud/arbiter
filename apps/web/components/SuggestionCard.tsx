@@ -41,9 +41,12 @@ export function SuggestionCard({
   canReact,
   onReact,
   onTag,
-  missed = []
+  missed = [],
+  noLongerFits = false
 }: {
   suggestion: SuggestionView;
+  /** Voted on, but no longer fits after someone changed their preferences. */
+  noLongerFits?: boolean;
   /** Which of the viewer's own must-haves this place misses (closest matches). */
   missed?: readonly MissedMustHave[];
   source: SessionView['placesSource'];
@@ -74,6 +77,7 @@ export function SuggestionCard({
           {details.join(' · ')}
           {place.cuisines.length > 0 && <> · {place.cuisines.join(', ')}</>}
         </p>
+        {noLongerFits && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
         {missed.length > 0 && <p className="small misses">{describeMisses(missed)}</p>}
       </header>
 

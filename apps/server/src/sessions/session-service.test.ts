@@ -165,14 +165,16 @@ describe('SessionService', () => {
     expect(room.suggestions.map((p) => p.id)).toEqual(['liked', 'ok', 'cheap', 'also-ok']);
   });
 
-  it('lets people change their answers until results are in, then locks them', async () => {
+  it('lets people change their answers before results, and after (re-filtering, TRADEOFFS.md 2i)', async () => {
     const { service, host, friend, sessionId } = await lobbyOfTwo();
     await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
     const changed = await service.submit(sessionId, friend, noPreferences);
     expect(changed.submissions[friend.id]).toEqual(noPreferences);
 
     await service.submit(sessionId, host, noPreferences);
-    await expect(service.submit(sessionId, friend, noPreferences)).rejects.toThrow('locked');
+    const edited = await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
+    expect(edited.status).toBe('voting');
+    expect(edited.submissions[friend.id]).toEqual({ hard: { vegetarian: true }, soft: {} });
   });
 
   it('lets only the host show results early, and only members submit', async () => {
@@ -735,6 +737,54 @@ describe('SessionService', () => {
       });
       // The friend's own misses only: never the host's.
       expect(service.view(room, friend.id).missesForYou.steak).toEqual(['vegan', 'budget']);
+    });
+  });
+
+  describe('editing preferences after results', () => {
+    // Six restaurants; only some are vegetarian-friendly.
+    const counting = () => {
+      let searches = 0;
+      const fixture = new FixturePlacesProvider([
+        place('steak', { kind: 'restaurant', rating: 4.9, servesVegetarian: false }),
+        place('bbq', { kind: 'restaurant', rating: 4.8, servesVegetarian: false }),
+        place('salad', { kind: 'restaurant', rating: 4.5, servesVegetarian: true }),
+        place('curry', { kind: 'restaurant', rating: 4.4, servesVegetarian: true }),
+        place('tofu', { kind: 'restaurant', rating: 4.3, servesVegetarian: true }),
+        place('pasta', { kind: 'restaurant', rating: 4.2, servesVegetarian: true })
+      ]);
+      const provider: PlacesProvider = {
+        searchNearby: (query) => {
+          searches += 1;
+          return fixture.searchNearby(query);
+        }
+      };
+      return { provider, searches: () => searches };
+    };
+
+    it("re-filters the same search for everyone: voted places stay, marked if they don't fit; the rest refill", async () => {
+      const { provider, searches } = counting();
+      const { service, host, friend, sessionId } = await lobbyOfTwo(provider);
+      await service.submit(sessionId, host, noPreferences);
+      let room = await service.submit(sessionId, friend, noPreferences);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['steak', 'bbq', 'salad', 'curry']);
+      await service.react(sessionId, friend, 'steak', 'like');
+
+      room = await service.submit(sessionId, host, { hard: { vegetarian: true }, soft: {} });
+      expect(searches()).toBe(1); // No new (paid) search.
+      // The voted steakhouse stays, marked; bbq (no votes) is replaced by the next vegetarian fit.
+      expect(room.suggestions.map((p) => p.id)).toEqual(['steak', 'salad', 'curry', 'tofu']);
+      expect(service.view(room, friend.id).noLongerFits).toEqual(['steak']);
+      expect(room.moreOptions.map((p) => p.id)).toEqual(['pasta']);
+      // Everyone is told the options were reorganized; only the editor is told it was them.
+      expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: true });
+      expect(service.view(room, friend.id).reorganized).toEqual({ count: 1, byYou: false });
+    });
+
+    it("stays locked for someone who never submitted", async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(counting().provider);
+      await service.submit(sessionId, host, noPreferences);
+      await service.start(sessionId, host);
+      await expect(service.submit(sessionId, friend, noPreferences)).rejects.toThrow('preferences are locked');
     });
   });
 

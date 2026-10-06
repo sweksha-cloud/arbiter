@@ -284,9 +284,19 @@ export class SessionService {
     preferences: Preferences,
     onScanStarted?: () => Promise<void>
   ): Promise<RoomState> {
+    let edited = false;
+    let shownBefore = new Set<string>();
     const room = await this.update(sessionId, (current) => {
-      if (!current.members.some((m) => m.id === guest.id)) {
+      const member = current.members.find((m) => m.id === guest.id);
+      if (!member) {
         throw new SessionError('forbidden', 'Join the session first');
+      }
+      // After results, people who submitted can edit: the same search is
+      // re-filtered for everyone, for free (TRADEOFFS.md 2i).
+      edited = current.status === 'voting' && member.submitted;
+      if (edited) {
+        shownBefore = new Set(current.suggestions.map((p) => p.id));
+        return this.applyEdit(current, guest.id, preferences);
       }
       if (current.status !== 'lobby') {
         throw new SessionError('invalid_state', 'Results are already in; preferences are locked');
@@ -302,7 +312,46 @@ export class SessionService {
       };
     });
     await this.options.guests.setPreferences(guest.id, preferences);
+    if (edited) {
+      for (const place of room.suggestions.filter((p) => !shownBefore.has(p.id))) {
+        this.record(sessionId, 'add', () => this.options.history.addSuggestion(sessionId, place.id));
+      }
+      this.options.log?.info({ sessionId, reorganized: room.reorganized?.count }, 'Preferences edited after results');
+      return room;
+    }
     return this.autoStart(room, onScanStarted);
+  }
+
+  /**
+   * Someone edited their preferences after results: re-filter the same
+   * search with everyone's current preferences. Places anyone voted on stay
+   * in the main list, marked if they no longer fit; the rest is refilled
+   * from the best fits, and everyone is told the options were reorganized
+   * (never by whom).
+   */
+  private applyEdit(room: RoomState, memberId: string, preferences: Preferences): RoomState {
+    const updated: RoomState = { ...room, submissions: { ...room.submissions, [memberId]: preferences } };
+    // Rooms from before edits existed only kept what was shown.
+    const candidates = room.candidates ?? [...room.suggestions, ...room.moreOptions];
+    const { ranked, fitting, closestMatches, eliminatedCount } = this.arrange(updated, candidates);
+    const voted = new Set(Object.values(room.reactions).flatMap((byPlace) => Object.keys(byPlace)));
+    const kept = room.suggestions.filter((p) => voted.has(p.id));
+    const keptIds = new Set(kept.map((p) => p.id));
+    const fill = (closestMatches ? ranked : fitting)
+      .filter((p) => !keptIds.has(p.id))
+      .slice(0, Math.max(0, DEFAULT_SUGGESTION_COUNT - kept.length));
+    const suggestions = [...kept, ...fill];
+    const fittingIds = new Set(fitting.map((p) => p.id));
+    return {
+      ...updated,
+      suggestions,
+      moreOptions: ranked.filter((p) => !suggestions.some((s) => s.id === p.id)),
+      closestMatches,
+      eliminatedCount,
+      // With closest matches the notice already says nothing fits everyone.
+      noLongerFits: closestMatches ? [] : kept.filter((p) => !fittingIds.has(p.id)).map((p) => p.id),
+      reorganized: { count: (room.reorganized?.count ?? 0) + 1, by: memberId }
+    };
   }
 
   /** Host only: how the group decides where to meet. Lobby only. */
@@ -476,6 +525,8 @@ export class SessionService {
       })),
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
+      noLongerFits: room.noLongerFits ?? [],
+      reorganized: room.reorganized ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId } : null,
       meeting: {
         mode: room.meetingMode ?? null,
         area: room.area ?? null,
@@ -527,42 +578,20 @@ export class SessionService {
     const startedAt = performance.now();
 
     try {
-      const preferences = Object.values(room.submissions);
-      // Distance is checked per person by `limits`, from where each one starts.
-      const group = { ...combineHardConstraints(preferences), maxDistanceMeters: undefined };
       // Search exactly as far as the group will go, so a far limit finds far
       // places and a close one spends the scan's results on nearby places.
-      const { center, radiusMeters, limits } = searchPlan(room, this.options.radiusMeters);
+      const { center, radiusMeters } = searchPlan(room, this.options.radiusMeters);
       const scanned = await this.options.places.searchNearby({ center, radiusMeters });
       // What everyone sees above the results: the host's area, by its name.
       const searchedNear = room.meetingMode === 'area' ? room.area?.label : undefined;
-      // Vegan options are partly known from chains' menus, so a vegan must-have
-      // needs menus before elimination; otherwise nutrition only adds to
-      // places that already fit everyone's must-haves.
-      const candidates = group.vegan ? await addMenus(scanned, this.options.menus) : scanned;
-      const { kept, eliminatedCount } = eliminate(candidates, group, this.options.missingDataPolicy, limits);
-      // Nothing fits everyone: the group gets the places that miss the fewest
-      // must-haves, and is told so (TRADEOFFS.md 2h).
-      const nothingFits = kept.length === 0 && candidates.length > 0;
-      const pool = nothingFits ? candidates : kept;
-      const withMenus = group.vegan ? pool : await addMenus(pool, this.options.menus);
-      let ranked = rankSuggestions(withMenus, preferences, Number.POSITIVE_INFINITY);
-      if (nothingFits) {
-        const misses = new Map(ranked.map((p) => [p.id, this.totalMisses(room, center, p)]));
-        ranked = ranked.toSorted((a, b) => misses.get(a.id)! - misses.get(b.id)!);
-      }
-      // "Only show me" kinds: the main list holds kinds every picker allows
-      // (TRADEOFFS.md 2g); the rest stay under "more options". If none
-      // match, the group gets the closest matches and is told so.
-      const agreed = agreedKinds(preferences);
-      const fitting = nothingFits
-        ? []
-        : agreed
-          ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind))
-          : ranked;
-      const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
+      // Menus for every chain found, not only those that fit: a vegan
+      // must-have needs them, and an edit after results re-filters these same
+      // places for free (TRADEOFFS.md 2i). Chain menus are cached.
+      const candidates = await addMenus(scanned, this.options.menus);
+      const { ranked, fitting, closestMatches, eliminatedCount, agreed } = this.arrange(room, candidates);
       const suggestions = (closestMatches ? ranked : fitting).slice(0, DEFAULT_SUGGESTION_COUNT);
       const moreOptions = ranked.filter((p) => !suggestions.includes(p));
+      const preferences = Object.values(room.submissions);
 
       this.options.log?.info(
         {
@@ -579,7 +608,7 @@ export class SessionService {
           agreedKinds: agreed,
           closestMatches,
           moreOptions: moreOptions.length,
-          withMenus: withMenus.filter((p) => p.menu).length,
+          withMenus: candidates.filter((p) => p.menu).length,
           placesSource: this.options.placesSource,
           durationMs: Math.round(performance.now() - startedAt)
         },
@@ -591,6 +620,7 @@ export class SessionService {
         suggestions,
         moreOptions,
         closestMatches,
+        candidates,
         ...(searchedNear !== undefined && { searchedNear }),
         scannedCount: scanned.length,
         eliminatedCount
@@ -610,6 +640,38 @@ export class SessionService {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
     }
+  }
+
+  /**
+   * Filters and ranks the places a search found, by everyone's current
+   * preferences. The first scan and every edit after results use this, so an
+   * edit costs no new search (TRADEOFFS.md 2i).
+   */
+  private arrange(room: RoomState, candidates: PlaceCandidate[]) {
+    const preferences = Object.values(room.submissions);
+    // Distance is checked per person by `limits`, from where each one starts.
+    const group = { ...combineHardConstraints(preferences), maxDistanceMeters: undefined };
+    const { center, limits } = searchPlan(room, this.options.radiusMeters);
+    const { kept, eliminatedCount } = eliminate(candidates, group, this.options.missingDataPolicy, limits);
+    // Nothing fits everyone: the group gets the places that miss the fewest
+    // must-haves, and is told so (TRADEOFFS.md 2h).
+    const nothingFits = kept.length === 0 && candidates.length > 0;
+    let ranked = rankSuggestions(nothingFits ? candidates : kept, preferences, Number.POSITIVE_INFINITY);
+    if (nothingFits) {
+      const misses = new Map(ranked.map((p) => [p.id, this.totalMisses(room, center, p)]));
+      ranked = ranked.toSorted((a, b) => misses.get(a.id)! - misses.get(b.id)!);
+    }
+    // "Only show me" kinds: the main list holds kinds every picker allows
+    // (TRADEOFFS.md 2g); the rest stay under "more options". If none
+    // match, the group gets the closest matches and is told so.
+    const agreed = agreedKinds(preferences);
+    const fitting = nothingFits
+      ? []
+      : agreed
+        ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind))
+        : ranked;
+    const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
+    return { ranked, fitting, closestMatches, eliminatedCount, agreed };
   }
 
   /** Where a person's distances start: their own location when meeting between everyone. */

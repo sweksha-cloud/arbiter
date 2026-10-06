@@ -149,6 +149,14 @@ export const SessionViewSchema = z.object({
    * must-haves, which ones. Only your own: never anyone else's.
    */
   missesForYou: z.record(z.string(), z.array(MissedMustHaveSchema)),
+  /** Suggestions people voted on that no longer fit after someone edited their preferences. */
+  noLongerFits: z.array(z.string()),
+  /**
+   * Someone edited their preferences after results, so the list was
+   * re-filtered. `count` goes up with each edit; never says who, only
+   * whether it was you.
+   */
+  reorganized: z.object({ count: z.number().int().positive(), byYou: z.boolean() }).nullable(),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
   /**
