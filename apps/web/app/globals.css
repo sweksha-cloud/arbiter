@@ -1329,3 +1329,45 @@ body {
   background: color-mix(in srgb, var(--success-text) 14%, var(--surface));
 }
 
+/* Everything settings-like after results, folded into one section (TRADEOFFS.md 23). */
+.session-details > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.session-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-details > summary::after {
+  content: '▾';
+  color: var(--muted);
+}
+
+.session-details:not([open]) > summary::after {
+  content: '▸';
+}
+
+.session-details > summary > .small {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.session-details[open] > summary {
+  margin-bottom: 14px;
+}
+
+
+.session-details > summary > span:first-child {
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.session-details > summary > .small {
+  text-align: right;
+}

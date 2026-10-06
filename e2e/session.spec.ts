@@ -1,4 +1,4 @@
-import { becomeGuest, expect, hostSession, joinSession, showList, startAs, test } from './helpers';
+import { becomeGuest, expect, hostSession, joinSession, openSessionDetails, showList, startAs, test } from './helpers';
 
 test('the host lands in the session straight away and results wait for everyone', async ({ newPhone }) => {
   const host = await newPhone();
@@ -119,6 +119,8 @@ test('the host sets up where to meet before the session exists; only the host se
   // Once results are in, the host's bar moves to the bottom of the page (still only theirs).
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+  await openSessionDetails(friend);
+  await openSessionDetails(host);
   await expect(friend.getByText(/^Searched near downtown san jose \(sample\)/)).toBeVisible();
   await expect(host.getByLabel('Invite link')).toHaveValue(invite);
   await expect(host.locator('.host-bar')).toHaveClass(/bottom/);
@@ -159,6 +161,7 @@ test('meeting between everyone: where you\'re coming from is asked first and sta
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.locator('article').first()).toBeVisible();
+  await openSessionDetails(host);
   await expect(host.getByText("Searched around the average of everyone's locations", { exact: false })).toBeVisible();
   await expect(friend.locator('article').first()).toContainText('from you');
 });
@@ -488,6 +491,7 @@ test('after results, editing preferences re-sorts the list for everyone without 
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(host.locator('article').first()).toBeVisible();
 
+  await openSessionDetails(host);
   await host.getByRole('button', { name: 'Change' }).click();
   await host.getByLabel('I need vegetarian options').check();
   await host.getByRole('button', { name: 'Update' }).click();

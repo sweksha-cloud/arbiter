@@ -139,3 +139,9 @@ export async function showList(page: Page): Promise<void> {
   await page.getByRole('group', { name: 'How to see the places' }).getByRole('button', { name: 'List' }).click();
 }
 
+/** After results, the invite link, who's here, your answers and "End session" are folded away (TRADEOFFS.md 23). */
+export async function openSessionDetails(page: Page): Promise<void> {
+  const details = page.locator('details.session-details');
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+}
+

@@ -289,13 +289,8 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             </>
           )}
 
-          {view.placesSource === 'sample' && (
-            <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
-          )}
-          <p className="muted small">
-            {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for
-            someone in the group
-          </p>
+          {/* Things to act on stay in view; settings-like things fold away (TRADEOFFS.md 23). */}
+          <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
 
           {view.status === 'ended' && <SessionEnded token={identity.token} />}
 
@@ -306,12 +301,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 : 'Results were shown before you submitted. Add your preferences and the list will re-sort to include them.'}
             </p>
           )}
-
-          {view.status === 'voting' && me && (
-            <MyPreferences token={identity.token} submitted={me.submitted} afterResults onSubmit={submitPreferences} />
+          {view.status === 'voting' && me && !me.submitted && (
+            <MyPreferences token={identity.token} submitted={false} afterResults onSubmit={submitPreferences} />
           )}
-
-          <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
 
           {view.wishesNotMet.length > 0 && (
             <ul className="notice small wishes" aria-label="Why some of what you wanted isn't here">
@@ -333,16 +325,35 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             </p>
           )}
 
+          <details className="card session-details">
+            <summary>
+              <span>Session details</span>
+              <span className="muted small">
+                {view.members.length} {view.members.length === 1 ? 'person' : 'people'} · {isHost ? 'invite, end session' : 'your answers'}
+              </span>
+            </summary>
+            <div className="stack">
+              {view.placesSource === 'sample' && (
+                <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
+              )}
+              <p className="muted small">
+                {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work
+                for someone in the group
+              </p>
+              {view.status === 'voting' && me?.submitted && (
+                <MyPreferences token={identity.token} submitted afterResults onSubmit={submitPreferences} />
+              )}
+              <Members view={view} myId={identity.guest.id} />
+              {isHost ? <HostBar sessionId={view.sessionId} atBottom /> : <SessionCode sessionId={view.sessionId} />}
+              {isHost && view.status === 'voting' && (
+                <button className="button" onClick={() => send((s) => s.emit('session:end', handleAck))}>
+                  End session
+                </button>
+              )}
+            </div>
+          </details>
+
           {view.placesSource === 'google' && <p className="muted small center">Place data © Google Maps</p>}
-
-          {isHost && view.status === 'voting' && (
-            <button className="button" onClick={() => send((s) => s.emit('session:end', handleAck))}>
-              End session
-            </button>
-          )}
-
-          <Members view={view} myId={identity.guest.id} />
-          {isHost ? <HostBar sessionId={view.sessionId} atBottom /> : <SessionCode sessionId={view.sessionId} />}
         </section>
       )}
     </>
