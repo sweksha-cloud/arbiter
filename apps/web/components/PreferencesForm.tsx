@@ -78,7 +78,7 @@ function budgetDollars(choice: BudgetChoice): { dollars?: number; error?: string
   if (choice.kind === 'preset') return { dollars: choice.dollars };
   const dollars = Number(choice.text);
   if (choice.text.trim() === '' || !Number.isInteger(dollars) || dollars < 1 || dollars > MAX_PRICE_PER_PERSON) {
-    return { error: `Enter the most you want to spend per person, in whole dollars (1 to ${MAX_PRICE_PER_PERSON}).` };
+    return { error: `Enter the most you want to spend on yourself, in whole dollars (1 to ${MAX_PRICE_PER_PERSON}).` };
   }
   return { dollars };
 }
@@ -223,7 +223,7 @@ export function PreferencesForm({
           <span>I need vegetarian options</span>
         </label>
         <fieldset className="field">
-          <legend>Most I want to spend per person</legend>
+          <legend>Most I want to spend on myself</legend>
           <div className="segmented grid three">
             <button type="button" aria-pressed={budget.kind === 'any'} onClick={() => setBudget({ kind: 'any' })}>
               Any
@@ -248,7 +248,7 @@ export function PreferencesForm({
           </div>
           {budget.kind === 'custom' && (
             <label className="field">
-              <span className="small">The most you want to spend per person ($)</span>
+              <span className="small">The most you want to spend on yourself ($)</span>
               <input
                 type="number"
                 inputMode="numeric"

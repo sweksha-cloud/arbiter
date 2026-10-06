@@ -329,13 +329,13 @@ test('suggestions show their hours, and a place with several branches lists the 
 test('the budget is in dollars, with a custom amount, and is saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Pia');
-  const budget = phone.getByRole('group', { name: 'Most I want to spend per person' });
+  const budget = phone.getByRole('group', { name: 'Most I want to spend on myself' });
   for (const label of ['Any', 'Under $10', '$10–20', '$20–30', '$30–50', 'Custom']) {
     await expect(budget.getByRole('button', { name: label, exact: true })).toBeVisible();
   }
 
   await budget.getByRole('button', { name: 'Custom' }).click();
-  const amount = phone.getByLabel('The most you want to spend per person ($)');
+  const amount = phone.getByLabel('The most you want to spend on yourself ($)');
   // Left empty, it asks for an amount; out of range, the browser stops it.
   await phone.getByRole('button', { name: 'Save' }).click();
   await expect(phone.locator('.error')).toContainText('whole dollars');
@@ -347,7 +347,7 @@ test('the budget is in dollars, with a custom amount, and is saved and prefilled
   await phone.getByRole('button', { name: 'Save' }).click();
   await expect(phone.locator('.success')).toBeVisible();
   await phone.reload();
-  await expect(phone.getByLabel('The most you want to spend per person ($)')).toHaveValue('40');
+  await expect(phone.getByLabel('The most you want to spend on yourself ($)')).toHaveValue('40');
 
   await budget.getByRole('button', { name: '$10–20' }).click();
   await phone.getByRole('button', { name: 'Save' }).click();
@@ -359,7 +359,7 @@ test('the budget is in dollars, with a custom amount, and is saved and prefilled
 test('a dollar budget removes places that cost more, and cards show dollar ranges', async ({ newPhone }) => {
   const host = await newPhone();
   await hostSession(host, 'Ivy');
-  const budget = host.getByRole('group', { name: 'Most I want to spend per person' });
+  const budget = host.getByRole('group', { name: 'Most I want to spend on myself' });
   await budget.getByRole('button', { name: 'Under $10' }).click();
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await host.getByRole('button', { name: 'Show results now' }).click();

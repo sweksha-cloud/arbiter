@@ -16,7 +16,7 @@ export const MAX_PRICE_PER_PERSON = 1_000;
 
 export const HardConstraintsSchema = z.object({
   vegetarian: z.boolean().optional(),
-  /** Most I want to spend per person, in whole dollars. */
+  /** Most I want to spend on myself, in whole dollars. */
   maxPricePerPerson: z.number().int().min(1).max(MAX_PRICE_PER_PERSON).optional(),
   maxDistanceMeters: z.number().int().positive().max(MAX_DISTANCE_METERS).optional()
 });
