@@ -28,7 +28,8 @@ export function SaveProgress() {
     }
   }, []);
 
-  if (!identity || hasAccount(identity) || closed || path === '/login' || path === '/signup') return null;
+  // Not on the home page, where Start is the one main action (TRADEOFFS.md 23d); the header has Log in / Sign up.
+  if (!identity || hasAccount(identity) || closed || path === '/' || path === '/login' || path === '/signup') return null;
 
   function close() {
     setClosed(true);

@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 /** Session codes are shown in capitals; accept any case and stray spaces. */
 export const normalizeSessionCode = (code: string) => code.trim().toUpperCase();
 
-export function JoinCodeForm({ label = 'Got a code from a friend?' }: { label?: string }) {
+export function JoinCodeForm({ label = 'Got a code from a friend?', compact = false }: { label?: string; compact?: boolean }) {
   const router = useRouter();
   const [code, setCode] = useState('');
 
@@ -14,6 +14,31 @@ export function JoinCodeForm({ label = 'Got a code from a friend?' }: { label?: 
     event.preventDefault();
     const normalized = normalizeSessionCode(code);
     if (normalized) router.push(`/s/${encodeURIComponent(normalized)}`);
+  }
+
+  // On the home page, joining is the secondary action: one compact row, no card (TRADEOFFS.md 23d).
+  if (compact) {
+    return (
+      <form className="join-compact" onSubmit={submit}>
+        <label className="small muted" htmlFor="join-code">
+          {label}
+        </label>
+        <div className="row nowrap">
+          <input
+            id="join-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="e.g. K7QM3X"
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={12}
+          />
+          <button className="button" disabled={code.trim() === ''}>
+            Join session
+          </button>
+        </div>
+      </form>
+    );
   }
 
   return (

@@ -20,6 +20,32 @@ export default function HomePage() {
         <p className="hero-lead">
           Everyone sets their must-haves privately. Then swipe together until you match.
         </p>
+      </header>
+
+      {/* One main action: Start. Joining and rejoining are quieter (TRADEOFFS.md 23d). */}
+      {identity === undefined ? null : identity === null ? (
+        <>
+          <StartSessionForm onStart={startWith} />
+          <JoinCodeForm compact />
+        </>
+      ) : (
+        <>
+          <section className="card stack start-card">
+            <Greeting identity={identity} />
+            <button className="button primary" onClick={start} disabled={busy}>
+              {busy ? 'Starting…' : 'Start a session'}
+            </button>
+            <p className="muted small">
+              You&apos;ll choose where to meet in the next step. · <Link href="/preferences">Edit my preferences</Link>
+            </p>
+            <RejoinBanner token={identity.token} inline />
+            {error && <p className="error">{error}</p>}
+          </section>
+          <JoinCodeForm compact />
+        </>
+      )}
+
+      <section className="hero-more" aria-label="How it works">
         <HeroPreview />
         <ol className="hero-steps">
           <li>
@@ -33,30 +59,7 @@ export default function HomePage() {
             <span aria-hidden>🎉</span> Everyone likes the same place? That&apos;s your match.
           </li>
         </ol>
-      </header>
-
-      {identity === undefined ? null : identity === null ? (
-        <>
-          <StartSessionForm onStart={startWith} />
-          <JoinCodeForm />
-        </>
-      ) : (
-        <>
-          <RejoinBanner token={identity.token} />
-          <section className="card stack start-card">
-            <Greeting identity={identity} />
-            <button className="button primary" onClick={start} disabled={busy}>
-              {busy ? 'Starting…' : 'Start a session'}
-            </button>
-            <p className="muted small">
-              You&apos;ll choose where to meet in the next step. · <Link href="/preferences">Edit my preferences</Link>
-            </p>
-            {error && <p className="error">{error}</p>}
-          </section>
-
-          <JoinCodeForm />
-        </>
-      )}
+      </section>
 
       <AboutArbiter />
     </main>

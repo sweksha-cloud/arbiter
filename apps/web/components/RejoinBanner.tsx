@@ -8,7 +8,7 @@ import { forgetActiveSession, useActiveSession } from '../lib/active-session';
 import { api } from '../lib/api';
 
 /** "Rejoin your session" on the home page, if the last session you joined is still going. */
-export function RejoinBanner({ token }: { token: string }) {
+export function RejoinBanner({ token, inline = false }: { token: string; inline?: boolean }) {
   const sessionId = useActiveSession();
   const [summary, setSummary] = useState<SessionSummary>();
 
@@ -29,6 +29,20 @@ export function RejoinBanner({ token }: { token: string }) {
   }, [token, sessionId]);
 
   if (!sessionId || summary?.sessionId !== sessionId) return null;
+
+  // Inside the start card on the home page: one quiet line, so Start stays the
+  // single main action (TRADEOFFS.md 23d).
+  if (inline) {
+    return (
+      <p className="small rejoin-inline" aria-live="polite">
+        You&apos;re in session <span className="code">{summary.sessionId}</span> ·{' '}
+        <Link href={`/s/${summary.sessionId}`}>Rejoin</Link>
+        <button className="pill-button" aria-label="Dismiss" onClick={() => forgetActiveSession(sessionId)}>
+          ✕
+        </button>
+      </p>
+    );
+  }
 
   return (
     <section className="card rejoin row spread" aria-live="polite">

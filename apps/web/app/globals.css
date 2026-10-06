@@ -1526,13 +1526,32 @@ body {
 /* The installed app is just the tool: no pitch on the home page (TRADEOFFS.md 23b). */
 @media (display-mode: standalone) {
   .hero-lead,
-  .hero-preview,
-  .hero-steps {
-    display: none;
+  .hero-more,
+  .page.home > .about {
+    display: none !important;
+  }
+
+  .hero {
+    padding-top: 8px;
   }
 
   .hero h1 {
     font-size: 1.8rem;
+  }
+
+  /* Clear of the notch and the home bar when there's no browser bar around the app. */
+  .site-header {
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+
+  .page {
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+
+  /* On a tablet or laptop, the installed app stays one simple column too. */
+  .page.home {
+    display: flex;
+    max-width: 480px;
   }
 }
 
@@ -1564,8 +1583,13 @@ body {
 
   .page.home > .hero {
     grid-column: 1;
-    grid-row: 1 / span 6;
+    grid-row: 1;
     padding-top: 0;
+  }
+
+  .page.home > .hero-more {
+    grid-column: 1;
+    grid-row: 2 / span 6;
   }
 
   .page.home .hero h1 {
@@ -1673,5 +1697,49 @@ body {
   .page.home .hero-preview {
     width: 440px;
   }
+}
+
+/* The decorations come after the actions on phones (TRADEOFFS.md 23d). */
+.hero-more {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.join-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.join-compact input {
+  flex: 1;
+  min-width: 0;
+}
+
+.join-compact .button {
+  white-space: nowrap;
+}
+
+.rejoin-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.rejoin-inline a {
+  font-weight: 700;
+}
+
+.rejoin-inline .pill-button {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 2px 10px;
 }
 
