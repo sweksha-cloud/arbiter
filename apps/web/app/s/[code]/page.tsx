@@ -192,16 +192,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   return (
     <>
       <ConnectionBanner connected={connected} />
-      {/* The host's invite bar is pinned on top while people join; once results
-          are in it moves to the bottom, out of the way of swiping. */}
-      {isHost ? (
-        !resultsIn && <HostBar sessionId={view.sessionId} />
-      ) : (
-        <header className="stack tight">
-          <p className="muted small">Session</p>
-          <h1 className="code">{view.sessionId}</h1>
-        </header>
-      )}
+      {/* Session info sits on top while people join; once results are in it
+          moves to the bottom for everyone, out of the way of swiping. */}
+      {!resultsIn && (isHost ? <HostBar sessionId={view.sessionId} /> : <SessionCode sessionId={view.sessionId} />)}
       <HostLeftNotice view={view} isHost={isHost} />
 
       {error && <p className="error">{error}</p>}
@@ -347,7 +340,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           )}
 
           <Members view={view} myId={identity.guest.id} />
-          {isHost && <HostBar sessionId={view.sessionId} atBottom />}
+          {isHost ? <HostBar sessionId={view.sessionId} atBottom /> : <SessionCode sessionId={view.sessionId} />}
         </section>
       )}
     </>
@@ -641,6 +634,16 @@ function SwipeOrList({ canSwipe, swipe, list }: { canSwipe: boolean; swipe: Reac
       </div>
       {asList ? list : swipe}
     </>
+  );
+}
+
+/** The session code, for people who joined (the host gets the invite bar instead). */
+function SessionCode({ sessionId }: { sessionId: string }) {
+  return (
+    <header className="stack tight">
+      <p className="muted small">Session</p>
+      <h1 className="code">{sessionId}</h1>
+    </header>
   );
 }
 
