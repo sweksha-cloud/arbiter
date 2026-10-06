@@ -219,6 +219,7 @@ export type AckErrorCode =
   | 'quota'
   | 'location'
   | 'rate_limited'
+  | 'unavailable'
   | 'internal';
 
 export type Ack = { ok: true } | { ok: false; error: string; code: AckErrorCode };

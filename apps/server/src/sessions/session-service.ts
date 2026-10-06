@@ -37,7 +37,7 @@ import { SessionCodeTakenError, type SessionHistory } from '../history/session-h
 import type { GuestStore } from '../identity/guest-store.js';
 import { addMenus } from '../nutrition/enrich.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
-import type { PlacesProvider } from '../places/places-provider.js';
+import { PlacesQuotaExceededError, type PlacesProvider } from '../places/places-provider.js';
 import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
 import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
 
@@ -47,7 +47,14 @@ export interface SessionLog {
   error(details: object, message: string): void;
 }
 
-export type SessionErrorCode = 'not_found' | 'forbidden' | 'invalid_state' | 'invalid_place' | 'quota' | 'location';
+export type SessionErrorCode =
+  | 'not_found'
+  | 'forbidden'
+  | 'invalid_state'
+  | 'invalid_place'
+  | 'quota'
+  | 'location'
+  | 'unavailable';
 
 /** An action the caller isn't allowed to take. Its message is safe to show users. */
 export class SessionError extends Error {
@@ -654,7 +661,9 @@ export class SessionService {
         'Scan failed; session is back in the lobby'
       );
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
-      throw error;
+      if (error instanceof SessionError || error instanceof PlacesQuotaExceededError) throw error;
+      // Google refused or didn't answer: say so plainly, instead of "something went wrong" (BUG-031).
+      throw new SessionError('unavailable', "Arbiter couldn't search for places just now. Try again in a minute.");
     }
   }
 
