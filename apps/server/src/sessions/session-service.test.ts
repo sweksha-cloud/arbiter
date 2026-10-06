@@ -802,6 +802,37 @@ describe('SessionService', () => {
     });
   });
 
+  describe('why a cuisine you liked is missing (TRADEOFFS.md 2j)', () => {
+    const places = () =>
+      new FixturePlacesProvider([
+        place('torito', { name: 'El Torito', cuisines: ['mexican'], servesVegetarian: false, rating: 4.0 }),
+        place('salad', { cuisines: ['american'], servesVegetarian: true, rating: 4.5 }),
+        place('sushi', { cuisines: ['japanese'], servesVegetarian: true, rating: 4.4 })
+      ]);
+    const likes = (...likedCuisines: string[]) => ({ likedCuisines });
+
+    it('names the biggest reason from your own must-haves, and the place when only one was found', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(places());
+      await service.submit(sessionId, host, { hard: { vegetarian: true }, soft: likes('mexican', 'thai') });
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(service.view(room, host.id).wishesNotMet).toEqual([
+        { cuisine: 'mexican', found: 1, reason: 'vegetarian', example: 'El Torito' },
+        { cuisine: 'thai', found: 0, reason: 'none_nearby' }
+      ]);
+      // The friend liked nothing, so has nothing to explain.
+      expect(service.view(room, friend.id).wishesNotMet).toEqual([]);
+    });
+
+    it("says it was someone else's must-have, never whose or which", async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(places());
+      await service.submit(sessionId, host, { hard: {}, soft: likes('mexican') });
+      const room = await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
+      expect(service.view(room, host.id).wishesNotMet).toEqual([
+        { cuisine: 'mexican', found: 1, reason: 'others', example: 'El Torito' }
+      ]);
+    });
+  });
+
   describe('a scan cut off mid-way (the server stopped or crashed)', () => {
     it('finishes scans in progress before shutting down', async () => {
       let release!: () => void;

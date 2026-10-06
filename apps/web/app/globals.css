@@ -813,3 +813,9 @@ details.collapsible:not([open]) {
   color: var(--accent);
 }
 
+/* Why something you liked isn't in the results: one line per cuisine. */
+.notice.wishes {
+  margin: 0;
+  padding-left: 32px;
+}
+

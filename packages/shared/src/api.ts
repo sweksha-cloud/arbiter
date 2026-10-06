@@ -153,6 +153,21 @@ export const SessionViewSchema = z.object({
    * must-haves, which ones. Only your own: never anyone else's.
    */
   missesForYou: z.record(z.string(), z.array(MissedMustHaveSchema)),
+  /**
+   * For each cuisine YOU liked that has no place in the results: why, by its
+   * biggest reason (TRADEOFFS.md 2j). `found` is how many places of that
+   * cuisine the search found; `reason` is the must-have of yours most of them
+   * miss, 'others' if they fit yours but not someone else's (never whose), or
+   * 'none_nearby'. `example` names the place when only one was found.
+   */
+  wishesNotMet: z.array(
+    z.object({
+      cuisine: z.string(),
+      found: z.number().int().nonnegative(),
+      reason: z.union([MissedMustHaveSchema, z.enum(['others', 'none_nearby'])]),
+      example: z.string().optional()
+    })
+  ),
   /** Suggestions people voted on that no longer fit after someone edited their preferences. */
   noLongerFits: z.array(z.string()),
   /**

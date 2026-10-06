@@ -533,6 +533,7 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
+      wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),
       reorganized: room.reorganized
         ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId, reason: room.reorganized.reason }
         : null,
@@ -712,6 +713,43 @@ export class SessionService {
       if (missed.length > 0) misses[place.id] = missed;
     }
     return misses;
+  }
+
+  /**
+   * Cuisines the viewer liked that have no place in the results, each with
+   * its biggest reason: the must-have of theirs that most of those places
+   * miss, or 'others' when they fit the viewer but not someone else (never
+   * whose or which). Only the viewer's own likes and must-haves.
+   */
+  private wishesNotMet(
+    room: RoomState,
+    viewerId: string,
+    forViewer: (place: PlaceCandidate) => PlaceCandidate
+  ): SessionView['wishesNotMet'] {
+    const mine = room.submissions[viewerId];
+    if (!mine || !room.candidates || room.status === 'lobby' || room.status === 'scanning') return [];
+    const shown = [...room.suggestions, ...room.moreOptions];
+    const serves = (place: PlaceCandidate, cuisine: string) =>
+      place.cuisines.some((c) => c.toLowerCase() === cuisine.toLowerCase());
+    return (mine.soft.likedCuisines ?? [])
+      .filter((cuisine) => !shown.some((p) => serves(p, cuisine)))
+      .map((cuisine) => {
+        const found = room.candidates!.filter((p) => serves(p, cuisine));
+        const example = found.length === 1 ? found[0]!.name : undefined;
+        if (found.length === 0) return { cuisine, found: 0, reason: 'none_nearby' as const };
+        const counts = new Map<MissedMustHave, number>();
+        let fitMine = 0;
+        for (const place of found) {
+          const seen = forViewer(place);
+          const missed = missedMustHaves(seen, mine.hard, this.options.missingDataPolicy, seen.distanceMeters);
+          if (missed.length === 0) fitMine += 1;
+          for (const m of missed) counts.set(m, (counts.get(m) ?? 0) + 1);
+        }
+        const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        // Most of them fit you: someone else's must-haves removed them.
+        const reason = !top || fitMine >= top[1] ? ('others' as const) : top[0];
+        return { cuisine, found: found.length, reason, ...(example && { example }) };
+      });
   }
 
   /** Starts the scan if this change made the session ready; otherwise returns it as is. */

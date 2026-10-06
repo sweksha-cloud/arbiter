@@ -13,6 +13,7 @@ const view = (sessionId: string, version: number): SessionView => ({
   closestMatches: false,
   missesForYou: {},
   noLongerFits: [],
+  wishesNotMet: [],
   reorganized: null,
   meeting: { mode: 'area', area: null, myOrigin: null, sharedIds: [], tooFarApart: false, searchedNear: null },
   scannedCount: 0,

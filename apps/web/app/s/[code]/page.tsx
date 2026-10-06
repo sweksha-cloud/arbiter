@@ -24,6 +24,7 @@ import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
+import { describeWishNotMet } from '../../../lib/format';
 import { clearIdentity, useIdentity, type Identity } from '../../../lib/identity';
 import { useDelayedFlag } from '../../../lib/use-delayed-flag';
 import { usePreferences } from '../../../lib/use-preferences';
@@ -237,6 +238,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           )}
 
           <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
+
+          {view.wishesNotMet.length > 0 && (
+            <ul className="notice small wishes" aria-label="Why some of what you wanted isn't here">
+              {view.wishesNotMet.map((wish) => (
+                <li key={wish.cuisine}>{describeWishNotMet(wish)}</li>
+              ))}
+            </ul>
+          )}
 
           {view.closestMatches && (
             <p className="notice small" role="note">
