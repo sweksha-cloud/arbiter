@@ -5,6 +5,7 @@ import { createDb, createPool } from '../db/client.js';
 import { authTokens, passwordResets, preferences, users } from '../db/schema.js';
 import { describeGuestStore } from './guest-store.contract.js';
 import { PostgresGuestStore } from './postgres-guest-store.js';
+import { CURRENT_PREFERENCES_VERSION } from './stored-preferences.js';
 
 // Migrations are applied once by test/integration-setup.ts.
 const pool = createPool(process.env.DATABASE_URL!);
@@ -45,7 +46,7 @@ describe('PostgresGuestStore (real Postgres)', () => {
     const { guest } = await store.create('Ada');
     await store.setPreferences(guest.id, { hard: { maxPricePerPerson: 10 }, soft: {} });
     const [row] = await db.select().from(preferences).where(eq(preferences.userId, guest.id));
-    expect(row!.data).toEqual({ version: 2, hard: { maxPricePerPerson: 10 }, soft: {} });
+    expect(row!.data).toEqual({ version: CURRENT_PREFERENCES_VERSION, hard: { maxPricePerPerson: 10 }, soft: {} });
   });
 
   it('refuses a preferences row that is not a versioned object', async () => {
