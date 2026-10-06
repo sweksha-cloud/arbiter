@@ -42,8 +42,11 @@ export function SuggestionCard({
   onReact,
   onTag,
   missed = [],
-  noLongerFits = false
+  noLongerFits = false,
+  fitsAll = false
 }: {
+  /** Meets every member's must-haves. */
+  fitsAll?: boolean;
   suggestion: SuggestionView;
   /** Voted on, but no longer fits after someone changed their preferences. */
   noLongerFits?: boolean;
@@ -77,6 +80,7 @@ export function SuggestionCard({
           {details.join(' · ')}
           {place.cuisines.length > 0 && <> · {place.cuisines.join(', ')}</>}
         </p>
+        {fitsAll && !noLongerFits && <p className="small fits">✓ Fits everyone&apos;s must-haves</p>}
         {noLongerFits && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
         {missed.length > 0 && <p className="small misses">{describeMisses(missed)}</p>}
       </header>

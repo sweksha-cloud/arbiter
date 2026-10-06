@@ -1,9 +1,10 @@
 'use client';
 
-import { PLACE_KINDS, type MissedMustHave, type PlaceCandidate } from '@arbiter/shared';
+import { PLACE_KINDS, type PlaceCandidate, type SessionView } from '@arbiter/shared';
 import { useState } from 'react';
 
-import { describeMisses, formatDistance, formatPrice } from '../lib/format';
+import { formatDistance, formatPrice } from '../lib/format';
+import { FitLine } from './SwipeDeck';
 
 type Filter = { by: 'kind' | 'cuisine'; value: string } | undefined;
 
@@ -17,12 +18,13 @@ const kindLabel = (kind: string) => PLACE_KINDS.find((k) => k.kind === kind)?.la
 export function MoreOptions({
   options,
   distanceFromYou,
-  missesForYou,
+  view,
   onLike
 }: {
   options: PlaceCandidate[];
   distanceFromYou: boolean;
-  missesForYou: Record<string, readonly MissedMustHave[]>;
+  /** For each place's "✓ Fits" or what it misses. */
+  view: SessionView;
   onLike: (placeId: string) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>();
@@ -97,7 +99,7 @@ export function MoreOptions({
                   {details.join(' · ')}
                   {place.cuisines.length > 0 && <> · {place.cuisines.join(', ')}</>}
                 </p>
-                {missesForYou[place.id] && <p className="small misses">{describeMisses(missesForYou[place.id]!)}</p>}
+                <FitLine place={place} view={view} />
               </div>
               <button
                 className="button"

@@ -553,6 +553,7 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
+      fitsAll: this.fitsAll(room),
       ...this.swipeResults(room, viewerId),
       wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),
       reorganized: room.reorganized
@@ -731,24 +732,19 @@ export class SessionService {
     const group = { ...combineHardConstraints(preferences), maxDistanceMeters: undefined };
     const { center, limits } = searchPlan(room, this.options.radiusMeters);
     const { kept, eliminatedCount } = eliminate(candidates, group, this.options.missingDataPolicy, limits);
-    // Nothing fits everyone: the group gets the places that miss the fewest
-    // must-haves, and is told so (TRADEOFFS.md 2h).
-    const nothingFits = kept.length === 0 && candidates.length > 0;
-    let ranked = rankSuggestions(nothingFits ? candidates : kept, preferences, Number.POSITIVE_INFINITY);
-    if (nothingFits) {
-      const misses = new Map(ranked.map((p) => [p.id, this.totalMisses(room, center, p)]));
-      ranked = ranked.toSorted((a, b) => misses.get(a.id)! - misses.get(b.id)!);
-    }
-    // "Only show me" kinds: the main list holds kinds every picker allows
-    // (TRADEOFFS.md 2g); the rest stay under "more options". If none
-    // match, the group gets the closest matches and is told so.
+    const keptIds = new Set(kept.map((p) => p.id));
+    // "Only show me" kinds: places that fit hold kinds every picker allows (TRADEOFFS.md 2g).
     const agreed = agreedKinds(preferences);
-    const fitting = nothingFits
-      ? []
-      : agreed
-        ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind))
-        : ranked;
-    const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
+    const kindAllowed = (p: PlaceCandidate) => !agreed || (p.kind !== undefined && agreed.includes(p.kind));
+    const all = rankSuggestions(candidates, preferences, Number.POSITIVE_INFINITY);
+    // Places that fit every must-have first, best first; then close matches,
+    // fewest misses first, so the deck never runs dry (TRADEOFFS.md 22c).
+    // Each person sees which of their own must-haves a close match misses.
+    const fitting = all.filter((p) => keptIds.has(p.id) && kindAllowed(p));
+    const misses = new Map(all.map((p) => [p.id, this.totalMisses(room, center, p)]));
+    const close = all.filter((p) => !fitting.includes(p)).toSorted((a, b) => misses.get(a.id)! - misses.get(b.id)!);
+    const ranked = [...fitting, ...close];
+    const closestMatches = candidates.length > 0 && fitting.length === 0;
     return { ranked, fitting, closestMatches, eliminatedCount, agreed };
   }
 
@@ -802,6 +798,20 @@ export class SessionService {
     });
     this.options.log?.info({ sessionId, searches: updated.searches, added }, 'Searched for more places');
     return { room: updated, added };
+  }
+
+  /** Places shown that fit every member's must-haves, for the "✓ Fits" badge. */
+  private fitsAll(room: RoomState): string[] {
+    if (room.status !== 'voting' && room.status !== 'ended') return [];
+    let center: LatLng;
+    try {
+      center = searchPlan(room, this.options.radiusMeters).center;
+    } catch {
+      return [];
+    }
+    return [...room.suggestions, ...room.moreOptions]
+      .filter((p) => this.totalMisses(room, center, p) === 0)
+      .map((p) => p.id);
   }
 
   /** Google's photo reference for a place in this session, for the photo endpoint. */
@@ -890,7 +900,9 @@ export class SessionService {
   ): SessionView['wishesNotMet'] {
     const mine = room.submissions[viewerId];
     if (!mine || !room.candidates || room.status === 'lobby' || room.status === 'scanning') return [];
-    const shown = [...room.suggestions, ...room.moreOptions];
+    // Close matches are shown too now; a liked cuisine counts as met only by a place that fits.
+    const fits = new Set(this.fitsAll(room));
+    const shown = [...room.suggestions, ...room.moreOptions].filter((p) => fits.has(p.id));
     const serves = (place: PlaceCandidate, cuisine: string) =>
       place.cuisines.some((c) => c.toLowerCase() === cuisine.toLowerCase());
     return (mine.soft.likedCuisines ?? [])

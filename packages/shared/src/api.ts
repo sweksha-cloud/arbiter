@@ -174,6 +174,12 @@ export const SessionViewSchema = z.object({
   matches: z.array(z.string()),
   /** Up to three most-liked places (for "no match yet"), with how many liked each. Never who. */
   mostLiked: z.array(z.object({ placeId: z.string(), likes: z.number().int().positive() })),
+  /**
+   * Places that fit every member's must-haves (the "✓ Fits" badge). The rest
+   * are close matches: they say which of your own must-haves they miss, or
+   * that they miss someone else's (never whose).
+   */
+  fitsAll: z.array(z.string()),
   /** Suggestions people voted on that no longer fit after someone edited their preferences. */
   noLongerFits: z.array(z.string()),
   /**

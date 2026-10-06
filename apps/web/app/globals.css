@@ -1301,3 +1301,14 @@ body {
   gap: 8px;
 }
 
+/* "✓ Fits everyone's must-haves" on a card. */
+.fits {
+  margin: 0;
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 650;
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success-text) 14%, var(--surface));
+}
+

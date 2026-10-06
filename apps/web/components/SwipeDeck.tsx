@@ -12,7 +12,7 @@ const SWIPE_DISTANCE = 90;
 /** How long the card takes to fly off (ms); keep in step with .swipe-card's transition. */
 const FLY_MS = 220;
 /** Places dealt per round; "see more" deals the next round (TRADEOFFS.md 22c). */
-const BATCH = 10;
+const BATCH = 7;
 
 type Swipe = (placeId: string, reaction: Reaction | null) => Promise<void>;
 
@@ -413,6 +413,20 @@ function RoundEnd({
   );
 }
 
+/**
+ * Whether this place fits: "✓ Fits …" when it meets every must-have, else
+ * which of your own it misses, or that it misses someone else's (never whose).
+ */
+export function FitLine({ place, view }: { place: PlaceCandidate; view: SessionView }) {
+  const missed = view.missesForYou[place.id];
+  if (view.noLongerFits.includes(place.id)) return <p className="small misses">Doesn&apos;t fit the changed requirements</p>;
+  if (view.fitsAll.includes(place.id)) {
+    return <p className="small fits">✓ {view.members.length === 1 ? 'Fits all your must-haves' : "Fits everyone's must-haves"}</p>;
+  }
+  if (missed) return <p className="small misses">{describeMisses(missed)}</p>;
+  return <p className="small misses">Close match: doesn&apos;t fit someone else&apos;s must-haves</p>;
+}
+
 function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionView }) {
   const fromYou = view.suggestions[0]?.distanceFromYou ?? false;
   const facts = [
@@ -423,7 +437,6 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
       ? undefined
       : `★ ${place.rating.toFixed(1)}${place.userRatingCount ? ` (${place.userRatingCount.toLocaleString()})` : ''}`
   ].filter(Boolean);
-  const missed = view.missesForYou[place.id];
   const fits = view.suggestions.find((s) => s.place.id === place.id)?.menuNutrition?.fitsYou;
   return (
     <div className="swipe-body">
@@ -442,8 +455,7 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
           ))}
         </ul>
       )}
-      {view.noLongerFits.includes(place.id) && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
-      {missed && <p className="small misses">{describeMisses(missed)}</p>}
+      <FitLine place={place} view={view} />
       {fits && (
         <p className="small">
           <strong>Fits your nutrition settings:</strong> {fits.name}

@@ -728,6 +728,11 @@ describe('SessionService', () => {
       const room = await service.submit(sessionId, friend, noPreferences);
       expect(room.suggestions.map((p) => p.id)).toEqual(['vegan']);
       expect(service.view(room, host.id).closestMatches).toBe(false);
+      // The rest still come, after it, as close matches: only the fit is marked.
+      expect(room.moreOptions.map((p) => p.id).sort()).toEqual(['salad', 'steak']);
+      expect(service.view(room, host.id).fitsAll).toEqual(['vegan']);
+      expect(service.view(room, host.id).missesForYou.steak).toEqual(['vegan']);
+      expect(service.view(room, friend.id).missesForYou.steak).toBeUndefined(); // not the friend's must-have
     });
 
     it('shows the places that miss the fewest must-haves, and only you see which of yours each misses', async () => {
@@ -783,7 +788,9 @@ describe('SessionService', () => {
       // The voted steakhouse stays, marked; bbq (no votes) is replaced by the next vegetarian fit.
       expect(room.suggestions.map((p) => p.id)).toEqual(['steak', 'salad', 'curry', 'tofu']);
       expect(service.view(room, friend.id).noLongerFits).toEqual(['steak']);
-      expect(room.moreOptions.map((p) => p.id)).toEqual(['pasta']);
+      // Then the close match that no longer fits, after everything that does.
+      expect(room.moreOptions.map((p) => p.id)).toEqual(['pasta', 'bbq']);
+      expect(service.view(room, friend.id).fitsAll).toEqual(['salad', 'curry', 'tofu', 'pasta']);
       // Everyone is told the options were reorganized; only the editor is told it was them.
       expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: true, reason: 'edit' });
       expect(service.view(room, friend.id).reorganized).toEqual({ count: 1, byYou: false, reason: 'edit' });

@@ -249,6 +249,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                   suggestion={suggestion}
                   missed={view.missesForYou[suggestion.place.id]}
                   noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
+                  fitsAll={view.fitsAll.includes(suggestion.place.id)}
                   source={view.placesSource}
                   canReact={view.status === 'voting'}
                   onReact={(reaction: Reaction | null) =>
@@ -263,7 +264,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               <MoreOptions
                 options={view.moreOptions}
                 distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
-                missesForYou={view.missesForYou}
+                view={view}
                 onLike={async (placeId) =>
                   failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction: 'like' }))
                 }

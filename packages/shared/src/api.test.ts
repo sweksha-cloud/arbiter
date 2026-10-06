@@ -13,6 +13,7 @@ const view = (sessionId: string, version: number): SessionView => ({
   closestMatches: false,
   missesForYou: {},
   noLongerFits: [],
+  fitsAll: [],
   myReactions: {},
   matches: [],
   mostLiked: [],
