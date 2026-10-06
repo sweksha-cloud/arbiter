@@ -9,6 +9,7 @@ import {
   fittingItem,
   MAX_DISTANCE_METERS,
   meetingPoint,
+  missedMustHaves,
   rankSuggestions,
   setReaction,
   setTag,
@@ -21,6 +22,7 @@ import {
   type LatLng,
   type MeetingChoice,
   type MeetingMode,
+  type MissedMustHave,
   type MissingDataPolicy,
   type NamedLocation,
   type NutritionTag,
@@ -473,6 +475,7 @@ export class SessionService {
         distanceFromYou: fromYou
       })),
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
+      missesForYou: this.missesFor(room, viewerId, forViewer),
       meeting: {
         mode: room.meetingMode ?? null,
         area: room.area ?? null,
@@ -533,16 +536,31 @@ export class SessionService {
       const scanned = await this.options.places.searchNearby({ center, radiusMeters });
       // What everyone sees above the results: the host's area, by its name.
       const searchedNear = room.meetingMode === 'area' ? room.area?.label : undefined;
-      const { kept, eliminatedCount } = eliminate(scanned, group, this.options.missingDataPolicy, limits);
-      // Nutrition only adds to places that already fit everyone's must-haves.
-      const withMenus = await addMenus(kept, this.options.menus);
-      const ranked = rankSuggestions(withMenus, preferences, Number.POSITIVE_INFINITY);
-      // A kind of place the group agrees on is a must-have for the main list
-      // (TRADEOFFS.md 2g); the rest stay under "more options". If nothing
-      // matches, the group gets the closest matches and is told so.
+      // Vegan options are partly known from chains' menus, so a vegan must-have
+      // needs menus before elimination; otherwise nutrition only adds to
+      // places that already fit everyone's must-haves.
+      const candidates = group.vegan ? await addMenus(scanned, this.options.menus) : scanned;
+      const { kept, eliminatedCount } = eliminate(candidates, group, this.options.missingDataPolicy, limits);
+      // Nothing fits everyone: the group gets the places that miss the fewest
+      // must-haves, and is told so (TRADEOFFS.md 2h).
+      const nothingFits = kept.length === 0 && candidates.length > 0;
+      const pool = nothingFits ? candidates : kept;
+      const withMenus = group.vegan ? pool : await addMenus(pool, this.options.menus);
+      let ranked = rankSuggestions(withMenus, preferences, Number.POSITIVE_INFINITY);
+      if (nothingFits) {
+        const misses = new Map(ranked.map((p) => [p.id, this.totalMisses(room, center, p)]));
+        ranked = ranked.toSorted((a, b) => misses.get(a.id)! - misses.get(b.id)!);
+      }
+      // "Only show me" kinds: the main list holds kinds every picker allows
+      // (TRADEOFFS.md 2g); the rest stay under "more options". If none
+      // match, the group gets the closest matches and is told so.
       const agreed = agreedKinds(preferences);
-      const fitting = agreed ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind)) : ranked;
-      const closestMatches = agreed !== undefined && fitting.length === 0 && ranked.length > 0;
+      const fitting = nothingFits
+        ? []
+        : agreed
+          ? ranked.filter((p) => p.kind !== undefined && agreed.includes(p.kind))
+          : ranked;
+      const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
       const suggestions = (closestMatches ? ranked : fitting).slice(0, DEFAULT_SUGGESTION_COUNT);
       const moreOptions = ranked.filter((p) => !suggestions.includes(p));
 
@@ -592,6 +610,37 @@ export class SessionService {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
     }
+  }
+
+  /** Where a person's distances start: their own location when meeting between everyone. */
+  private startOf(room: RoomState, memberId: string, center: LatLng): LatLng {
+    return (room.meetingMode === 'between' && room.origins[memberId]?.center) || center;
+  }
+
+  /** Every must-have the place misses, summed over everyone: to order closest matches. */
+  private totalMisses(room: RoomState, center: LatLng, place: PlaceCandidate): number {
+    return Object.entries(room.submissions).reduce((total, [memberId, preferences]) => {
+      const from = this.startOf(room, memberId, center);
+      const distance = distanceMeters(from, place.location);
+      return total + missedMustHaves(place, preferences.hard, this.options.missingDataPolicy, distance).length;
+    }, 0);
+  }
+
+  /** The viewer's own missed must-haves per place, with distances as they see them. */
+  private missesFor(
+    room: RoomState,
+    viewerId: string,
+    forViewer: (place: PlaceCandidate) => PlaceCandidate
+  ): Record<string, MissedMustHave[]> {
+    const hard = room.submissions[viewerId]?.hard;
+    if (!hard) return {};
+    const misses: Record<string, MissedMustHave[]> = {};
+    for (const place of [...room.suggestions, ...room.moreOptions]) {
+      const seen = forViewer(place);
+      const missed = missedMustHaves(seen, hard, this.options.missingDataPolicy, seen.distanceMeters);
+      if (missed.length > 0) misses[place.id] = missed;
+    }
+    return misses;
   }
 
   /** Starts the scan if this change made the session ready; otherwise returns it as is. */

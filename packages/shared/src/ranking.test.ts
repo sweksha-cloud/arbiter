@@ -26,35 +26,18 @@ describe('softScore', () => {
   });
 });
 
-describe('vegetarian options (a nice-to-have)', () => {
-  const wants = { soft: { vegetarianOptions: true } };
-
-  it('raises places known to serve vegetarian food, one per member who would like it', () => {
-    expect(softScore(makePlace({ id: 'p', servesVegetarian: true }), [wants, wants, { soft: {} }])).toBe(2);
-    // Unknown or no: no change, and never removed (that's the must-have).
-    expect(softScore(makePlace({ id: 'p', servesVegetarian: undefined }), [wants])).toBe(0);
-    expect(softScore(makePlace({ id: 'p', servesVegetarian: false }), [wants])).toBe(0);
-  });
-
-  it('puts a vegetarian-friendly place first, keeping the others', () => {
-    const places = [makePlace({ id: 'steak', servesVegetarian: false, rating: 4.9 }), makePlace({ id: 'veg', servesVegetarian: true })];
-    expect(ids(rankSuggestions(places, [wants]))).toEqual(['veg', 'steak']);
-  });
-});
-
 describe('agreedKinds', () => {
-  const likes = (...likedKinds: ('cafe' | 'restaurant' | 'bar')[]) => ({ soft: { likedKinds } });
+  const only = (...kinds: ('cafe' | 'restaurant' | 'bar')[]) => ({ hard: { kinds } });
 
-  it('is what everyone who picked a kind likes; people who picked none don\'t block it', () => {
-    // Ana and Ben like cafés, Cal picked nothing.
-    expect(agreedKinds([likes('cafe'), likes('cafe', 'restaurant'), { soft: {} }])).toEqual(['cafe']);
-    expect(agreedKinds([likes('cafe')])).toEqual(['cafe']);
+  it("is what every picker allows; people who picked none don't limit it", () => {
+    // Ana and Ben want cafés, Cal picked nothing.
+    expect(agreedKinds([only('cafe'), only('cafe', 'restaurant'), { hard: {} }])).toEqual(['cafe']);
+    expect(agreedKinds([only('cafe')])).toEqual(['cafe']);
   });
 
-  it('is nothing when pickers disagree, someone dislikes it, or nobody picked', () => {
-    expect(agreedKinds([likes('cafe'), likes('restaurant')])).toBeUndefined();
-    expect(agreedKinds([likes('cafe'), { soft: { dislikedKinds: ['cafe'] } }])).toBeUndefined();
-    expect(agreedKinds([{ soft: {} }, { soft: { dislikedKinds: ['bar'] } }])).toBeUndefined();
+  it("is empty when picks don't overlap, and undefined when nobody picked", () => {
+    expect(agreedKinds([only('cafe'), only('restaurant')])).toEqual([]);
+    expect(agreedKinds([{ hard: {} }, { hard: {} }])).toBeUndefined();
   });
 });
 
@@ -99,21 +82,6 @@ describe('rankSuggestions', () => {
 
   it('returns every place when fewer survive than the list size', () => {
     expect(rankSuggestions([makePlace({ id: 'only' })], [])).toHaveLength(1);
-  });
-});
-
-describe('kinds of place', () => {
-  it('ranks by liked and disliked kinds, like cuisines', () => {
-    const cafe = makePlace({ id: 'cafe', kind: 'cafe', rating: 4.9 });
-    const restaurant = makePlace({ id: 'restaurant', kind: 'restaurant', rating: 4.1 });
-    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: {} }]))).toEqual(['cafe', 'restaurant']);
-    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: { dislikedKinds: ['cafe'] } }]))).toEqual(['restaurant', 'cafe']);
-    expect(ids(rankSuggestions([cafe, restaurant], [{ soft: { likedKinds: ['restaurant'] } }]))).toEqual(['restaurant', 'cafe']);
-  });
-
-  it("leaves places of unknown kind alone", () => {
-    const unknown = makePlace({ id: 'putt', kind: undefined });
-    expect(softScore(unknown, [{ soft: { likedKinds: ['restaurant'], dislikedKinds: ['bar'] } }])).toBe(0);
   });
 });
 

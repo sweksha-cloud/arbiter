@@ -246,8 +246,7 @@ test('nutrition goals, vegan and allergies are saved, prefilled, and checked', a
   await phone.getByLabel('Calories at least').fill('');
   await phone.getByLabel('Calories at most').fill('700');
   await phone.getByLabel('Protein at least (g)').fill('30');
-  await phone.getByLabel("I'd like vegan options").check();
-  await phone.getByLabel("I'd like vegetarian options").check();
+  await phone.getByLabel('I need vegan options').check();
   await phone.getByLabel('Peanuts').check();
   await phone.getByRole('button', { name: 'Save' }).click();
   await expect(phone.locator('.success')).toBeVisible();
@@ -256,8 +255,7 @@ test('nutrition goals, vegan and allergies are saved, prefilled, and checked', a
   await expect(phone.getByLabel('Calories at most')).toHaveValue('700');
   await expect(phone.getByLabel('Calories at least')).toHaveValue('');
   await expect(phone.getByLabel('Protein at least (g)')).toHaveValue('30');
-  await expect(phone.getByLabel("I'd like vegan options")).toBeChecked();
-  await expect(phone.getByLabel("I'd like vegetarian options")).toBeChecked();
+  await expect(phone.getByLabel('I need vegan options')).toBeChecked();
   await expect(phone.getByLabel('Peanuts')).toBeChecked();
 });
 
@@ -406,18 +404,38 @@ test("people whose must-haves weren't counted are told why", async ({ newPhone }
   await expect(host.getByText(/must-haves weren.t included/)).toBeHidden();
 });
 
-test('kind-of-place choices are saved and prefilled', async ({ newPhone }) => {
+test('"only show me" kinds of place are saved and prefilled', async ({ newPhone }) => {
   const phone = await newPhone();
   await becomeGuest(phone, 'Kit');
-  await phone.getByRole('button', { name: /Restaurant$/ }).click(); // 👍
-  await phone.getByRole('button', { name: /Café$/ }).click();
-  await phone.getByRole('button', { name: /Café$/ }).click(); // 👎
+  const only = phone.getByRole('group', { name: 'Only show me' });
+  await only.getByRole('button', { name: 'Restaurant', exact: true }).click();
+  await only.getByRole('button', { name: 'Café', exact: true }).click();
+  await only.getByRole('button', { name: 'Café', exact: true }).click(); // tapped again: off
   await phone.getByRole('button', { name: 'Save' }).click();
   await expect(phone.locator('.success')).toBeVisible();
 
   await phone.reload();
-  await expect(phone.getByRole('button', { name: 'Liked, Restaurant', exact: true })).toBeVisible();
-  await expect(phone.getByRole('button', { name: 'Disliked, Café', exact: true })).toBeVisible();
+  await expect(only.getByRole('button', { name: 'Restaurant', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(only.getByRole('button', { name: 'Café', exact: true })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('with nothing that fits, each person sees which of their own must-haves a closest match misses', async ({
+  newPhone
+}) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  // The sample places have no bars, so nothing fits the host's must-have.
+  await host.getByRole('group', { name: 'Only show me' }).getByRole('button', { name: 'Bar', exact: true }).click();
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  await expect(host.getByText('Nothing nearby fits all your preferences, so here are the closest matches.')).toBeVisible();
+  await expect(host.locator('article').first().getByText('Misses your must-haves: not a kind you picked')).toBeVisible();
+  // The friend has no must-haves, so they never see the host's.
+  await expect(friend.locator('article').first()).toBeVisible();
+  await expect(friend.getByText(/Misses your must-haves/)).toHaveCount(0);
 });
 
 test('the home page greeting can change your name, or forget you on a shared phone', async ({ newPhone }) => {

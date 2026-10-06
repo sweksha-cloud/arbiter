@@ -121,8 +121,8 @@ const groups: { label: string; members: Preferences[] }[] = [
   { label: 'One vegetarian', members: [{ hard: { vegetarian: true }, soft: {} }, { hard: {}, soft: {} }] },
   { label: 'Budget $20, within 1 mile', members: [{ hard: { maxPricePerPerson: 20, maxDistanceMeters: 1609 }, soft: {} }, { hard: {}, soft: {} }] },
   { label: 'Likes thai and mexican', members: [{ hard: {}, soft: { likedCuisines: ['thai', 'mexican'] } }, { hard: {}, soft: {} }] },
-  { label: 'Wants vegan options', members: [{ hard: {}, soft: { veganOptions: true } }, { hard: {}, soft: {} }] },
-  { label: 'Rather a restaurant than a café or dessert', members: [{ hard: {}, soft: { likedKinds: ['restaurant'], dislikedKinds: ['cafe', 'dessert'] } }, { hard: {}, soft: {} }] },
+  { label: 'Needs vegan options (strict)', members: [{ hard: { vegan: true }, soft: {} }, { hard: {}, soft: {} }] },
+  { label: 'Only restaurants', members: [{ hard: { kinds: ['restaurant'] }, soft: {} }, { hard: {}, soft: {} }] },
   {
     label: 'Lean meal (≤700 cal, ≥30 g protein)',
     members: [{ hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } }, { hard: {}, soft: {} }]

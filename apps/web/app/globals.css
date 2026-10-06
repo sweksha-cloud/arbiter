@@ -273,6 +273,14 @@ input:not([type='checkbox']) {
   cursor: default;
 }
 
+/* A disabled main button reads as "not yet", not as a faded accent. */
+.button.primary:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  border-color: transparent;
+  color: var(--muted);
+}
+
 .segmented {
   display: flex;
   border: 1px solid var(--border);
@@ -283,7 +291,10 @@ input:not([type='checkbox']) {
 .segmented button {
   flex: 1;
   font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.25;
   min-height: 44px;
+  padding: 8px 10px;
   border: 0;
   border-left: 1px solid var(--border);
   background: var(--surface);
@@ -293,6 +304,21 @@ input:not([type='checkbox']) {
 
 .segmented button:first-child {
   border-left: 0;
+}
+
+/* Choices that are whole phrases: one per row, so none breaks mid-phrase. */
+.segmented.rows {
+  flex-direction: column;
+}
+
+.segmented.rows button {
+  border-left: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+}
+
+.segmented.rows button:first-child {
+  border-top: 0;
 }
 
 .save-banner {
@@ -780,3 +806,10 @@ details.collapsible:not([open]) {
   min-height: 24px;
   cursor: pointer;
 }
+
+/* Which of your own must-haves a place misses (only you see it). */
+.misses {
+  margin: 0.25rem 0 0;
+  color: var(--accent);
+}
+

@@ -87,7 +87,7 @@ export function MeetingCard({
           <legend className="small muted">
             {meeting.mode ? 'You can switch until results are shown.' : 'Choose how to pick the area.'}
           </legend>
-          <div className="segmented">
+          <div className="segmented rows">
             {MODES.map(({ mode, label }) => (
               <button key={mode} type="button" aria-pressed={meeting.mode === mode} onClick={() => chooseMode(mode)}>
                 {label}

@@ -52,7 +52,7 @@ function SetupForm({ token }: { token: string }) {
       <h2 id="setup-heading">Where to meet</h2>
       <fieldset className="field">
         <legend className="small muted">How should Arbiter pick the area?</legend>
-        <div className="segmented">
+        <div className="segmented rows">
           {MODES.map(({ mode: option, label }) => (
             <button key={option} type="button" aria-pressed={mode === option} onClick={() => choose(option)}>
               {label}

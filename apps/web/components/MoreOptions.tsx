@@ -1,26 +1,28 @@
 'use client';
 
-import { PLACE_KINDS, type PlaceCandidate } from '@arbiter/shared';
+import { PLACE_KINDS, type MissedMustHave, type PlaceCandidate } from '@arbiter/shared';
 import { useState } from 'react';
 
-import { formatDistance, formatPrice } from '../lib/format';
+import { describeMisses, formatDistance, formatPrice } from '../lib/format';
 
 type Filter = { by: 'kind' | 'cuisine'; value: string } | undefined;
 
 const kindLabel = (kind: string) => PLACE_KINDS.find((k) => k.kind === kind)?.label ?? kind;
 
 /**
- * Other places that fit everyone's must-haves, below the suggestions. Anyone
- * can narrow them by kind or cuisine; liking one adds it to the suggestions
- * for the whole group.
+ * Other places from the same search, below the suggestions. Anyone can narrow
+ * them by kind or cuisine; liking one adds it to the suggestions for the
+ * whole group. Each person sees which of their own must-haves a place misses.
  */
 export function MoreOptions({
   options,
   distanceFromYou,
+  missesForYou,
   onLike
 }: {
   options: PlaceCandidate[];
   distanceFromYou: boolean;
+  missesForYou: Record<string, readonly MissedMustHave[]>;
   onLike: (placeId: string) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>();
@@ -55,7 +57,7 @@ export function MoreOptions({
         <strong>More options ({options.length})</strong>
       </summary>
       <p className="small muted">
-        Other places that work for everyone. Like one to add it to the list above for the whole group.
+        Other places from the same search. Like one to add it to the list above for the whole group.
       </p>
 
       {kinds.length + cuisines.length > 1 && (
@@ -95,6 +97,7 @@ export function MoreOptions({
                   {details.join(' · ')}
                   {place.cuisines.length > 0 && <> · {place.cuisines.join(', ')}</>}
                 </p>
+                {missesForYou[place.id] && <p className="small misses">{describeMisses(missesForYou[place.id]!)}</p>}
               </div>
               <button
                 className="button"

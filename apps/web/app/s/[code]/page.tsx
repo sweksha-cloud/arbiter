@@ -247,13 +247,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           {view.suggestions.length === 0 ? (
             <div className="card stack">
               <h2>Nothing fits everyone</h2>
-              <p className="muted">No nearby place meets every must-have in the group.</p>
+              <p className="muted">The search found no places nearby.</p>
             </div>
           ) : (
             view.suggestions.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.place.id}
                 suggestion={suggestion}
+                missed={view.missesForYou[suggestion.place.id]}
                 source={view.placesSource}
                 canReact={view.status === 'voting'}
                 onReact={(reaction: Reaction | null) =>
@@ -268,6 +269,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <MoreOptions
               options={view.moreOptions}
               distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
+              missesForYou={view.missesForYou}
               onLike={async (placeId) =>
                 failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction: 'like' }))
               }

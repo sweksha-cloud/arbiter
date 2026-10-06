@@ -79,9 +79,4 @@ describe('ranking with nutrition', () => {
     expect(rankSuggestions([local, chain], [wantsLean]).map((p) => p.id)).toEqual(['chain', 'local']);
   });
 
-  it('raises places with vegan options for members who would like them', () => {
-    const vegan = makePlace({ id: 'vegan', servesVegan: true, rating: 3 });
-    const other = makePlace({ id: 'other', rating: 4.8 });
-    expect(rankSuggestions([other, vegan], [{ soft: { veganOptions: true } }]).map((p) => p.id)).toEqual(['vegan', 'other']);
-  });
 });

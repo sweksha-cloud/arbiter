@@ -3,13 +3,14 @@
 import {
   NUTRITION_TAGS,
   type MenuItem,
+  type MissedMustHave,
   type NutritionTag,
   type Reaction,
   type SessionView,
   type SuggestionView
 } from '@arbiter/shared';
 
-import { formatDistance, formatPrice } from '../lib/format';
+import { describeMisses, formatDistance, formatPrice } from '../lib/format';
 
 function directionsUrl(place: { id: string; location: { lat: number; lng: number } }, source: SessionView['placesSource']): string {
   const params = new URLSearchParams({ api: '1', destination: `${place.location.lat},${place.location.lng}` });
@@ -39,9 +40,12 @@ export function SuggestionCard({
   source,
   canReact,
   onReact,
-  onTag
+  onTag,
+  missed = []
 }: {
   suggestion: SuggestionView;
+  /** Which of the viewer's own must-haves this place misses (closest matches). */
+  missed?: readonly MissedMustHave[];
   source: SessionView['placesSource'];
   canReact: boolean;
   onReact: (reaction: Reaction | null) => void;
@@ -70,6 +74,7 @@ export function SuggestionCard({
           {details.join(' · ')}
           {place.cuisines.length > 0 && <> · {place.cuisines.join(', ')}</>}
         </p>
+        {missed.length > 0 && <p className="small misses">{describeMisses(missed)}</p>}
       </header>
 
       <div

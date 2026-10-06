@@ -9,7 +9,7 @@ import {
   type NamedLocation
 } from './meeting.js';
 import { MenuItemSchema, PlaceCandidateSchema } from './place.js';
-import { PreferencesSchema, type Preferences } from './preferences.js';
+import { MissedMustHaveSchema, PreferencesSchema, type Preferences } from './preferences.js';
 import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
 
@@ -132,17 +132,23 @@ export const SessionViewSchema = z.object({
   members: z.array(SessionMemberSchema),
   suggestions: z.array(SuggestionViewSchema),
   /**
-   * Other places that fit everyone's must-haves, ranked below the
-   * suggestions. Liking one adds it to the suggestions for everyone.
+   * Other places from the same search, ranked below the suggestions: other
+   * kinds of place, or (with closest matches) other near misses. Liking one
+   * adds it to the suggestions for everyone.
    * Distances follow the same rule as `distanceFromYou`.
    */
   moreOptions: z.array(PlaceCandidateSchema),
   meeting: MeetingViewSchema,
   /**
-   * The group agreed on a kind of place (e.g. everyone who picked liked
-   * cafés) but none nearby fits, so the suggestions are the closest matches.
+   * Nothing nearby fits everyone's must-haves (or the "only show me" kinds
+   * don't overlap), so the suggestions are the closest matches.
    */
   closestMatches: z.boolean(),
+  /**
+   * For each place (suggestions and more options) that misses any of YOUR
+   * must-haves, which ones. Only your own: never anyone else's.
+   */
+  missesForYou: z.record(z.string(), z.array(MissedMustHaveSchema)),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
   /**

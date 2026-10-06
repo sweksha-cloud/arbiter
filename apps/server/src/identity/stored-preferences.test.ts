@@ -27,6 +27,15 @@ describe('stored preferences', () => {
     expect(level(2)).not.toHaveProperty('maxPriceLevel');
   });
 
+  it('turns version 2 liked kinds into "only show me" kinds and drops the old nice-to-have wishes', () => {
+    const upgraded = fromStored({
+      version: 2,
+      hard: { vegetarian: true },
+      soft: { likedKinds: ['cafe'], dislikedKinds: ['bar'], veganOptions: true, vegetarianOptions: true, noFastFood: true }
+    });
+    expect(upgraded).toEqual({ hard: { vegetarian: true, kinds: ['cafe'] }, soft: { noFastFood: true } });
+  });
+
   it('refuses to save invalid preferences', () => {
     expect(() => toStored({ hard: { maxPricePerPerson: 0 }, soft: {} } as unknown as Preferences)).toThrow();
   });

@@ -1,4 +1,4 @@
-import { fittingItem, hasVeganOptions } from './nutrition.js';
+import { fittingItem } from './nutrition.js';
 import type { PlaceCandidate, PlaceKind } from './place.js';
 import type { Preferences } from './preferences.js';
 
@@ -6,19 +6,15 @@ import type { Preferences } from './preferences.js';
 export const DEFAULT_SUGGESTION_COUNT = 4;
 
 /**
- * Kinds of place (café, restaurant…) the group agrees on, which then count as
- * a must-have for the main list (TRADEOFFS.md 2g): liked by everyone who
- * liked any kind, and disliked by nobody. People who picked no kinds don't
- * block it. Undefined when there's no agreement.
+ * Kinds of place (café, restaurant…) allowed in the main list: those in every
+ * "Only show me" pick (TRADEOFFS.md 2g). People who picked none don't limit
+ * it. Undefined when nobody picked any; empty when the picks don't overlap
+ * (cafés vs bars), so nothing fits everyone.
  */
-export function agreedKinds(members: Pick<Preferences, 'soft'>[]): PlaceKind[] | undefined {
-  const pickers = members.filter(({ soft }) => (soft.likedKinds?.length ?? 0) > 0);
+export function agreedKinds(members: Pick<Preferences, 'hard'>[]): PlaceKind[] | undefined {
+  const pickers = members.filter(({ hard }) => (hard.kinds?.length ?? 0) > 0);
   if (pickers.length === 0) return undefined;
-  const disliked = new Set(members.flatMap(({ soft }) => soft.dislikedKinds ?? []));
-  const agreed = pickers[0]!.soft.likedKinds!.filter(
-    (kind) => !disliked.has(kind) && pickers.every(({ soft }) => soft.likedKinds!.includes(kind))
-  );
-  return agreed.length > 0 ? agreed : undefined;
+  return pickers[0]!.hard.kinds!.filter((kind) => pickers.every(({ hard }) => hard.kinds!.includes(kind)));
 }
 
 function normalize(cuisine: string): string {
@@ -30,10 +26,7 @@ function normalize(cuisine: string): string {
  * who dislikes one. A member counts at most once in each direction. Each member
  * who'd rather skip fast food takes another -1 off a known fast-food place, so
  * one can still win if it suits everyone better than the alternatives.
- * Kinds of place (restaurant, café…) count like cuisines: +1 per member who
- * likes the place's kind, -1 per member who dislikes it.
- * +1 for each member whose nutrition goals a menu item meets, and for each
- * member who'd like vegan (or vegetarian) options at a place known to have them. Members who
+ * +1 for each member whose nutrition goals a menu item meets. Members who
  * left those blank don't count either way (TRADEOFFS.md 2c).
  */
 export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'soft'>[]): number {
@@ -45,11 +38,7 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
     if (matches(soft.likedCuisines)) score += 1;
     if (matches(soft.dislikedCuisines)) score -= 1;
     if (soft.noFastFood && place.isFastFood === true) score -= 1;
-    if (place.kind && soft.likedKinds?.includes(place.kind)) score += 1;
-    if (place.kind && soft.dislikedKinds?.includes(place.kind)) score -= 1;
     if (fittingItem(place, soft.nutrition)) score += 1;
-    if (soft.veganOptions && hasVeganOptions(place)) score += 1;
-    if (soft.vegetarianOptions && place.servesVegetarian === true) score += 1;
   }
   return score;
 }

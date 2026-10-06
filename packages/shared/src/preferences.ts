@@ -15,7 +15,18 @@ export const MAX_DISTANCE_METERS = 50_000;
 export const MAX_PRICE_PER_PERSON = 1_000;
 
 export const HardConstraintsSchema = z.object({
+  /** Removes places not known to serve vegetarian food (per the missing-data policy). */
   vegetarian: z.boolean().optional(),
+  /**
+   * Strict: removes every place not known to have vegan options, which is most
+   * of them, since Google has no vegan field (TRADEOFFS.md 2h).
+   */
+  vegan: z.boolean().optional(),
+  /**
+   * "Only show me" these kinds of place. The main list holds only kinds every
+   * picker allows; other kinds stay under "more options" (TRADEOFFS.md 2g).
+   */
+  kinds: z.array(PlaceKindSchema).max(5).optional(),
   /** Most I want to spend on myself, in whole dollars. */
   maxPricePerPerson: z.number().int().min(1).max(MAX_PRICE_PER_PERSON).optional(),
   maxDistanceMeters: z.number().int().positive().max(MAX_DISTANCE_METERS).optional()
@@ -57,16 +68,6 @@ export const SoftPreferencesSchema = z.object({
   noFastFood: z.boolean().optional(),
   likedCuisines: CuisineListSchema.optional(),
   dislikedCuisines: CuisineListSchema.optional(),
-  /** Kinds of place (restaurant, café, fast food…), liked or disliked like cuisines. */
-  likedKinds: z.array(PlaceKindSchema).max(5).optional(),
-  dislikedKinds: z.array(PlaceKindSchema).max(5).optional(),
-  /** Raises places known to have vegan options (a hint: the data is sparse). */
-  veganOptions: z.boolean().optional(),
-  /**
-   * Raises places known to serve vegetarian food. A nice-to-have: unlike the
-   * must-have `hard.vegetarian`, it never removes a place.
-   */
-  vegetarianOptions: z.boolean().optional(),
   nutrition: NutritionGoalsSchema.optional()
 });
 export type SoftPreferences = z.infer<typeof SoftPreferencesSchema>;
@@ -100,6 +101,7 @@ export type Preferences = z.infer<typeof PreferencesSchema>;
 /** The strictest version of every member's hard constraints. */
 export interface GroupConstraints {
   vegetarian: boolean;
+  vegan?: boolean;
   maxPricePerPerson?: number;
   maxDistanceMeters?: number;
 }
@@ -118,6 +120,7 @@ export function combineHardConstraints(members: Pick<Preferences, 'hard'>[]): Gr
   const hards = members.map((m) => m.hard);
   return {
     vegetarian: hards.some((h) => h.vegetarian === true),
+    vegan: hards.some((h) => h.vegan === true),
     maxPricePerPerson: minDefined(hards.map((h) => h.maxPricePerPerson)),
     maxDistanceMeters: minDefined(hards.map((h) => h.maxDistanceMeters))
   };
@@ -129,3 +132,8 @@ export function hasNutritionGoals(goals: NutritionGoals | undefined): boolean {
   const inRange = (r: Range | undefined) => r !== undefined && (r.min !== undefined || r.max !== undefined);
   return inRange(goals.calories) || goals.proteinMinGrams !== undefined || inRange(goals.carbs);
 }
+
+/** A must-have of one person's that a place doesn't meet; shown only to that person. */
+export const MissedMustHaveSchema = z.enum(['vegetarian', 'vegan', 'budget', 'distance', 'kind']);
+export type MissedMustHave = z.infer<typeof MissedMustHaveSchema>;
+

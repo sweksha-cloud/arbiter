@@ -1,6 +1,7 @@
 import { distanceMeters } from './geo.js';
+import { hasVeganOptions } from './nutrition.js';
 import type { LatLng, PlaceCandidate, PricePerPerson } from './place.js';
-import type { GroupConstraints } from './preferences.js';
+import type { GroupConstraints, HardConstraints, MissedMustHave } from './preferences.js';
 
 export type MissingDataAction = 'keep' | 'eliminate';
 
@@ -41,7 +42,40 @@ function passes(place: PlaceCandidate, group: GroupConstraints, policy: MissingD
     }
   }
 
+  // Strict, whatever the missing-data policy: unknown counts as no (TRADEOFFS.md 2h).
+  if (group.vegan && !hasVeganOptions(place)) return false;
+
   return true;
+}
+
+/**
+ * Which of one person's must-haves a place misses, for showing that person
+ * (never anyone else) why a closest match or "more options" place didn't fit
+ * them. `distanceFromThem` is measured from where they start.
+ */
+export function missedMustHaves(
+  place: PlaceCandidate,
+  hard: HardConstraints,
+  policy: MissingDataPolicy,
+  distanceFromThem: number
+): MissedMustHave[] {
+  const missed: MissedMustHave[] = [];
+  if (hard.vegetarian) {
+    const unknown = place.servesVegetarian === undefined;
+    if (unknown ? policy.servesVegetarian === 'eliminate' : !place.servesVegetarian) missed.push('vegetarian');
+  }
+  if (hard.vegan && !hasVeganOptions(place)) missed.push('vegan');
+  if (hard.maxPricePerPerson !== undefined) {
+    const price = place.pricePerPerson;
+    if (price === undefined ? policy.price === 'eliminate' : !fitsBudget(price, hard.maxPricePerPerson)) {
+      missed.push('budget');
+    }
+  }
+  if (hard.maxDistanceMeters !== undefined && distanceFromThem > hard.maxDistanceMeters) missed.push('distance');
+  if ((hard.kinds?.length ?? 0) > 0 && !(place.kind !== undefined && hard.kinds!.includes(place.kind))) {
+    missed.push('kind');
+  }
+  return missed;
 }
 
 /**

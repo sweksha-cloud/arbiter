@@ -664,7 +664,7 @@ describe('SessionService', () => {
     });
   });
 
-  describe('a kind of place the group agrees on', () => {
+  describe('"only show me" kinds of place', () => {
     const mixed = () =>
       new FixturePlacesProvider([
         place('sushi', { kind: 'restaurant', rating: 4.9 }),
@@ -672,32 +672,69 @@ describe('SessionService', () => {
         place('bean', { kind: 'cafe', rating: 3.9 }),
         place('brew', { kind: 'cafe', rating: 3.5 })
       ]);
-    const cafes: Preferences = { hard: {}, soft: { likedKinds: ['cafe'] } };
+    const cafes: Preferences = { hard: { kinds: ['cafe'] }, soft: {} };
 
     it('fills the main list only with that kind; the others stay under more options', async () => {
       const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
       await service.submit(sessionId, host, cafes);
-      // The friend picked no kinds, so they don't block the agreement.
+      // The friend picked no kinds, so they don't limit it.
       const room = await service.submit(sessionId, friend, noPreferences);
       expect(room.suggestions.map((p) => p.id)).toEqual(['bean', 'brew']);
       expect(room.moreOptions.map((p) => p.id)).toEqual(['sushi', 'steak']);
       expect(service.view(room, host.id).closestMatches).toBe(false);
+      // Each person sees which of their own must-haves the other places miss.
+      expect(service.view(room, host.id).missesForYou).toEqual({ sushi: ['kind'], steak: ['kind'] });
+      expect(service.view(room, friend.id).missesForYou).toEqual({});
     });
 
     it('shows the closest matches, and says so, when nothing nearby is that kind', async () => {
       const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
-      await service.submit(sessionId, host, { hard: {}, soft: { likedKinds: ['bar'] } });
+      await service.submit(sessionId, host, { hard: { kinds: ['bar'] }, soft: {} });
       const room = await service.submit(sessionId, friend, noPreferences);
       expect(room.suggestions.map((p) => p.id)).toEqual(['sushi', 'steak', 'bean', 'brew']);
       expect(service.view(room, host.id).closestMatches).toBe(true);
     });
 
-    it('is only a ranking boost when the group disagrees', async () => {
+    it("shows the closest matches when people's kinds don't overlap", async () => {
       const { service, host, friend, sessionId } = await lobbyOfTwo(mixed());
       await service.submit(sessionId, host, cafes);
-      const room = await service.submit(sessionId, friend, { hard: {}, soft: { likedKinds: ['restaurant'] } });
+      const room = await service.submit(sessionId, friend, { hard: { kinds: ['restaurant'] }, soft: {} });
       expect(room.suggestions).toHaveLength(4);
+      expect(service.view(room, host.id).closestMatches).toBe(true);
+    });
+  });
+
+  describe('when nothing fits everyone\'s must-haves', () => {
+    const places = () =>
+      new FixturePlacesProvider([
+        place('steak', { kind: 'restaurant', rating: 4.9, servesVegetarian: false }),
+        place('salad', { kind: 'restaurant', rating: 4.0, servesVegetarian: true }),
+        place('vegan', { kind: 'restaurant', rating: 3.0, servesVegetarian: true, servesVegan: true })
+      ]);
+
+    it('a vegan must-have is strict: only places known to have vegan options fit', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(places());
+      await service.submit(sessionId, host, { hard: { vegan: true }, soft: {} });
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(room.suggestions.map((p) => p.id)).toEqual(['vegan']);
       expect(service.view(room, host.id).closestMatches).toBe(false);
+    });
+
+    it('shows the places that miss the fewest must-haves, and only you see which of yours each misses', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(places());
+      await service.submit(sessionId, host, { hard: { vegetarian: true, kinds: ['cafe'] }, soft: {} });
+      const room = await service.submit(sessionId, friend, { hard: { vegan: true, maxPricePerPerson: 5 }, soft: {} });
+      // Nothing is a café, so nothing fits; "vegan" misses the fewest (only kind).
+      expect(room.suggestions[0]!.id).toBe('vegan');
+      expect(room.suggestions.at(-1)!.id).toBe('steak');
+      expect(service.view(room, host.id).closestMatches).toBe(true);
+      expect(service.view(room, host.id).missesForYou).toEqual({
+        vegan: ['kind'],
+        salad: ['kind'],
+        steak: ['vegetarian', 'kind']
+      });
+      // The friend's own misses only: never the host's.
+      expect(service.view(room, friend.id).missesForYou.steak).toEqual(['vegan', 'budget']);
     });
   });
 

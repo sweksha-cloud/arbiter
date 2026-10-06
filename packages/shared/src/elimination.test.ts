@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { eliminate, withinReach, type MissingDataPolicy } from './elimination.js';
+import { eliminate, missedMustHaves, withinReach, type MissingDataPolicy } from './elimination.js';
 import { combineHardConstraints } from './preferences.js';
 import { makePlace } from './test-helpers.js';
 
@@ -24,12 +24,12 @@ describe('combineHardConstraints', () => {
   });
 
   it('turns on a boolean constraint if any one member sets it', () => {
-    const group = combineHardConstraints([{ hard: {} }, { hard: { vegetarian: true } }, { hard: { vegetarian: false } }]);
-    expect(group).toEqual({ vegetarian: true, maxPricePerPerson: undefined, maxDistanceMeters: undefined });
+    const group = combineHardConstraints([{ hard: {} }, { hard: { vegetarian: true } }, { hard: { vegetarian: false, vegan: true } }]);
+    expect(group).toEqual({ vegetarian: true, vegan: true, maxPricePerPerson: undefined, maxDistanceMeters: undefined });
   });
 
   it('has no constraints for an empty group', () => {
-    expect(combineHardConstraints([])).toEqual({ vegetarian: false });
+    expect(combineHardConstraints([])).toEqual({ vegetarian: false, vegan: false });
   });
 });
 
@@ -125,3 +125,27 @@ describe('withinReach (per-person distance limits)', () => {
     });
   });
 });
+
+describe('a vegan must-have (strict)', () => {
+  const policy = { price: 'keep', servesVegetarian: 'keep' } as const;
+  it('keeps only places known to have vegan options, even when unknowns are kept elsewhere', () => {
+    const places = [
+      makePlace({ id: 'vegan', servesVegan: true }),
+      makePlace({ id: 'chain', menu: [{ name: 'Plant-Based Burger', calories: 500 }] }),
+      makePlace({ id: 'unknown' })
+    ];
+    const { kept } = eliminate(places, { vegetarian: false, vegan: true }, policy);
+    expect(kept.map((p) => p.id)).toEqual(['vegan', 'chain']);
+  });
+});
+
+describe('missedMustHaves', () => {
+  const policy = { price: 'keep', servesVegetarian: 'eliminate' } as const;
+  it('lists which of one person\'s must-haves a place misses', () => {
+    const place = makePlace({ id: 'p', kind: 'restaurant', servesVegetarian: undefined, pricePerPerson: { min: 30, max: 40 } });
+    const hard = { vegetarian: true, vegan: true, maxPricePerPerson: 20, maxDistanceMeters: 1000, kinds: ['cafe' as const] };
+    expect(missedMustHaves(place, hard, policy, 2000)).toEqual(['vegetarian', 'vegan', 'budget', 'distance', 'kind']);
+    expect(missedMustHaves(place, {}, policy, 2000)).toEqual([]);
+  });
+});
+

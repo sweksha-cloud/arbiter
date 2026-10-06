@@ -1,4 +1,4 @@
-import { MAX_DISTANCE_METERS, type PricePerPerson } from '@arbiter/shared';
+import { MAX_DISTANCE_METERS, type MissedMustHave, type PricePerPerson } from '@arbiter/shared';
 
 const METERS_PER_MILE = 1609.344;
 
@@ -28,3 +28,17 @@ export const metersToMiles = (meters: number) => meters / METERS_PER_MILE;
 /** The most a custom distance can be (31 mi), from the scan's largest area. */
 export const MAX_MILES = Math.floor(metersToMiles(MAX_DISTANCE_METERS));
 export const MIN_MILES = 0.1;
+
+const MISSED_LABELS: Record<MissedMustHave, string> = {
+  vegetarian: 'not known to have vegetarian options',
+  vegan: 'not known to have vegan options',
+  budget: 'over your budget',
+  distance: "farther than you'll go",
+  kind: 'not a kind you picked'
+};
+
+/** "Misses your must-haves: over your budget · not a kind you picked". Only ever about the viewer. */
+export function describeMisses(missed: readonly MissedMustHave[]): string {
+  return `Misses your must-haves: ${missed.map((m) => MISSED_LABELS[m]).join(' · ')}`;
+}
+

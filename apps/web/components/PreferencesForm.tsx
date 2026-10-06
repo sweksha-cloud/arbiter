@@ -25,8 +25,7 @@ const CUISINES = [
   'mexican',
   'pizza',
   'thai',
-  'vietnamese',
-  'cafe'
+  'vietnamese'
 ];
 
 type CuisineFeeling = 'like' | 'dislike';
@@ -145,18 +144,12 @@ export function PreferencesForm({
 }) {
   const start = initial ?? EMPTY;
   const [vegetarian, setVegetarian] = useState(start.hard.vegetarian ?? false);
+  const [vegan, setVegan] = useState(start.hard.vegan ?? false);
+  const [kinds, setKinds] = useState<PlaceKind[]>(() => start.hard.kinds ?? []);
   const [noFastFood, setNoFastFood] = useState(start.soft.noFastFood ?? false);
   const [budget, setBudget] = useState<BudgetChoice>(() => initialBudget(start));
   const [distance, setDistance] = useState<DistanceChoice>(() => initialDistance(start));
   const [feelings, setFeelings] = useState(() => initialFeelings(start));
-  const [kindFeelings, setKindFeelings] = useState<Partial<Record<PlaceKind, CuisineFeeling>>>(() => {
-    const feelings: Partial<Record<PlaceKind, CuisineFeeling>> = {};
-    for (const k of start.soft.likedKinds ?? []) feelings[k] = 'like';
-    for (const k of start.soft.dislikedKinds ?? []) feelings[k] = 'dislike';
-    return feelings;
-  });
-  const [veganOptions, setVeganOptions] = useState(start.soft.veganOptions ?? false);
-  const [vegetarianOptions, setVegetarianOptions] = useState(start.soft.vegetarianOptions ?? false);
   const [nutrition, setNutrition] = useState<NutritionText>(() => initialNutrition(start.soft.nutrition));
   const [allergies, setAllergies] = useState<Allergen[]>(() => (start.allergies ?? []) as Allergen[]);
   const [busy, setBusy] = useState(false);
@@ -183,6 +176,8 @@ export function PreferencesForm({
     const preferences: Preferences = {
       hard: {
         vegetarian: vegetarian || undefined,
+        vegan: vegan || undefined,
+        kinds: kinds.length > 0 ? PLACE_KINDS.filter(({ kind }) => kinds.includes(kind)).map(({ kind }) => kind) : undefined,
         maxPricePerPerson: dollars,
         maxDistanceMeters: meters
       },
@@ -190,10 +185,6 @@ export function PreferencesForm({
         noFastFood: noFastFood || undefined,
         likedCuisines: entries.filter(([, f]) => f === 'like').map(([c]) => c),
         dislikedCuisines: entries.filter(([, f]) => f === 'dislike').map(([c]) => c),
-        likedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'like').map(({ kind }) => kind),
-        dislikedKinds: PLACE_KINDS.filter(({ kind }) => kindFeelings[kind] === 'dislike').map(({ kind }) => kind),
-        veganOptions: veganOptions || undefined,
-        vegetarianOptions: vegetarianOptions || undefined,
         nutrition: goals
       },
       allergies: allergies.length > 0 ? allergies : undefined
@@ -222,6 +213,32 @@ export function PreferencesForm({
           <input type="checkbox" checked={vegetarian} onChange={(e) => setVegetarian(e.target.checked)} />
           <span>I need vegetarian options</span>
         </label>
+        <label className="check">
+          <input type="checkbox" checked={vegan} onChange={(e) => setVegan(e.target.checked)} />
+          <span>I need vegan options</span>
+        </label>
+        {vegan && (
+          <p className="muted small">
+            Only places known to have vegan options count, and few are, so you may get the closest matches instead.
+          </p>
+        )}
+        <fieldset className="field">
+          <legend>Only show me</legend>
+          <div className="chips">
+            {PLACE_KINDS.map(({ kind, label }) => (
+              <button
+                key={kind}
+                type="button"
+                className="chip kind"
+                aria-pressed={kinds.includes(kind)}
+                onClick={() => setKinds((all) => (all.includes(kind) ? all.filter((k) => k !== kind) : [...all, kind]))}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">None picked means any kind. Other kinds stay under &quot;More options&quot;.</p>
+        </fieldset>
         <fieldset className="field">
           <legend>Most I want to spend on myself</legend>
           <div className="segmented grid three">
@@ -309,30 +326,13 @@ export function PreferencesForm({
 
       <details className="card stack collapsible" open>
         <summary>
-          <h2>Nice-to-haves</h2>
+          <h2>Nice-to-haves (optional)</h2>
         </summary>
         <p className="muted small">These only change the order of suggestions, never remove a place.</p>
         <label className="check">
           <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
           <span>Rather not do fast food</span>
         </label>
-        <p className="muted small">Kind of place: tap once for 👍, twice for 👎, three times to clear.</p>
-        <div className="chips">
-          {PLACE_KINDS.map(({ kind, label }) => {
-            const feeling = kindFeelings[kind];
-            return (
-              <button
-                key={kind}
-                type="button"
-                className={`chip kind ${feeling ?? ''}`}
-                onClick={() => setKindFeelings((all) => ({ ...all, [kind]: nextFeeling(all[kind]) }))}
-              >
-                <FeelingMark feeling={feeling} />
-                {label}
-              </button>
-            );
-          })}
-        </div>
         <p className="muted small">Cuisines: tap once for 👍 love it, twice for 👎 rather not, three times to clear.</p>
         <div className="chips">
           {CUISINES.map((cuisine) => {
@@ -356,20 +356,6 @@ export function PreferencesForm({
             );
           })}
         </div>
-
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={vegetarianOptions}
-            onChange={(e) => setVegetarianOptions(e.target.checked)}
-          />
-          <span>I&apos;d like vegetarian options</span>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={veganOptions} onChange={(e) => setVeganOptions(e.target.checked)} />
-          <span>I&apos;d like vegan options</span>
-        </label>
-
       </details>
 
       <details className="card stack collapsible" open>
