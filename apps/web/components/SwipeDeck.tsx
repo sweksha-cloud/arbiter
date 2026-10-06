@@ -68,7 +68,7 @@ function Hero({ place }: { place: PlaceCandidate }) {
           <img src={`${SERVER_URL}${photo.url}`} alt="" draggable={false} onError={() => setFailed(true)} />
           {photo.author && (
             <span className="photo-credit">
-              Photo:{' '}
+              ©{' '}
               {photo.authorUri ? (
                 <a href={photo.authorUri} target="_blank" rel="noreferrer">
                   {photo.author}
