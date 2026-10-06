@@ -1004,6 +1004,7 @@ body {
 
 .swipe-features {
   margin: 0;
+  font-size: 0.78rem;
 }
 
 .swipe-links {
@@ -1051,7 +1052,10 @@ body {
 }
 
 .swipe-cuisines {
+  margin: 0;
   text-transform: capitalize;
+  font-weight: 650;
+  font-size: 1rem;
 }
 
 .swipe-directions {

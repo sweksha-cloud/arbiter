@@ -304,10 +304,10 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
           <span key={fact}>{fact}</span>
         ))}
       </div>
-      {place.cuisines.length > 0 && <p className="muted small swipe-cuisines">{place.cuisines.slice(0, 4).join(' · ')}</p>}
+      {place.cuisines.length > 0 && <p className="swipe-cuisines">{place.cuisines.slice(0, 4).join(' · ')}</p>}
       {place.summary && <p className="small swipe-summary">{place.summary}</p>}
       {place.features && place.features.length > 0 && (
-        <p className="small muted swipe-features">{place.features.map((f) => FEATURE_LABELS[f]).join('  ·  ')}</p>
+        <p className="muted swipe-features">{place.features.map((f) => FEATURE_LABELS[f]).join('  ·  ')}</p>
       )}
       {view.noLongerFits.includes(place.id) && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
       {missed && <p className="small misses">{describeMisses(missed)}</p>}
