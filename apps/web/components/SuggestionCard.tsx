@@ -168,32 +168,20 @@ function describeItem(item: MenuItem): string {
 }
 
 /**
- * Published chain nutrition, kept visually separate from Google's place data
- * (Google's attribution rules) and credited to fatsecret (their terms), with
- * no advice implied (also their terms).
+ * The menu item that fits your nutrition settings, kept visually separate from
+ * Google's place data (Google's attribution rules). Shown only when one fits:
+ * fatsecret's credit and the "not advice" note are in the footer of every page.
  */
 function ChainNutrition({ fitsYou, source }: { fitsYou: MenuItem | null; source: 'fatsecret' | 'sample' }) {
+  if (!fitsYou) return null;
   return (
     <section className="nutrition-box stack tight" aria-label="Published nutrition">
-      {fitsYou ? (
-        <p className="small">
-          <strong>Fits your nutrition settings:</strong> {fitsYou.name}
-          <br />
-          <span className="muted">{describeItem(fitsYou)}</span>
-        </p>
-      ) : (
-        <p className="small">This chain publishes nutrition for its menu.</p>
-      )}
-      <p className="muted small">
-        {source === 'fatsecret' ? (
-          <a href="https://platform.fatsecret.com" target="_blank" rel="noreferrer">
-            Powered by fatsecret Platform API
-          </a>
-        ) : (
-          'Sample nutrition for testing, not a real menu'
-        )}{' '}
-        · Not nutrition or medical advice.
+      <p className="small">
+        <strong>Fits your nutrition settings:</strong> {fitsYou.name}
+        <br />
+        <span className="muted">{describeItem(fitsYou)}</span>
       </p>
+      {source === 'sample' && <p className="muted small">Sample nutrition for testing, not a real menu</p>}
     </section>
   );
 }

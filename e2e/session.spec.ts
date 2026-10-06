@@ -298,8 +298,9 @@ test("a chain's published nutrition shows the dish that fits your own goals (ran
 
   // The friend sees the same place, but nothing is matched to goals they don't have.
   const friendTaco = friend.locator('article').filter({ has: friend.getByRole('heading', { name: 'Taco Stand' }) });
-  await expect(friendTaco.getByText('This chain publishes nutrition for its menu.')).toBeVisible();
-  await expect(friendTaco.getByText('Fits your nutrition settings:')).toHaveCount(0);
+  // No item fits goals they don't have, so no nutrition box (the credit is in the footer).
+  await expect(friendTaco.getByRole('region', { name: 'Published nutrition' })).toHaveCount(0);
+  await expect(friend.getByRole('link', { name: 'Powered by fatsecret Platform API' })).toBeVisible();
 });
 
 test('suggestions show their hours, and a place with several branches lists the others', async ({ newPhone }) => {
