@@ -12,14 +12,14 @@ import {
 
 import { describeMisses, formatDistance, formatPrice } from '../lib/format';
 
-function directionsUrl(place: { id: string; location: { lat: number; lng: number } }, source: SessionView['placesSource']): string {
+export function directionsUrl(place: { id: string; location: { lat: number; lng: number } }, source: SessionView['placesSource']): string {
   const params = new URLSearchParams({ api: '1', destination: `${place.location.lat},${place.location.lng}` });
   // Sample places have made-up IDs; only real Google place IDs go in the link.
   if (source === 'google') params.set('destination_place_id', place.id);
   return `https://www.google.com/maps/dir/?${params}`;
 }
 
-const openLabel = (openNow: boolean | undefined) => (openNow === undefined ? undefined : openNow ? 'Open now' : 'Closed now');
+export const openLabel = (openNow: boolean | undefined) => (openNow === undefined ? undefined : openNow ? 'Open now' : 'Closed now');
 
 /** A place's week, one line per day, behind a tap (the group may go another day). */
 function Hours({ hours }: { hours: string[] }) {

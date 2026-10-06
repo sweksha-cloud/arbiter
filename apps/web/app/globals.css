@@ -819,3 +819,69 @@ details.collapsible:not([open]) {
   padding-left: 32px;
 }
 
+/* Swiping (TRADEOFFS.md 22) */
+.swipe-card {
+  position: relative;
+  touch-action: pan-y; /* horizontal drags swipe; vertical ones still scroll */
+  user-select: none;
+  transition: transform 0.25s ease;
+  min-height: 260px;
+}
+
+.swipe-card:active {
+  transition: none;
+}
+
+.swipe-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.swipe-stamp {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 4px 10px;
+  border: 3px solid currentColor;
+  border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  transform: rotate(8deg);
+}
+
+.swipe-stamp.like {
+  color: #3fa66b;
+}
+
+.swipe-stamp.pass {
+  color: var(--accent);
+  left: 16px;
+  right: auto;
+  transform: rotate(-8deg);
+}
+
+.swipe-buttons {
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+}
+
+.swipe-button {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 1.6rem;
+}
+
+.swipe-button.like {
+  color: #3fa66b;
+}
+
+.swipe-button.pass {
+  color: var(--accent);
+}
+
+.matches {
+  border-color: #3fa66b;
+}
+

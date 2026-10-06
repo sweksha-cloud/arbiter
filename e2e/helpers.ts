@@ -133,3 +133,9 @@ export async function lastEmailTo(address: string): Promise<{ to: string; subjec
     .toBeTruthy();
   return found!;
 }
+
+/** Results open as a swipe deck (TRADEOFFS.md 22); this switches to the list of every place. */
+export async function showList(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'See all as a list' }).click();
+}
+

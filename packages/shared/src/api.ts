@@ -168,6 +168,12 @@ export const SessionViewSchema = z.object({
       example: z.string().optional()
     })
   ),
+  /** Your own swipe on every place (suggestions and more options). */
+  myReactions: z.record(z.string(), ReactionSchema),
+  /** Places everyone in the group liked, best-ranked first. */
+  matches: z.array(z.string()),
+  /** Up to three most-liked places (for "no match yet"), with how many liked each. Never who. */
+  mostLiked: z.array(z.object({ placeId: z.string(), likes: z.number().int().positive() })),
   /** Suggestions people voted on that no longer fit after someone edited their preferences. */
   noLongerFits: z.array(z.string()),
   /**

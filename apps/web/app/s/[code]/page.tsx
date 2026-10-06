@@ -11,7 +11,7 @@ import {
 } from '@arbiter/shared';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 import { normalizeSessionCode } from '../../../components/JoinCodeForm';
@@ -22,6 +22,7 @@ import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
+import { Matches, SwipeDeck } from '../../../components/SwipeDeck';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
 import { describeWishNotMet } from '../../../lib/format';
@@ -259,45 +260,62 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             </p>
           )}
 
-          {view.suggestions.length === 0 ? (
-            <div className="card stack">
-              <h2>Nothing fits everyone</h2>
-              <p className="muted">The search found no places nearby.</p>
-            </div>
-          ) : (
-            view.suggestions.map((suggestion) => (
-              <SuggestionCard
-                key={suggestion.place.id}
-                suggestion={suggestion}
-                missed={view.missesForYou[suggestion.place.id]}
-                noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
-                source={view.placesSource}
-                canReact={view.status === 'voting'}
-                onReact={(reaction: Reaction | null) =>
-                  send((s) => s.emit('session:react', { placeId: suggestion.place.id, reaction }, handleAck))
+          {view.status === 'voting' && view.suggestions.length > 0 && <Matches view={view} />}
+
+          <SwipeOrList
+            canSwipe={view.status === 'voting' && view.suggestions.length > 0}
+            swipe={
+              <SwipeDeck
+                view={view}
+                onSwipe={async (placeId, reaction) =>
+                  failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction }))
                 }
-                onTag={(tag, on) => send((s) => s.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck))}
               />
-            ))
-          )}
+            }
+            list={
+              <>
+            {view.suggestions.length === 0 ? (
+              <div className="card stack">
+                <h2>Nothing fits everyone</h2>
+                <p className="muted">The search found no places nearby.</p>
+              </div>
+            ) : (
+              view.suggestions.map((suggestion) => (
+                <SuggestionCard
+                  key={suggestion.place.id}
+                  suggestion={suggestion}
+                  missed={view.missesForYou[suggestion.place.id]}
+                  noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
+                  source={view.placesSource}
+                  canReact={view.status === 'voting'}
+                  onReact={(reaction: Reaction | null) =>
+                    send((s) => s.emit('session:react', { placeId: suggestion.place.id, reaction }, handleAck))
+                  }
+                  onTag={(tag, on) => send((s) => s.emit('session:tag', { placeId: suggestion.place.id, tag, on }, handleAck))}
+                />
+              ))
+            )}
 
-          {view.status === 'voting' && (
-            <MoreOptions
-              options={view.moreOptions}
-              distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
-              missesForYou={view.missesForYou}
-              onLike={async (placeId) =>
-                failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction: 'like' }))
-              }
-            />
-          )}
+            {view.status === 'voting' && (
+              <MoreOptions
+                options={view.moreOptions}
+                distanceFromYou={view.suggestions[0]?.distanceFromYou ?? false}
+                missesForYou={view.missesForYou}
+                onLike={async (placeId) =>
+                  failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction: 'like' }))
+                }
+              />
+            )}
 
-          {view.suggestions.length > 0 && (
-            <p className="muted small">
-              Tap what you know a place has (like high-protein or vegan options). It&apos;s what people in this group say,
-              not nutrition advice, and it&apos;s only kept for this session.
-            </p>
-          )}
+            {view.suggestions.length > 0 && (
+              <p className="muted small">
+                Tap what you know a place has (like high-protein or vegan options). It&apos;s what people in this group say,
+                not nutrition advice, and it&apos;s only kept for this session.
+              </p>
+            )}
+              </>
+            }
+          />
 
           {view.placesSource === 'google' && <p className="muted small center">Place data © Google Maps</p>}
 
@@ -576,6 +594,26 @@ function ReorganizedNote({ sessionId, reorganized }: { sessionId: string; reorga
         OK
       </button>
     </div>
+  );
+}
+
+/**
+ * Swiping is the default way to vote (TRADEOFFS.md 22); the list shows every
+ * place side by side, and is all there is once the session has ended.
+ */
+function SwipeOrList({ canSwipe, swipe, list }: { canSwipe: boolean; swipe: ReactNode; list: ReactNode }) {
+  const [asList, setAsList] = useState(false);
+  if (!canSwipe) return <>{list}</>;
+  return (
+    <>
+      <div className="row spread">
+        <span className="muted small">{asList ? 'All places' : 'One at a time'}</span>
+        <button className="button link" onClick={() => setAsList(!asList)}>
+          {asList ? 'Back to swiping' : 'See all as a list'}
+        </button>
+      </div>
+      {asList ? list : swipe}
+    </>
   );
 }
 

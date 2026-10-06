@@ -421,7 +421,9 @@ export class SessionService {
         return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
       }
       this.checkCanActOnPlace(room, guest, placeId, { includeMore: true });
-      if (reaction !== 'like') throw new SessionError('invalid_place', 'Like a place to add it to the list');
+      // Swiping left (or undoing) on a "more options" place just records it;
+      // only a like moves it into the main list for everyone.
+      if (reaction !== 'like') return { ...room, reactions: setReaction(room.reactions, guest.id, placeId, reaction) };
       added = true;
       return {
         ...room,
@@ -538,6 +540,7 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
+      ...this.swipeResults(room, viewerId),
       wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),
       reorganized: room.reorganized
         ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId, reason: room.reorganized.reason }
@@ -752,6 +755,29 @@ export class SessionService {
       if (missed.length > 0) misses[place.id] = missed;
     }
     return misses;
+  }
+
+  /**
+   * For swiping (TRADEOFFS.md 22): the viewer's own swipe on every place,
+   * the places everyone liked (matches, best-ranked first), and the most-liked
+   * places for when there's no match yet. Counts only, never who.
+   */
+  private swipeResults(room: RoomState, viewerId: string) {
+    const places = [...room.suggestions, ...room.moreOptions];
+    const tally = tallyReactions(
+      room.reactions,
+      places.map((p) => p.id)
+    );
+    const everyone = room.members.length;
+    return {
+      myReactions: room.reactions[viewerId] ?? {},
+      matches: places.filter((p) => everyone > 0 && tally[p.id]!.likes === everyone).map((p) => p.id),
+      mostLiked: places
+        .filter((p) => tally[p.id]!.likes > 0)
+        .map((p) => ({ placeId: p.id, likes: tally[p.id]!.likes }))
+        .sort((a, b) => b.likes - a.likes)
+        .slice(0, 3)
+    };
   }
 
   /**

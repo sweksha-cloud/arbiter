@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { becomeGuest, expect, joinSession, setUpSession, test } from './helpers';
+import { becomeGuest, expect, joinSession, setUpSession, showList, test } from './helpers';
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
@@ -55,6 +55,7 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await expect(host.locator('article').first()).toBeVisible();
   await expectNoViolations(host, 'results');
 
+  await showList(host);
   // Pressed like and dislike buttons.
   await host.locator('article').nth(0).getByRole('button', { name: /👍/ }).click();
   await host.locator('article').nth(1).getByRole('button', { name: /👎/ }).click();

@@ -1,4 +1,4 @@
-import { becomeGuest, expect, hostSession, joinSession, startAs, test } from './helpers';
+import { becomeGuest, expect, hostSession, joinSession, showList, startAs, test } from './helpers';
 
 test('the host lands in the session straight away and results wait for everyone', async ({ newPhone }) => {
   const host = await newPhone();
@@ -48,6 +48,8 @@ test('results appear for everyone once the last person submits, and reactions ar
   // No button press needed: results show up for both phones.
   await expect(host.locator('article').first()).toBeVisible();
   await expect(friend.locator('article').first()).toBeVisible();
+  await showList(host);
+  await showList(friend);
   expect(await friend.locator('article h3').allTextContents()).toEqual(
     await host.locator('article h3').allTextContents()
   );
@@ -64,6 +66,8 @@ test('two people reacting at the same moment both see the correct totals (BUG-00
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
+  await showList(host);
+  await showList(friend);
   const hostCard = host.locator('article').first();
   const friendCard = friend.locator('article').first();
   await Promise.all([
@@ -164,6 +168,8 @@ test('liking a place from "more options" adds it to the list for everyone', asyn
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+  await showList(host);
+  await showList(friend);
   await expect(host.locator('article')).toHaveCount(4);
 
   await friend.getByText(/^More options \(\d+\)$/).click();
@@ -215,6 +221,8 @@ test('the group can mark what a place has, and everyone sees the count live', as
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
+  await showList(host);
+  await showList(friend);
   const hostFirst = host.locator('article').first();
   const friendFirst = friend.locator('article').first();
   await expect(hostFirst.getByText('No nutrition info for this place yet')).toBeVisible();
@@ -285,6 +293,8 @@ test("a chain's published nutrition shows the dish that fits your own goals (ran
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
+  await showList(host);
+  await showList(friend);
   // Sample "Taco Stand" has a 620-calorie, 42 g-protein bowl that fits.
   const hostTaco = host.locator('article').filter({ has: host.getByRole('heading', { name: 'Taco Stand' }) });
   await expect(hostTaco.getByText('Fits your nutrition settings:')).toBeVisible();
@@ -311,6 +321,7 @@ test('suggestions show their hours, and a place with several branches lists the 
   await joinSession(friend, invite, 'Alex');
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
+  await showList(host);
   const taco = host.locator('article').filter({ has: host.getByRole('heading', { name: 'Taco Stand' }) });
   await expect(taco).toHaveCount(1); // Both branches share one card.
   await expect(taco.getByText(/Open now/).first()).toBeVisible();
@@ -362,6 +373,7 @@ test('a dollar budget removes places that cost more, and cards show dollar range
   await budget.getByRole('button', { name: 'Under $10' }).click();
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await host.getByRole('button', { name: 'Show results now' }).click();
+  await showList(host);
   const cards = host.locator('article');
   await expect(cards.first()).toBeVisible();
   // Every sample place under $10 is $1–10; Pho House has no price, so it's kept.
@@ -482,3 +494,42 @@ test('after results, editing preferences re-sorts the list for everyone without 
   await friend.getByRole('button', { name: 'Close this note' }).click();
   await expect(friend.getByText(/options have been reorganized/)).toHaveCount(0);
 });
+
+test('swiping: everyone liking a place makes a match; alone, it lists what you liked', async ({ newPhone }) => {
+  const host = await newPhone();
+  const friend = await newPhone();
+  const { invite } = await hostSession(host, 'Sweksha');
+  await host.getByRole('button', { name: 'Submit', exact: true }).click();
+  await joinSession(friend, invite, 'Alex');
+  await friend.getByRole('button', { name: 'Submit', exact: true }).click();
+
+  // Both like the first card (the same place for everyone); the host also passes on the next.
+  const first = await host.locator('.swipe-card h3').textContent();
+  await host.getByRole('button', { name: `Like ${first}` }).click();
+  await expect(host.getByText(/^2 of \d+/)).toBeVisible();
+  await expect(host.getByText('No match yet.')).toBeVisible();
+  await friend.getByRole('button', { name: `Like ${first}` }).click();
+  await expect(host.getByRole('heading', { name: "🎉 It's a match!" })).toBeVisible();
+  await expect(friend.getByRole('region', { name: 'Matches' }).getByText(first!)).toBeVisible();
+
+  // Undo takes the like back, so the match goes away.
+  await friend.getByRole('button', { name: 'Undo' }).click();
+  await expect(host.getByText('No match yet.')).toBeVisible();
+});
+
+test('swiping alone shows every place you liked', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await hostSession(phone, 'Sweksha');
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  await phone.getByRole('button', { name: 'Show results now' }).click();
+  const first = await phone.locator('.swipe-card h3').textContent();
+  await phone.getByRole('button', { name: `Like ${first}` }).click();
+  await phone.keyboard.press('ArrowLeft'); // Keyboard works too: pass on the second.
+  const third = await phone.locator('.swipe-card h3').textContent();
+  await phone.getByRole('button', { name: `Like ${third}` }).click();
+  const liked = phone.getByRole('region', { name: 'Places you liked' });
+  await expect(liked.getByRole('heading', { name: 'Places you liked (2)' })).toBeVisible();
+  await expect(liked.getByText(first!)).toBeVisible();
+  await expect(liked.getByText(third!)).toBeVisible();
+});
+

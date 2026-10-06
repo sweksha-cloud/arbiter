@@ -993,13 +993,38 @@ describe('SessionService', () => {
       ]);
     });
 
-    it('only allows liking them, and only while voting', async () => {
+    it('records a swipe left without moving the place, and only while voting', async () => {
       const { service, host, sessionId } = await setup(sixPlaces());
       await service.start(sessionId, host);
-      await expect(service.react(sessionId, host, 'e', 'dislike')).rejects.toMatchObject({ code: 'invalid_place' });
+      const room = await service.react(sessionId, host, 'e', 'dislike');
+      expect(room.moreOptions.map((p) => p.id)).toContain('e');
+      expect(service.view(room, host.id).myReactions).toEqual({ e: 'dislike' });
       await expect(service.tag(sessionId, host, 'e', 'high_protein', true)).rejects.toMatchObject({ code: 'invalid_place' });
       await service.end(sessionId, host);
       await expect(service.react(sessionId, host, 'e', 'like')).rejects.toMatchObject({ code: 'invalid_state' });
+    });
+  });
+
+  describe('swiping: matches and most liked (TRADEOFFS.md 22)', () => {
+    const sixPlaces = () =>
+      new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e', 'f'].map((id, i) => place(id, { rating: 5 - i * 0.5 })));
+
+    it('is a match only when everyone liked it; most liked counts likes, never who', async () => {
+      const { service, host, friend, sessionId } = await lobbyOfTwo(sixPlaces());
+      await service.submit(sessionId, host, noPreferences);
+      await service.submit(sessionId, friend, noPreferences);
+      await service.react(sessionId, host, 'a', 'like');
+      await service.react(sessionId, host, 'b', 'like');
+      let room = await service.react(sessionId, friend, 'b', 'like');
+      expect(service.view(room, host.id).matches).toEqual(['b']);
+      expect(service.view(room, friend.id).mostLiked).toEqual([
+        { placeId: 'b', likes: 2 },
+        { placeId: 'a', likes: 1 }
+      ]);
+      // Liking a "more options" place counts too (it also joins the main list).
+      await service.react(sessionId, host, 'e', 'like');
+      room = await service.react(sessionId, friend, 'e', 'like');
+      expect(service.view(room, host.id).matches).toEqual(['b', 'e']);
     });
   });
 });
