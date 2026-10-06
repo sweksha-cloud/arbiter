@@ -94,6 +94,7 @@ const WHY: Record<SessionView['wishesNotMet'][number]['reason'], { one: string; 
   budget: { one: 'is over your budget', many: 'are over your budget' },
   distance: { one: "is farther than you'll go", many: "are farther than you'll go" },
   kind: { one: "isn't a kind you picked", many: "aren't a kind you picked" },
+  cuisine: { one: 'serves a cuisine you ruled out', many: 'serve a cuisine you ruled out' },
   others: { one: "doesn't fit someone else's must-haves", many: "don't fit someone else's must-haves" },
   none_nearby: { one: '', many: '' }
 };
