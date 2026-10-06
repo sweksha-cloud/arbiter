@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import Link from 'next/link';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
@@ -6,6 +7,9 @@ import type { ReactNode } from 'react';
 import { SaveProgress } from '../components/SaveProgress';
 import { SiteHeader } from '../components/SiteHeader';
 import './globals.css';
+
+// One typeface everywhere (TRADEOFFS.md 23), self-hosted by Next: no request to Google from browsers.
+const sans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Arbiter',
@@ -27,7 +31,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Render per request, so each page gets its own CSP nonce (proxy.ts).
   await connection();
   return (
-    <html lang="en">
+    <html lang="en" className={sans.variable}>
       <body>
         <SiteHeader />
         <SaveProgress />

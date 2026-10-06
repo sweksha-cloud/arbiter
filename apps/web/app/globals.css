@@ -43,14 +43,6 @@
     --notice-text: #ffe291;
   }
 
-  .page > section.card {
-    border-color: #a17a3d;
-  }
-
-  .page > form.card {
-    border-color: #3a8e9a;
-  }
-
   .rejoin {
     border-color: #e15d91;
   }
@@ -74,8 +66,9 @@ body {
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -84,7 +77,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   content: '';
-  opacity: 0.13;
+  /* A hint of personality, not wallpaper (TRADEOFFS.md 23). */
+  opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Ctext x='24' y='58' font-size='38'%3E🍕%3C/text%3E%3Ctext x='140' y='92' font-size='34'%3E🥑%3C/text%3E%3Ctext x='62' y='170' font-size='36'%3E🍜%3C/text%3E%3Ctext x='170' y='202' font-size='30'%3E🍓%3C/text%3E%3C/svg%3E");
   background-size: 220px 220px;
 }
@@ -103,7 +97,13 @@ p {
 
 h1 {
   font-size: 1.75rem;
-  line-height: 1.2;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+h2,
+h3 {
+  letter-spacing: -0.01em;
 }
 
 h2 {
@@ -151,18 +151,10 @@ a {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-}
-
-.page > section.card {
-  background: var(--surface-warm);
-  border-color: #e7bd55;
-}
-
-.page > form.card {
-  background: var(--surface);
-  border-color: #70dce5;
+  border-radius: 18px;
+  padding: 18px;
+  /* One card style everywhere (TRADEOFFS.md 23): a soft lift, no colored borders. */
+  box-shadow: 0 1px 2px rgb(20 10 30 / 0.06), 0 6px 20px rgb(20 10 30 / 0.06);
 }
 
 .rejoin {
@@ -248,14 +240,14 @@ input:not([type='checkbox']) {
 
 .button {
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
   padding: 10px 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
   text-decoration: none;
@@ -570,19 +562,44 @@ input:not([type='checkbox']) {
 }
 
 .site-header .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--text);
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 
+.site-header .brand img {
+  border-radius: 8px;
+}
+
 .site-header nav {
-  gap: 16px;
+  gap: 8px;
 }
 
 /* Comfortable tap targets on phones (WCAG 2.5.8). */
 .site-header a {
   display: inline-block;
   padding: 6px 0;
+}
+
+.site-header .header-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-header .header-pill.strong {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .auth-links {

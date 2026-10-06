@@ -29,19 +29,29 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <Link href="/" className="brand">
+        {/* The app icon, small: the same sandwich as on the home screen. */}
+        <img src="/icons/icon-192.png" alt="" width={28} height={28} />
         Arbiter
       </Link>
       {identity !== undefined && (
         <nav aria-label="Account" className="row nowrap">
           {hasAccount(identity) ? (
             <>
-              <Link href="/history">Past sessions</Link>
-              <Link href="/account">Account</Link>
+              <Link href="/history" className="header-pill">
+                Past sessions
+              </Link>
+              <Link href="/account" className="header-pill">
+                Account
+              </Link>
             </>
           ) : (
             <>
-              <Link href="/login">Log in</Link>
-              <Link href="/signup">Sign up</Link>
+              <Link href="/login" className="header-pill">
+                Log in
+              </Link>
+              <Link href="/signup" className="header-pill strong">
+                Sign up
+              </Link>
             </>
           )}
         </nav>
