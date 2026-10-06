@@ -828,7 +828,7 @@ details.collapsible:not([open]) {
   touch-action: pan-y; /* horizontal drags swipe; vertical ones still scroll */
   user-select: none;
   transition: transform 0.25s ease;
-  min-height: 260px;
+
 }
 
 .swipe-card:active {
