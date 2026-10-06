@@ -218,50 +218,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
 
       {(view.status === 'voting' || view.status === 'ended') && (
         <section className="stack">
-          {view.placesSource === 'sample' && (
-            <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
-          )}
-          <p className="muted small">
-            {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for
-            someone in the group
-          </p>
-
-          {view.status === 'ended' && <SessionEnded token={identity.token} />}
-
-          {me && !me.submitted && (
-            <p className="notice small">
-              {me.joinedAfterResults
-                ? 'Results are already in. Add your preferences and the list will re-sort to include them.'
-                : 'Results were shown before you submitted. Add your preferences and the list will re-sort to include them.'}
-            </p>
-          )}
-
-          {view.status === 'voting' && me && (
-            <MyPreferences token={identity.token} submitted={me.submitted} afterResults onSubmit={submitPreferences} />
-          )}
-
-          <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
-
-          {view.wishesNotMet.length > 0 && (
-            <ul className="notice small wishes" aria-label="Why some of what you wanted isn't here">
-              {view.wishesNotMet.map((wish) => (
-                <li key={wish.cuisine}>{describeWishNotMet(wish)}</li>
-              ))}
-            </ul>
-          )}
-
-          {view.closestMatches && (
-            <p className="notice small" role="note">
-              Nothing nearby fits all your preferences, so here are the closest matches.
-            </p>
-          )}
-
-          {view.allergyReminder && (
-            <p className="notice small" role="note">
-              Someone in your group has a food allergy. Check with the restaurant before ordering.
-            </p>
-          )}
-
+          {/* The deck (or list) comes first: it's what everyone is here for. */}
           {view.status === 'voting' && view.suggestions.length > 0 && <Matches view={view} />}
 
           <SwipeOrList
@@ -318,6 +275,50 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               </>
             }
           />
+
+          {view.placesSource === 'sample' && (
+            <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
+          )}
+          <p className="muted small">
+            {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work for
+            someone in the group
+          </p>
+
+          {view.status === 'ended' && <SessionEnded token={identity.token} />}
+
+          {me && !me.submitted && (
+            <p className="notice small">
+              {me.joinedAfterResults
+                ? 'Results are already in. Add your preferences and the list will re-sort to include them.'
+                : 'Results were shown before you submitted. Add your preferences and the list will re-sort to include them.'}
+            </p>
+          )}
+
+          {view.status === 'voting' && me && (
+            <MyPreferences token={identity.token} submitted={me.submitted} afterResults onSubmit={submitPreferences} />
+          )}
+
+          <ReorganizedNote sessionId={view.sessionId} reorganized={view.reorganized} />
+
+          {view.wishesNotMet.length > 0 && (
+            <ul className="notice small wishes" aria-label="Why some of what you wanted isn't here">
+              {view.wishesNotMet.map((wish) => (
+                <li key={wish.cuisine}>{describeWishNotMet(wish)}</li>
+              ))}
+            </ul>
+          )}
+
+          {view.closestMatches && (
+            <p className="notice small" role="note">
+              Nothing nearby fits all your preferences, so here are the closest matches.
+            </p>
+          )}
+
+          {view.allergyReminder && (
+            <p className="notice small" role="note">
+              Someone in your group has a food allergy. Check with the restaurant before ordering.
+            </p>
+          )}
 
           {view.placesSource === 'google' && <p className="muted small center">Place data © Google Maps</p>}
 
