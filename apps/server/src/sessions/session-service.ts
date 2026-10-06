@@ -104,6 +104,8 @@ export const STALE_SCAN_MS = 60_000;
 export const MIN_MORE_OPTIONS = 10;
 /** Searches per session at most: the first, then follow-ups only while too few places fit. */
 export const MAX_SEARCHES = 3;
+/** When the first search finds nothing, follow-ups search at least this far (about 5 miles). */
+export const WIDER_SEARCH_METERS = 8_000;
 
 /**
  * Results appear on their own once everyone has submitted, but only with at
@@ -671,12 +673,22 @@ export class SessionService {
    * The first search, then follow-ups while fewer than the main list plus
    * MIN_MORE_OPTIONS places fit everyone (TRADEOFFS.md 2k): first the
    * cuisines people liked, then the same area by distance (a different 20).
+   * If the first search found nothing at all (e.g. everyone's "farthest"
+   * is tiny), the follow-ups search wider, so the group still gets the
+   * closest matches instead of an empty list (TRADEOFFS.md 2k).
    * At most MAX_SEARCHES; a failed follow-up keeps what was already found.
    */
   private async searchUntilEnough(room: RoomState, center: LatLng, radiusMeters: number) {
     const liked = [...new Set(Object.values(room.submissions).flatMap((p) => p.soft.likedCuisines ?? []))];
-    const followUps = [...(liked.length > 0 ? [{ cuisines: liked }] : []), { rankBy: 'distance' as const }];
     const first = await this.options.places.searchNearby({ center, radiusMeters });
+    const wider = Math.min(Math.max(radiusMeters * 4, WIDER_SEARCH_METERS), MAX_DISTANCE_METERS);
+    const widen = first.length === 0 && wider > radiusMeters;
+    const searchRadius = widen ? wider : radiusMeters;
+    const followUps = [
+      ...(widen ? [{}] : []),
+      ...(liked.length > 0 ? [{ cuisines: liked }] : []),
+      { rankBy: 'distance' as const }
+    ];
     let candidates = await addMenus(first, this.options.menus);
     let searches = 1;
     const enough = () => this.arrange(room, candidates).fitting.length >= DEFAULT_SUGGESTION_COUNT + MIN_MORE_OPTIONS;
@@ -684,7 +696,7 @@ export class SessionService {
       if (searches >= MAX_SEARCHES || enough()) break;
       searches += 1;
       try {
-        const found = await this.options.places.searchNearby({ center, radiusMeters, ...followUp });
+        const found = await this.options.places.searchNearby({ center, radiusMeters: searchRadius, ...followUp });
         const known = new Set(candidates.map((p) => p.id));
         const added = await addMenus(
           found.filter((p) => !known.has(p.id)),
