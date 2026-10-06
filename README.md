@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml/badge.svg)](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml)
 
-Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences once, places that don't work for someone are removed automatically, and the app suggests a short list that everyone likes or dislikes live.
+Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences privately, places that don't work for someone are removed automatically, and then the group **swipes**: right to like, left to pass, Tinder-style. When everyone likes the same place, it's a match. Each card shows a photo, rating, price, distance, what the place offers, and which of *your* must-haves it misses, so nobody needs to open Google Maps to decide.
 
 **Try it: [arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)**. Open it on two phones (or a normal and a private window), start a session on one, and join with the link on the other.
 
@@ -11,7 +11,7 @@ Arbiter quickly helps a friend group decide where to eat. Everyone sets their pr
 | Web app (Next.js) | Vercel |
 | Server (Fastify + Socket.IO, Docker) | Google Cloud e2-micro in `us-west1` (Oregon), behind Caddy for HTTPS, at a free DuckDNS address |
 | Database (Postgres) | Neon, `us-west-2` |
-| Places | Google Places API (New), one Nearby Search per session, with a hard daily quota |
+| Places | Google Places API (New): one Nearby Search per session, up to 3 when too few places fit; photos loaded only when a card is shown |
 | Chain nutrition | fatsecret Platform API (free plan), cached at most 24 hours |
 
 ## Hard problems
@@ -25,6 +25,10 @@ The idea is simple; making it correct with several phones at once isn't. Each of
 - **Designing around a data provider's terms.** Google allows keeping place IDs forever but names and ratings only for the session. So live sessions keep place data in memory, and history stores only place IDs and shows them as Google Maps links. A test lists the history tables' columns so a new one can't slip in unnoticed.
 - **Deploys that don't hang.** Open WebSockets kept the server from ever shutting down, so every deploy would have stalled (BUG-003). The server now drops sockets first, and clients reconnect on their own.
 - **A hard ceiling on cost.** A daily quota in Google Cloud makes a surprise bill impossible, and the app turns "quota hit" into "try again tomorrow".
+- **Deploys with no downtime.** Two server slots (blue/green) behind Caddy: a deploy starts the new version in the idle slot, Caddy switches only once it's healthy, then the old one stops; live sessions live in Redis, so phones reconnect in about a second and carry on. Measured: 0 failed requests across a swap.
+- **Editing preferences after results, for free.** The session keeps every place the search found, and one function filters and ranks for both the first search and every later edit. Changing your answers (or a late joiner adding theirs) re-sorts everyone's list without another paid search; places people already voted on stay, marked if they no longer fit, and the group is told "someone changed their preferences", never who.
+- **Photos without leaking the API key.** A card's photo link points at our server, signed per session and place; the server asks Google for a short-lived image link and redirects the browser there. The key never reaches a browser, and nobody outside a session can make the server fetch photos on our bill.
+- **Swiping that never drops a tap.** The next card is live the moment you tap, while a copy of the old one animates away, so fast swipes all count; nothing above the card moves while people swipe (found by testing: fast taps were being lost).
 
 ## Architecture
 
@@ -37,9 +41,9 @@ flowchart LR
   A & B -- pages --> V[Next.js on Vercel]
   A & B -- REST + Socket.IO<br/>over HTTPS --> C[Caddy on a Google Cloud VM]
   C --> S[Fastify server in Docker<br/>session rules]
-  S -- room state --> R[(In memory<br/>Redis later)]
+  S -- live sessions --> R[(Redis on the same VM)]
   S -- accounts, preferences,<br/>session history --> P[(Postgres on Neon)]
-  S -- one Nearby Search<br/>per session --> G[Google Places API]
+  S -- Nearby Search, photos --> G[Google Places API]
   S -- chain menus,<br/>cached 24 h --> F[fatsecret API]
 ```
 
@@ -51,7 +55,7 @@ flowchart LR
 
 ## Status
 
-Live, and the whole loop works: enter a name and start a session, invite friends, everyone submits private preferences, three real nearby places appear, and the group reacts live. Each card shows distance, price, rating, opening hours, a Directions link, and for big chains a dish that fits your own nutrition goals.
+Live, and the whole loop works: start a session, choose where to meet, invite friends, everyone submits private preferences, and the group swipes through real nearby places until there's a match. Each card shows a photo, distance, price, rating and how many people rated it, Google's one-line description, what the place offers (dine-in, takeout, outdoor seating…), which of your own must-haves it misses, and for big chains a dish that fits your nutrition goals. A **List** view shows every place side by side. Anyone can change their answers after results and the list re-sorts for everyone. Alone, it works too: the top shows every place you liked.
 
 Accounts are optional: sign up, log in and out, and change your password from any page. An account keeps your preferences and your past sessions on any device; guests are offered "Save your progress" after filling in the form, and signing up keeps everything they did as a guest. Terms of Use and Privacy Policy pages are linked from every page.
 
@@ -59,7 +63,8 @@ Known limits:
 
 - **One server machine.** Deploys have no downtime (two server slots swapped one at a time, live sessions in Redis), but the whole app runs on one small VM: if it goes down, Arbiter is down until it restarts.
 - **Password reset and email confirmation are switched off in production** until an email provider is set up (locally, the emails are printed in the server log).
-- **Browser tests run in Chromium (Chrome, Android) and WebKit (Safari, every iPhone browser)**; Firefox isn't tested, and a real iPhone hasn't been tested by hand yet.
+- **Browser tests run in Chromium (Chrome, Android) and WebKit (Safari, every iPhone browser)**; Firefox isn't tested.
+- **No final pick yet.** Matches show which places everyone liked, but nothing "locks in" the group's choice.
 
 ## Run it locally
 
@@ -92,7 +97,7 @@ Set `GOOGLE_PLACES_API_KEY` in `apps/server/.env` to scan real places with the G
 
 - Enable **Places API (New)** in a Google Cloud project and restrict the key to that API.
 - Set a **hard daily quota** of about 30 requests on Nearby Search (APIs & Services → Places API (New) → Quotas). Budget alerts only warn you after spending; the quota is what makes a bill impossible. When it's hit, the app says "try again tomorrow".
-- Each session makes exactly one request. Place names, prices and ratings are kept only in memory for that session; only place IDs are saved.
+- A session makes one search, up to three if must-haves leave too few places. Each photo shown is one more (paid) request. Place names, prices, ratings and photos are kept only with the live session; only place IDs are saved.
 
 ### 3. Start everything
 
@@ -114,7 +119,7 @@ Use one normal browser window and one private window (or a second browser). Each
 2. Copy the invite link.
 3. **Window 2:** open the link (or enter the 6-letter code on the home page) and enter a different name. Both windows now show "0 of 2 submitted".
 4. In each window, fill in preferences and tap **Submit**. The status bar updates live ("1 of 2 submitted").
-5. When the last person submits, the three suggestions appear in both windows automatically. Tap 👍 or 👎 in either window and watch the bar update in both.
+5. When the last person submits, results appear in both windows as a swipe deck. Swipe (or tap ♥ / ✕) on the same place in both windows: "🎉 It's a match!" pops up. **List** shows everything side by side.
 
 To see elimination at work, tick **I need vegetarian options** in one window: the steakhouse and burger places disappear. **Rather not do fast food** is only a nice-to-have, so it moves fast-food places down the list instead of removing them.
 
@@ -157,7 +162,7 @@ pnpm test:e2e                                                                   
 
 - **Web app:** Vercel builds `apps/web` on every push to `main` (`apps/web/vercel.json`). Settings: `NEXT_PUBLIC_SERVER_URL` (the server's HTTPS address) and `NEXT_PUBLIC_EMAIL_ENABLED=false` until email is set up.
 - **Server:** one Google Cloud e2-micro running `deploy/docker-compose.yml` (setup, resources and operations: `gcp/README.md`; an AWS version is on the `aws-hosting` branch): the server image (`apps/server/Dockerfile`) behind Caddy, which gets the HTTPS certificate on its own. Secrets live in `deploy/server.env` on the instance (git-ignored; template in `deploy/server.env.example`), and `deploy/.env` holds `DOMAIN`. Migrations run when the server starts.
-- **Updating the server:** automatic. Every push to `main` that passes CI builds the server image, signs in to Google Cloud with a short-lived token (no stored keys), and runs `deploy/deploy.sh` on the server through Google's IAP tunnel; the script waits for the health check and rolls back if it fails. By hand in an emergency: `sudo deploy/deploy.sh <commit SHA>` on the instance. After changing `server.env`, run `sudo docker compose -f deploy/docker-compose.yml up -d --force-recreate server` so the container picks it up.
+- **Updating the server:** automatic, with no downtime. Every push to `main` that passes CI builds the server image, signs in to Google Cloud with a short-lived token (no stored keys), and runs `deploy/deploy.sh` on the server through Google's IAP tunnel. The script starts the new version in the idle blue/green slot, waits for its health check, switches Caddy, then stops the old slot; if the new version never gets healthy, the old one just keeps running. By hand: `sudo deploy/deploy.sh <commit SHA>` on the instance (redeploying the running SHA restarts the server with no downtime, e.g. after changing `server.env`).
 - **Google key:** restricted to Places API (New) and to the server's IP address, with a hard daily quota.
 
 ## Troubleshooting
@@ -208,13 +213,14 @@ Arbiter installs like an app (a progressive web app): on an iPhone, open the sit
 ## How a session works
 
 1. The host enters a name and taps Start a session, which opens a setup page. A blank name starts nothing.
-2. **Where to meet**, chosen before the session exists: "Search around an area" (the host's current location or a typed place) or "Find a spot between us" (everyone privately shares where they're coming from; the search centres on the average, and refuses if someone would come more than 30 miles). Typed places use Google's Geocoding API. **Create session** then makes the session and its 6-letter code; the host sees the code and invite link pinned at the top for the whole session, and can change where to meet until results are shown.
+2. **Where to meet**, chosen before the session exists: "Search around an area" (the host's current location or a typed place) or "Find a spot between us" (everyone privately shares where they're coming from; the search centres on the average, and refuses if someone would come more than 30 miles). Typed places use Google's Geocoding API. **Create session** then makes the session and its 6-letter code; the host sees the code and invite link pinned at the top until results appear (then at the bottom, out of the way of swiping), and can change where to meet until results are shown.
 3. Everyone who opens the link joins over Socket.IO, using the same guest token as the REST API.
 4. Everyone submits preferences inside the session; the server keeps them for that session only and shows each person only who has submitted, never what they chose.
 5. When everyone has submitted (at least 2 people) and the location is ready, or the host taps **Show results now**, the server:
-   - scans once (Google Places with an API key, sample data without),
+   - searches once (Google Places with an API key, sample data without), and up to twice more, for the cuisines people liked and by distance, if fewer than 14 places fit everyone,
    - combines everyone's must-haves so the strictest wins (for example, the lowest budget),
    - removes places that fail any of them (each person's distance limit counts from where they start),
-   - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines and kinds of place, fast food, vegan options, and nutrition goals for chains with published menus), then rating, then distance, and keeps the top 3, with several branches of one chain sharing a card. The rest are listed under **More options**; liking one adds it to the main list for everyone.
-6. Reactions go to the server. The server checks them, then sends each person their own view: totals for everyone, plus that person's own reaction. Nobody's preferences are ever sent to anyone.
-7. Each state change has a version number, so a phone ignores any update older than the one it's showing.
+   - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines, fast food, and nutrition goals for chains with published menus), then rating, then distance. The top 4 lead the deck (only the kinds of place everyone allows), with the rest after them; several branches of one chain share a card. If nothing fits everyone, the group gets the closest matches and each person sees which of their own must-haves each place misses.
+6. Swipes go to the server as 👍/👎 reactions. The server checks them, then sends each person their own view: totals, matches (places everyone liked), plus that person's own swipes and missed must-haves. Nobody's preferences are ever sent to anyone.
+7. Anyone can change their preferences after results, and someone who joins late can add theirs: the same search is re-filtered for everyone at no cost, and the group is told the options were reorganized (never by whom).
+8. Each state change has a version number, so a phone ignores any update older than the one it's showing.
