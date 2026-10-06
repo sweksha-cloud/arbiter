@@ -1294,3 +1294,10 @@ body {
   }
 }
 
+.round-actions {
+  width: 100%;
+  max-width: 320px;
+  margin: 4px auto 0;
+  gap: 8px;
+}
+

@@ -11,6 +11,8 @@ import { directionsUrl } from './SuggestionCard';
 const SWIPE_DISTANCE = 90;
 /** How long the card takes to fly off (ms); keep in step with .swipe-card's transition. */
 const FLY_MS = 220;
+/** Places dealt per round; "see more" deals the next round (TRADEOFFS.md 22c). */
+const BATCH = 10;
 
 type Swipe = (placeId: string, reaction: Reaction | null) => Promise<void>;
 
@@ -96,14 +98,22 @@ const tintFor = (id: string) => TINTS[[...id].reduce((sum, c) => sum + c.charCod
  * at once and the vote saves in the background, so swiping never waits on
  * the network. Swipes are the same 👍/👎 the list uses, so the views agree.
  */
-export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe }) {
+export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwipe: Swipe; onMore: () => Promise<void> }) {
   const places = allPlaces(view);
+  const byId = new Map(places.map((p) => [p.id, p]));
   // Swiped here but not yet confirmed by the server: hidden straight away.
   const [pending, setPending] = useState<Record<string, Reaction>>({});
-  const decided = (id: string) => view.myReactions[id] !== undefined || pending[id] !== undefined;
-  const left = places.filter((p) => !decided(p.id));
+  const reactionOf = (id: string) => (id in pending ? pending[id] : view.myReactions[id]);
+  // Rounds of BATCH places (TRADEOFFS.md 22c); "see more" deals the next round.
+  const [batchEnd, setBatchEnd] = useState(BATCH);
+  // A narrowing round: only the places you liked; right keeps, left drops.
+  const [narrow, setNarrow] = useState<{ ids: string[]; decided: Record<string, 'keep' | 'drop'> } | null>(null);
+  const left = narrow
+    ? narrow.ids.filter((id) => !narrow.decided[id] && byId.has(id)).map((id) => byId.get(id)!)
+    : places.slice(0, batchEnd).filter((p) => reactionOf(p.id) === undefined);
+  const total = narrow ? narrow.ids.length : Math.min(batchEnd, places.length);
   const [current, next] = left;
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<{ id: string; reaction: Reaction; narrowing: boolean }[]>([]);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   // A copy of the card just swiped, animating off on top while the next one is
@@ -121,28 +131,39 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
   // Once the server has the swipe, it no longer needs hiding here.
   useEffect(() => {
     setPending((all) => {
-      const still = Object.fromEntries(Object.entries(all).filter(([id]) => view.myReactions[id] === undefined));
+      const still = Object.fromEntries(Object.entries(all).filter(([id, r]) => view.myReactions[id] !== r));
       return Object.keys(still).length === Object.keys(all).length ? all : still;
     });
   }, [view.myReactions]);
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : 'Something went wrong');
 
   function swipe(reaction: Reaction) {
     if (!current) return;
     const place = current;
     setLeaving({ place, direction: reaction === 'like' ? 'right' : 'left', from: drag });
     window.setTimeout(() => setLeaving((l) => (l?.place.id === place.id ? undefined : l)), FLY_MS);
-    setPending((all) => ({ ...all, [place.id]: reaction }));
-    setHistory((h) => [...h, place.id]);
+    setHistory((h) => [...h, { id: place.id, reaction, narrowing: narrow !== null }]);
     setDrag(0);
     setError(undefined);
+    if (narrow) {
+      // Keeping a like changes nothing on the server; dropping it is a 👎.
+      setNarrow({ ...narrow, decided: { ...narrow.decided, [place.id]: reaction === 'like' ? 'keep' : 'drop' } });
+      if (reaction === 'dislike') {
+        setPending((all) => ({ ...all, [place.id]: 'dislike' }));
+        onSwipe(place.id, 'dislike').catch(fail);
+      }
+      return;
+    }
+    setPending((all) => ({ ...all, [place.id]: reaction }));
     onSwipe(place.id, reaction).catch((e: unknown) => {
       // Put the card back so the vote isn't silently lost.
       setPending((all) => {
         const { [place.id]: _dropped, ...rest } = all;
         return rest;
       });
-      setHistory((h) => h.filter((id) => id !== place.id));
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      setHistory((h) => h.filter((entry) => entry.id !== place.id));
+      fail(e);
     });
   }
 
@@ -151,15 +172,23 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
     if (!last) return;
     setError(undefined);
     setHistory((h) => h.slice(0, -1));
+    if (last.narrowing) {
+      setNarrow((n) => {
+        if (!n) return n;
+        const { [last.id]: _undone, ...decided } = n.decided;
+        return { ...n, decided };
+      });
+      if (last.reaction === 'dislike') {
+        setPending((all) => ({ ...all, [last.id]: 'like' }));
+        await onSwipe(last.id, 'like').catch(fail);
+      }
+      return;
+    }
     setPending((all) => {
-      const { [last]: _dropped, ...rest } = all;
+      const { [last.id]: _dropped, ...rest } = all;
       return rest;
     });
-    try {
-      await onSwipe(last, null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
-    }
+    await onSwipe(last.id, null).catch(fail);
   }
 
   function onPointerDown(event: PointerEvent<HTMLElement>) {
@@ -181,28 +210,35 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
     else setDrag(0);
   }
 
-  const done = places.length - left.length;
+  const done = total - left.length;
   const lean = Math.max(-1, Math.min(1, drag / SWIPE_DISTANCE));
 
   if (!current) {
+    const liked = places.filter((p) => reactionOf(p.id) === 'like');
     return (
       <section className="swipe" aria-label="Swipe through the places">
-        <div className="card stack center swipe-done">
-          <p className="swipe-done-emoji" aria-hidden>
-            🎉
-          </p>
-          <p>
-            <strong>That&apos;s every place.</strong>
-          </p>
-          <p className="muted small">
-            {view.members.length > 1 ? 'Matches show up above as the others swipe.' : 'Everything you liked is above.'}
-          </p>
-          {history.length > 0 && (
-            <button className="button link" onClick={() => void undo()}>
-              Undo last swipe
-            </button>
-          )}
-        </div>
+        <RoundEnd
+          view={view}
+          liked={liked}
+          narrowing={narrow !== null}
+          unseen={places.filter((p, i) => i >= batchEnd && reactionOf(p.id) === undefined).length}
+          onSeeMore={() => {
+            setNarrow(null);
+            setBatchEnd((end) => end + BATCH);
+          }}
+          onSearchMore={async () => {
+            await onMore();
+            setNarrow(null);
+            setBatchEnd(Math.max(batchEnd, places.length) + BATCH);
+          }}
+          onNarrow={() => setNarrow({ ids: liked.map((p) => p.id), decided: {} })}
+          onDone={() => setNarrow(null)}
+        />
+        {history.length > 0 && (
+          <button className="button link center" onClick={() => void undo()}>
+            Undo last swipe
+          </button>
+        )}
         {error && <p className="error">{error}</p>}
       </section>
     );
@@ -212,10 +248,11 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
     <section className="swipe" aria-label="Swipe through the places">
       <div className="swipe-meta">
         <div className="swipe-progress" aria-hidden>
-          <div style={{ width: `${(done / places.length) * 100}%` }} />
+          <div style={{ width: `${(done / total) * 100}%` }} />
         </div>
         <p className="muted small swipe-count">
-          {done + 1} of {places.length}
+          {narrow ? 'Narrowing down · ' : ''}
+          {done + 1} of {total}
         </p>
         <MatchCount view={view} />
       </div>
@@ -281,6 +318,98 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
       {done === 0 && <p className="muted small center">Swipe right to like, left to pass.</p>}
       {error && <p className="error">{error}</p>}
     </section>
+  );
+}
+
+/**
+ * The end of a round (TRADEOFFS.md 22c): deal 10 more (or search further out
+ * when the search has run out), or go back through your likes to narrow
+ * them down until one is left.
+ */
+function RoundEnd({
+  view,
+  liked,
+  narrowing,
+  unseen,
+  onSeeMore,
+  onSearchMore,
+  onNarrow,
+  onDone
+}: {
+  view: SessionView;
+  liked: PlaceCandidate[];
+  narrowing: boolean;
+  unseen: number;
+  onSeeMore: () => void;
+  onSearchMore: () => Promise<void>;
+  onNarrow: () => void;
+  onDone: () => void;
+}) {
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string>();
+  const pick = liked.length === 1 ? liked[0] : undefined;
+
+  async function searchMore() {
+    setSearching(true);
+    setSearchError(undefined);
+    try {
+      await onSearchMore();
+    } catch (e) {
+      setSearchError(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  return (
+    <div className="card stack center swipe-done">
+      <p className="swipe-done-emoji" aria-hidden>
+        {pick ? '🏆' : narrowing ? '✂️' : '🎉'}
+      </p>
+      {pick ? (
+        <>
+          <p>
+            <strong>Your top pick: {pick.name}</strong>
+          </p>
+          <a className="swipe-link" href={directionsUrl(pick, view.placesSource)} target="_blank" rel="noreferrer">
+            Directions ↗
+          </a>
+        </>
+      ) : (
+        <p>
+          <strong>
+            {narrowing
+              ? liked.length === 0
+                ? 'You passed on all of them.'
+                : `${liked.length} still in the running.`
+              : 'End of this round.'}
+          </strong>
+        </p>
+      )}
+      <div className="stack tight round-actions">
+        {liked.length >= 2 && (
+          <button className="button primary" onClick={onNarrow}>
+            {narrowing ? `Narrow down again (${liked.length} left)` : `Go through my ${liked.length} likes again`}
+          </button>
+        )}
+        {unseen > 0 ? (
+          <button className="button" onClick={onSeeMore}>
+            See {Math.min(unseen, BATCH)} more {Math.min(unseen, BATCH) === 1 ? 'place' : 'places'}
+          </button>
+        ) : (
+          <button className="button" onClick={() => void searchMore()} disabled={searching}>
+            {searching ? 'Searching…' : 'Search for more places'}
+          </button>
+        )}
+        {narrowing && (
+          <button className="button link" onClick={onDone}>
+            Back to all places
+          </button>
+        )}
+      </div>
+      {searchError && <p className="error small">{searchError}</p>}
+      {!narrowing && view.members.length > 1 && <p className="muted small">Matches show up as the others swipe.</p>}
+    </div>
   );
 }
 

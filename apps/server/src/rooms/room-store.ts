@@ -50,6 +50,8 @@ export interface RoomState {
    * Never sent to clients as is.
    */
   candidates?: PlaceCandidate[];
+  /** Searches made so far, so "search for more places" knows how far to look next. */
+  searches?: number;
   /** Places people voted on that no longer fit after someone's edit. */
   noLongerFits?: string[];
   /**

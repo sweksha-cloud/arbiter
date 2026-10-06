@@ -205,6 +205,14 @@ export function registerSocketHandlers(
       })
     );
 
+    socket.on('session:more-places', (ack) =>
+      respond(ack, logContext('session:more-places'), async () => {
+        const sessionId = currentSession(socket);
+        const { room } = await sessions.searchMore(sessionId, guest);
+        await broadcast(sessionId, room);
+      })
+    );
+
     socket.on('session:start', (ack) =>
       respond(ack, logContext('session:start'), async () => {
         const sessionId = currentSession(socket);

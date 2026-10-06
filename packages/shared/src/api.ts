@@ -242,6 +242,8 @@ export interface ClientToServerEvents {
   'session:origin': (payload: { origin: NamedLocation | null }, ack: (result: Ack) => void) => void;
   /** Host only: show results before everyone has submitted. */
   'session:start': (ack: (result: Ack) => void) => void;
+  /** After the deck runs out: one more search, further out (TRADEOFFS.md 22c). */
+  'session:more-places': (ack: (result: Ack) => void) => void;
   /** Liking one of the more options adds it to the suggestions; nothing else is allowed on them. */
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
   /** Marks (or unmarks) a suggested place as having, e.g., high-protein options. */

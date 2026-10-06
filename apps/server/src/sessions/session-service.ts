@@ -108,6 +108,8 @@ export const MIN_MORE_OPTIONS = 10;
 export const MAX_SEARCHES = 3;
 /** When the first search finds nothing, follow-ups search at least this far (about 5 miles). */
 export const WIDER_SEARCH_METERS = 8_000;
+/** All searches in a session, including "search for more places" (TRADEOFFS.md 22c). */
+export const MAX_SEARCHES_WITH_MORE = 6;
 
 /**
  * Results appear on their own once everyone has submitted, but only with at
@@ -651,6 +653,7 @@ export class SessionService {
         moreOptions,
         closestMatches,
         candidates,
+        searches,
         ...(searchedNear !== undefined && { searchedNear }),
         scannedCount: scanned.length,
         eliminatedCount
@@ -747,6 +750,58 @@ export class SessionService {
         : ranked;
     const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
     return { ranked, fitting, closestMatches, eliminatedCount, agreed };
+  }
+
+  /**
+   * "Search for more places" after the deck runs out (TRADEOFFS.md 22c): one
+   * more search, each time a step further out (by distance, then 2x, 4x the
+   * radius), merged in and filtered like everything else. Anyone can ask,
+   * while voting, up to MAX_SEARCHES_WITH_MORE searches per session.
+   * Returns how many new places fit.
+   */
+  async searchMore(sessionId: string, guest: Guest): Promise<{ room: RoomState; added: number }> {
+    const room = await this.get(sessionId);
+    if (!room.members.some((m) => m.id === guest.id)) throw new SessionError('forbidden', 'Join the session first');
+    if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
+    const done = room.searches ?? 1;
+    if (done >= MAX_SEARCHES_WITH_MORE) {
+      throw new SessionError('quota', "That's every place Arbiter can search for this session.");
+    }
+    const { center, radiusMeters } = searchPlan(room, this.options.radiusMeters);
+    const step = done - 1; // 0: by distance, then wider and wider.
+    const request =
+      step === 0
+        ? { center, radiusMeters, rankBy: 'distance' as const }
+        : { center, radiusMeters: Math.min(radiusMeters * 2 ** step, MAX_DISTANCE_METERS) };
+    let found: PlaceCandidate[];
+    try {
+      found = await this.options.places.searchNearby(request);
+    } catch (error) {
+      if (error instanceof PlacesQuotaExceededError) throw error;
+      this.options.log?.error({ err: error, sessionId }, 'Search for more places failed');
+      throw new SessionError('unavailable', "Arbiter couldn't search for places just now. Try again in a minute.");
+    }
+    const withMenus = await addMenus(found, this.options.menus);
+    let added = 0;
+    const updated = await this.update(sessionId, (current) => {
+      const known = new Set((current.candidates ?? [...current.suggestions, ...current.moreOptions]).map((p) => p.id));
+      const fresh = withMenus.filter((p) => !known.has(p.id));
+      const candidates = [...(current.candidates ?? [...current.suggestions, ...current.moreOptions]), ...fresh];
+      const { ranked, fitting, closestMatches } = this.arrange(current, candidates);
+      const pool = closestMatches ? ranked : [...fitting, ...ranked.filter((p) => !fitting.includes(p))];
+      const shown = new Set([...current.suggestions, ...current.moreOptions].map((p) => p.id));
+      const newcomers = pool.filter((p) => !shown.has(p.id));
+      added = newcomers.length;
+      return {
+        ...current,
+        candidates,
+        searches: (current.searches ?? 1) + 1,
+        moreOptions: [...current.moreOptions, ...newcomers],
+        scannedCount: candidates.length
+      };
+    });
+    this.options.log?.info({ sessionId, searches: updated.searches, added }, 'Searched for more places');
+    return { room: updated, added };
   }
 
   /** Google's photo reference for a place in this session, for the photo endpoint. */

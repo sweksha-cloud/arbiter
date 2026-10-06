@@ -539,3 +539,26 @@ test('swiping alone shows every place you liked', async ({ newPhone }) => {
   await expect(liked.getByText(third!)).toBeVisible();
 });
 
+test('swiping comes in rounds of 10, then you can see more or narrow your likes to a top pick', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await hostSession(phone, 'Sweksha');
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  await phone.getByRole('button', { name: 'Show results now' }).click();
+  await expect(phone.getByText(/^1 of 10$/)).toBeVisible();
+  const swipe = async (like: boolean) => {
+    const name = await phone.locator('article.swipe-card h3').textContent();
+    await phone.getByRole('button', { name: `${like ? 'Like' : 'Pass on'} ${name}` }).click();
+  };
+  // Like the 1st and 2nd, pass on the rest of the round.
+  for (let i = 0; i < 10; i++) await swipe(i < 2);
+  await expect(phone.getByText('End of this round.')).toBeVisible();
+  await expect(phone.getByRole('button', { name: /^See \d+ more places?$/ })).toBeVisible();
+
+  await phone.getByRole('button', { name: 'Go through my 2 likes again' }).click();
+  await expect(phone.getByText(/^Narrowing down · 1 of 2$/)).toBeVisible();
+  const keep = await phone.locator('article.swipe-card h3').textContent();
+  await swipe(true);
+  await swipe(false);
+  await expect(phone.getByText(`Your top pick: ${keep}`)).toBeVisible();
+});
+

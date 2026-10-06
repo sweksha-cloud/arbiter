@@ -8,7 +8,7 @@ import type { PlacesProvider } from '../places/places-provider.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
 import { InMemoryRoomStore } from '../rooms/in-memory-room-store.js';
-import { MAX_SEARCHES, SessionService, STALE_SCAN_MS } from './session-service.js';
+import { MAX_SEARCHES, MAX_SEARCHES_WITH_MORE, SessionService, STALE_SCAN_MS } from './session-service.js';
 
 const center = { lat: 37.3352, lng: -121.8811 };
 const noPreferences: Preferences = { hard: {}, soft: {} };
@@ -922,6 +922,40 @@ describe('SessionService', () => {
       const { service, host, sessionId } = await setup(withPhoto());
       const room = await service.start(sessionId, host);
       expect(service.view(room, host.id).suggestions.find((s) => s.place.id === 'a')!.place).not.toHaveProperty('photo');
+    });
+  });
+
+  describe('search for more places (TRADEOFFS.md 22c)', () => {
+    it('adds new places to the end of the deck, never repeats one, and stops at the cap', async () => {
+      // Each search finds one place it hasn't before (and one it has).
+      let calls = 0;
+      const provider: PlacesProvider = {
+        searchNearby: async () => {
+          calls += 1;
+          return [place(`p${calls}`, { rating: 4 }), place('p1', { rating: 4 })] as never;
+        }
+      };
+      const { service, host, friend, sessionId } = await lobbyOfTwo(provider);
+      await service.submit(sessionId, host, noPreferences);
+      let room = await service.submit(sessionId, friend, noPreferences);
+      const before = [...room.suggestions, ...room.moreOptions].map((p) => p.id);
+
+      const { room: more, added } = await service.searchMore(sessionId, friend);
+      room = more;
+      const after = [...room.suggestions, ...room.moreOptions].map((p) => p.id);
+      expect(added).toBe(1);
+      expect(after.slice(0, before.length)).toEqual(before);
+      expect(new Set(after).size).toBe(after.length);
+
+      while ((room.searches ?? 1) < MAX_SEARCHES_WITH_MORE) room = (await service.searchMore(sessionId, host)).room;
+      await expect(service.searchMore(sessionId, host)).rejects.toMatchObject({ code: 'quota' });
+    });
+
+    it('only works while voting, for members', async () => {
+      const { service, guests, host, sessionId } = await lobbyOfTwo();
+      await expect(service.searchMore(sessionId, host)).rejects.toMatchObject({ code: 'invalid_state' });
+      const stranger = (await guests.create('Stranger')).guest;
+      await expect(service.searchMore(sessionId, stranger)).rejects.toMatchObject({ code: 'forbidden' });
     });
   });
 

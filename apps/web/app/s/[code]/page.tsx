@@ -232,6 +232,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 onSwipe={async (placeId, reaction) =>
                   failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction }))
                 }
+                onMore={async () => failOn(await (await joinedSocket()).emitWithAck('session:more-places'))}
               />
             }
             list={
