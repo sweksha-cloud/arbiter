@@ -230,11 +230,14 @@ describe('SessionService', () => {
     expect(searchNearby).toHaveBeenCalledWith({ center, radiusMeters: 3000 });
   });
 
-  it('goes back to the lobby if the scan fails', async () => {
+  it('goes back to the lobby if the scan fails, and says so plainly (BUG-031)', async () => {
     const failing: PlacesProvider = { searchNearby: () => Promise.reject(new Error('network down')) };
     const { service, host, friend, sessionId } = await lobbyOfTwo(failing);
     await service.submit(sessionId, host, noPreferences);
-    await expect(service.submit(sessionId, friend, noPreferences)).rejects.toThrow('network down');
+    await expect(service.submit(sessionId, friend, noPreferences)).rejects.toMatchObject({
+      code: 'unavailable',
+      message: "Arbiter couldn't search for places just now. Try again in a minute."
+    });
     expect((await service.get(sessionId)).status).toBe('lobby');
   });
 
@@ -372,8 +375,10 @@ describe('SessionService', () => {
     it('logs a failed scan with the session it belongs to', async () => {
       const failing: PlacesProvider = { searchNearby: () => Promise.reject(new Error('network down')) };
       const { service, host, sessionId, logged } = await setup(failing);
-      await expect(service.start(sessionId, host)).rejects.toThrow('network down');
-      expect(logged.find((l) => l.message.startsWith('Scan failed'))?.details).toMatchObject({ sessionId });
+      await expect(service.start(sessionId, host)).rejects.toMatchObject({ code: 'unavailable' });
+      // The log keeps the real cause; people get a plain message.
+      const entry = logged.find((l) => l.message.startsWith('Scan failed'));
+      expect(entry?.details).toMatchObject({ sessionId, err: expect.objectContaining({ message: 'network down' }) });
     });
   });
 

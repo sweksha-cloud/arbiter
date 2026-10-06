@@ -206,13 +206,15 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           ) : (
             <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
           )}
-          {isHost && (
-            <ShowResultsNow view={view} onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))} />
-          )}
         </>
       )}
 
       {view.status === 'scanning' && <p className="card">Everyone&apos;s in. Finding places…</p>}
+
+      {/* Kept on the page while searching, so a failed search's message isn't lost (BUG-031). */}
+      {isHost && (view.status === 'lobby' || view.status === 'scanning') && (
+        <ShowResultsNow view={view} onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))} />
+      )}
 
       {(view.status === 'voting' || view.status === 'ended') && (
         <section className="stack">
@@ -491,6 +493,9 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => P
       setError(e instanceof Error ? e.message : 'Something went wrong');
     }
   }
+
+  // While searching, only a message from the last try (if any) shows.
+  if (view.status !== 'lobby') return error ? <p className="error center">{error}</p> : null;
 
   return (
     <section className="stack tight center">

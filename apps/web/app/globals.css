@@ -651,8 +651,11 @@ body > main {
 .site-footer {
   max-width: 480px;
   margin: 0 auto;
-  padding: 24px 16px 32px;
+  padding: 12px 16px 20px;
   text-align: center;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  opacity: 0.85;
 }
 
 /* Kinds of place keep their own capitalisation ("Café", "Fast food"). */
