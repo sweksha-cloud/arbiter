@@ -382,10 +382,14 @@ function RoundEnd({
               ? liked.length === 0
                 ? 'You passed on all of them.'
                 : `${liked.length} still in the running.`
-              : 'End of this round.'}
+              : liked.length === 0
+                ? 'End of this round. No likes yet.'
+                : `End of this round. You liked ${liked.length}:`}
           </strong>
         </p>
       )}
+      {/* Your choices so far, so the next step is an informed one. */}
+      {!pick && liked.length > 0 && <LikedList places={liked} view={view} />}
       <div className="stack tight round-actions">
         {liked.length >= 2 && (
           <button className="button primary" onClick={onNarrow}>
@@ -410,6 +414,35 @@ function RoundEnd({
       {searchError && <p className="error small">{searchError}</p>}
       {!narrowing && view.members.length > 1 && <p className="muted small">Matches show up as the others swipe.</p>}
     </div>
+  );
+}
+
+/** The places you've liked, compact: photo or emoji, name, key facts, directions. */
+function LikedList({ places, view }: { places: PlaceCandidate[]; view: SessionView }) {
+  return (
+    <ul className="liked-list" aria-label="Places you liked">
+      {places.map((place) => {
+        const facts = [
+          place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`,
+          formatPrice(place.pricePerPerson, place.priceLevel),
+          formatDistance(place.distanceMeters)
+        ].filter(Boolean);
+        return (
+          <li key={place.id}>
+            <span className={`liked-thumb ${tintFor(place.id)}`} aria-hidden>
+              {place.photo?.url ? <img src={`${SERVER_URL}${place.photo.url}`} alt="" /> : emojiFor(place)}
+            </span>
+            <span className="liked-text">
+              <strong>{place.name}</strong>
+              <span className="muted small">{facts.join(' · ')}</span>
+            </span>
+            <a href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer" aria-label={`Directions to ${place.name}`}>
+              ↗
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
