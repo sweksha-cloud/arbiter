@@ -112,11 +112,13 @@ test('the host sets up where to meet before the session exists; only the host se
   await expect(friend.getByLabel('Invite link')).toHaveCount(0);
   await expect(friend.getByRole('button', { name: 'Change' })).toHaveCount(0);
 
-  // The host's bar stays through results.
+  // Once results are in, the host's bar moves to the bottom of the page (still only theirs).
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(friend.getByText(/^Searched near downtown san jose \(sample\)/)).toBeVisible();
   await expect(host.getByLabel('Invite link')).toHaveValue(invite);
+  await expect(host.locator('.host-bar')).toHaveClass(/bottom/);
+  await expect(friend.getByLabel('Invite link')).toHaveCount(0);
 });
 
 test('the host can change the area in the lobby', async ({ newPhone }) => {

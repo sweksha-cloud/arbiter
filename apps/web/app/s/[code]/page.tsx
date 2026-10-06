@@ -186,12 +186,15 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
 
   const isHost = view.hostId === identity.guest.id;
   const me = view.members.find((m) => m.id === identity.guest.id);
+  const resultsIn = view.status === 'voting' || view.status === 'ended';
 
   return (
     <>
       <ConnectionBanner connected={connected} />
+      {/* The host's invite bar is pinned on top while people join; once results
+          are in it moves to the bottom, out of the way of swiping. */}
       {isHost ? (
-        <HostBar sessionId={view.sessionId} />
+        !resultsIn && <HostBar sessionId={view.sessionId} />
       ) : (
         <header className="stack tight">
           <p className="muted small">Session</p>
@@ -318,6 +321,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           )}
 
           <Members view={view} myId={identity.guest.id} />
+          {isHost && <HostBar sessionId={view.sessionId} atBottom />}
         </section>
       )}
     </>
@@ -368,7 +372,7 @@ function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
  * through the whole session, so inviting someone is always one tap away.
  * Only the host sees it.
  */
-function HostBar({ sessionId }: { sessionId: string }) {
+function HostBar({ sessionId, atBottom = false }: { sessionId: string; atBottom?: boolean }) {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/s/${sessionId}`;
   const canShare = typeof navigator.share === 'function';
@@ -380,7 +384,7 @@ function HostBar({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <header className="host-bar" aria-label="Invite people to this session">
+    <header className={`host-bar ${atBottom ? 'bottom' : ''}`} aria-label="Invite people to this session">
       <div className="row spread nowrap">
         <div className="stack tight">
           <span className="small muted">Your session</span>
