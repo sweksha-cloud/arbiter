@@ -197,6 +197,7 @@ test('a custom distance limits results for the group, and "Don\'t care" adds no 
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
   // The sample data has exactly three places within 0.3 mi of the host.
+  await showList(friend);
   await expect(friend.locator('article h3')).toHaveCount(3);
   expect((await friend.locator('article h3').allTextContents()).sort()).toEqual([
     'Burger Barn',
@@ -506,7 +507,7 @@ test('swiping: everyone liking a place makes a match; alone, it lists what you l
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
   // Both like the first card (the same place for everyone); the host also passes on the next.
-  const first = await host.locator('.swipe-card h3').textContent();
+  const first = await host.locator('article.swipe-card h3').textContent();
   await host.getByRole('button', { name: `Like ${first}` }).click();
   await expect(host.getByText(/^2 of \d+/)).toBeVisible();
   await expect(host.getByText('No match yet.')).toBeVisible();
@@ -524,12 +525,12 @@ test('swiping alone shows every place you liked', async ({ newPhone }) => {
   await hostSession(phone, 'Sweksha');
   await phone.getByRole('button', { name: 'Submit', exact: true }).click();
   await phone.getByRole('button', { name: 'Show results now' }).click();
-  const first = await phone.locator('.swipe-card h3').textContent();
+  const first = await phone.locator('article.swipe-card h3').textContent();
   await phone.getByRole('button', { name: `Like ${first}` }).click();
   await expect(phone.getByText(/^2 of \d+$/)).toBeVisible();
   await phone.keyboard.press('ArrowLeft'); // Keyboard works too: pass on the second.
   await expect(phone.getByText(/^3 of \d+$/)).toBeVisible();
-  const third = await phone.locator('.swipe-card h3').textContent();
+  const third = await phone.locator('article.swipe-card h3').textContent();
   await phone.getByRole('button', { name: `Like ${third}` }).click();
   const liked = phone.getByRole('region', { name: 'Places you liked' });
   await expect(liked.getByRole('heading', { name: 'Places you liked (2)' })).toBeVisible();

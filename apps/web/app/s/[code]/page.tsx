@@ -646,4 +646,3 @@ function SessionCode({ sessionId }: { sessionId: string }) {
     </header>
   );
 }
-
