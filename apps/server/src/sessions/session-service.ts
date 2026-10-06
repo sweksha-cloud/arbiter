@@ -446,9 +446,13 @@ export class SessionService {
       };
     });
     if (added) this.record(sessionId, 'add', () => this.options.history.addSuggestion(sessionId, placeId));
-    this.record(sessionId, 'react', () =>
-      this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
-    );
+    // History keeps reactions to suggested places only: a swipe left on a
+    // "more options" place stays in the live session (BUG-034).
+    if (updated.suggestions.some((p) => p.id === placeId)) {
+      this.record(sessionId, 'react', () =>
+        this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
+      );
+    }
     return updated;
   }
 

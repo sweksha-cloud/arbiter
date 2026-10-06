@@ -290,6 +290,7 @@ test('an allergy shows the group a reminder, never who has it', async ({ newPhon
   const { invite } = await hostSession(host, 'Sweksha');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
   await joinSession(friend, invite, 'Alex');
+  await openOptionalSections(friend);
   await friend.getByLabel('Shellfish').check();
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 

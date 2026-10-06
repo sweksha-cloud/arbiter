@@ -1085,6 +1085,17 @@ describe('SessionService', () => {
       ]);
     });
 
+    it('keeps a swipe left on a "more options" place out of history, which only holds suggested places (BUG-034)', async () => {
+      const history = new InMemorySessionHistory();
+      const recordReaction = vi.spyOn(history, 'recordReaction');
+      const { service, host, sessionId } = await setup(sixPlaces(), history);
+      await service.start(sessionId, host);
+      await service.react(sessionId, host, 'e', 'dislike');
+      await service.react(sessionId, host, 'a', 'like');
+      await service.settleHistory();
+      expect(recordReaction.mock.calls.map((c) => c[2])).toEqual(['a']);
+    });
+
     it('records a swipe left without moving the place, and only while voting', async () => {
       const { service, host, sessionId } = await setup(sixPlaces());
       await service.start(sessionId, host);

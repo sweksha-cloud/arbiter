@@ -23,7 +23,8 @@ export default function HomePage() {
         <HeroPreview />
         <ol className="hero-steps">
           <li>
-            <span aria-hidden>🔒</span> Set your must-haves. <span className="muted">Nobody sees them.</span>
+            <span aria-hidden>🔒</span> Set your must-haves.{' '}
+            <span className="muted">Your answers are never shared with your group.</span>
           </li>
           <li>
             <span aria-hidden>👉</span> Swipe on places nearby that work for everyone.
