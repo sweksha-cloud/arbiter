@@ -1002,17 +1002,43 @@ body {
 
 .swipe-summary {
   margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text) 78%, var(--surface));
 }
 
 .swipe-features {
+  list-style: none;
   margin: 0;
-  font-size: 0.78rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swipe-features li {
+  font-size: 0.74rem;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .swipe-links {
   display: flex;
-  gap: 16px;
-  margin: 4px 0 0;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+
+.swipe-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--link);
 }
 
 .tint-coral .swipe-hero {
@@ -1032,7 +1058,14 @@ body {
 }
 
 .swipe-body {
+  display: flex;
+  flex-direction: column;
   padding: 16px 18px 18px;
+  gap: 10px;
+}
+
+.swipe-body h3 + .swipe-facts {
+  margin-top: -4px;
 }
 
 .swipe-body h3 {
@@ -1047,8 +1080,9 @@ body {
 }
 
 .swipe-facts span {
-  font-size: 0.85rem;
-  padding: 3px 10px;
+  font-size: 0.8rem;
+  padding: 2px 9px;
+  white-space: nowrap;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }

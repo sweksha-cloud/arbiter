@@ -297,7 +297,7 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
   const missed = view.missesForYou[place.id];
   const fits = view.suggestions.find((s) => s.place.id === place.id)?.menuNutrition?.fitsYou;
   return (
-    <div className="swipe-body stack tight">
+    <div className="swipe-body">
       <h3>{place.name}</h3>
       <div className="swipe-facts">
         {facts.map((fact) => (
@@ -307,7 +307,11 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
       {place.cuisines.length > 0 && <p className="swipe-cuisines">{place.cuisines.slice(0, 4).join(' · ')}</p>}
       {place.summary && <p className="small swipe-summary">{place.summary}</p>}
       {place.features && place.features.length > 0 && (
-        <p className="muted swipe-features">{place.features.map((f) => FEATURE_LABELS[f]).join('  ·  ')}</p>
+        <ul className="swipe-features" aria-label="Features">
+          {place.features.map((f) => (
+            <li key={f}>{FEATURE_LABELS[f]}</li>
+          ))}
+        </ul>
       )}
       {view.noLongerFits.includes(place.id) && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
       {missed && <p className="small misses">{describeMisses(missed)}</p>}
@@ -316,12 +320,12 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
           <strong>Fits your nutrition settings:</strong> {fits.name}
         </p>
       )}
-      <p className="small swipe-links">
-        <a href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer">
+      <p className="swipe-links">
+        <a className="swipe-link" href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer">
           Directions ↗
         </a>
         {place.website && (
-          <a href={place.website} target="_blank" rel="noreferrer">
+          <a className="swipe-link" href={place.website} target="_blank" rel="noreferrer">
             Website ↗
           </a>
         )}
