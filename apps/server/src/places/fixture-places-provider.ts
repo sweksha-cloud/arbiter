@@ -8,8 +8,10 @@ export type FixturePlace = Omit<PlaceCandidate, 'distanceMeters'>;
 export class FixturePlacesProvider implements PlacesProvider {
   constructor(private readonly places: readonly FixturePlace[]) {}
 
-  async searchNearby({ center, radiusMeters }: NearbySearchRequest): Promise<PlaceCandidate[]> {
+  async searchNearby({ center, radiusMeters, cuisines }: NearbySearchRequest): Promise<PlaceCandidate[]> {
+    const wanted = cuisines?.map((c) => c.toLowerCase());
     return this.places
+      .filter((place) => !wanted || place.cuisines.some((c) => wanted.includes(c.toLowerCase())))
       .map((place) => ({ ...place, distanceMeters: Math.round(distanceMeters(center, place.location)) }))
       .filter((place) => place.distanceMeters <= radiusMeters)
       .sort((a, b) => a.distanceMeters - b.distanceMeters);

@@ -93,6 +93,11 @@ export interface SessionServiceOptions {
  */
 export const STALE_SCAN_MS = 60_000;
 
+/** The main list plus at least this many "more options" should fit everyone (TRADEOFFS.md 2k). */
+export const MIN_MORE_OPTIONS = 10;
+/** Searches per session at most: the first, then follow-ups only while too few places fit. */
+export const MAX_SEARCHES = 3;
+
 /**
  * Results appear on their own once everyone has submitted, but only with at
  * least this many people; otherwise a host alone in a new session would see
@@ -591,13 +596,13 @@ export class SessionService {
       // Search exactly as far as the group will go, so a far limit finds far
       // places and a close one spends the scan's results on nearby places.
       const { center, radiusMeters } = searchPlan(room, this.options.radiusMeters);
-      const scanned = await this.options.places.searchNearby({ center, radiusMeters });
       // What everyone sees above the results: the host's area, by its name.
       const searchedNear = room.meetingMode === 'area' ? room.area?.label : undefined;
       // Menus for every chain found, not only those that fit: a vegan
       // must-have needs them, and an edit after results re-filters these same
       // places for free (TRADEOFFS.md 2i). Chain menus are cached.
-      const candidates = await addMenus(scanned, this.options.menus);
+      const { candidates, searches } = await this.searchUntilEnough(room, center, radiusMeters);
+      const scanned = candidates;
       const { ranked, fitting, closestMatches, eliminatedCount, agreed } = this.arrange(room, candidates);
       const suggestions = (closestMatches ? ranked : fitting).slice(0, DEFAULT_SUGGESTION_COUNT);
       const moreOptions = ranked.filter((p) => !suggestions.includes(p));
@@ -612,6 +617,7 @@ export class SessionService {
           meetingMode: room.meetingMode,
           origins: memberOrigins(room).length,
           radiusMeters,
+          searches,
           scanned: scanned.length,
           eliminated: eliminatedCount,
           suggested: suggestions.length,
@@ -650,6 +656,39 @@ export class SessionService {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' })).catch(() => {});
       throw error;
     }
+  }
+
+  /**
+   * The first search, then follow-ups while fewer than the main list plus
+   * MIN_MORE_OPTIONS places fit everyone (TRADEOFFS.md 2k): first the
+   * cuisines people liked, then the same area by distance (a different 20).
+   * At most MAX_SEARCHES; a failed follow-up keeps what was already found.
+   */
+  private async searchUntilEnough(room: RoomState, center: LatLng, radiusMeters: number) {
+    const liked = [...new Set(Object.values(room.submissions).flatMap((p) => p.soft.likedCuisines ?? []))];
+    const followUps = [...(liked.length > 0 ? [{ cuisines: liked }] : []), { rankBy: 'distance' as const }];
+    const first = await this.options.places.searchNearby({ center, radiusMeters });
+    let candidates = await addMenus(first, this.options.menus);
+    let searches = 1;
+    const enough = () => this.arrange(room, candidates).fitting.length >= DEFAULT_SUGGESTION_COUNT + MIN_MORE_OPTIONS;
+    for (const followUp of followUps) {
+      if (searches >= MAX_SEARCHES || enough()) break;
+      searches += 1;
+      try {
+        const found = await this.options.places.searchNearby({ center, radiusMeters, ...followUp });
+        const known = new Set(candidates.map((p) => p.id));
+        const added = await addMenus(
+          found.filter((p) => !known.has(p.id)),
+          this.options.menus
+        );
+        candidates = [...candidates, ...added];
+      } catch (error) {
+        // Not an alert: the session still has the first search's places.
+        this.options.log?.info({ err: error, sessionId: room.sessionId }, 'Follow-up search failed; using what was found');
+        break;
+      }
+    }
+    return { candidates, searches };
   }
 
   /**

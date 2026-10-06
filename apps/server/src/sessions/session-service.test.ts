@@ -8,7 +8,7 @@ import type { PlacesProvider } from '../places/places-provider.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { SlidingWindowLimiter } from '../rate-limits.js';
 import { InMemoryRoomStore } from '../rooms/in-memory-room-store.js';
-import { SessionService, STALE_SCAN_MS } from './session-service.js';
+import { MAX_SEARCHES, SessionService, STALE_SCAN_MS } from './session-service.js';
 
 const center = { lat: 37.3352, lng: -121.8811 };
 const noPreferences: Preferences = { hard: {}, soft: {} };
@@ -197,7 +197,8 @@ describe('SessionService', () => {
       service.submit(sessionId, friend, noPreferences)
     ]);
 
-    expect(searchNearby).toHaveBeenCalledTimes(1);
+    // One scan per session (follow-ups for more options don't start a new one).
+    expect(searchNearby.mock.calls.filter(([q]) => !q.cuisines && !q.rankBy)).toHaveLength(1);
     expect(rooms.some((r) => r.status === 'voting')).toBe(true);
   });
 
@@ -209,7 +210,8 @@ describe('SessionService', () => {
     const results = await Promise.allSettled([service.start(sessionId, host), service.start(sessionId, host)]);
 
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
-    expect(searchNearby).toHaveBeenCalledTimes(1);
+    // One scan per session (follow-ups for more options don't start a new one).
+    expect(searchNearby.mock.calls.filter(([q]) => !q.cuisines && !q.rankBy)).toHaveLength(1);
   });
 
   it("searches as far as the group's tightest distance limit, or the default area if nobody set one", async () => {
@@ -219,12 +221,13 @@ describe('SessionService', () => {
     const limited = await lobbyOfTwo(provider);
     await limited.service.submit(limited.sessionId, limited.host, { hard: { maxDistanceMeters: 32_000 }, soft: {} });
     await limited.service.submit(limited.sessionId, limited.friend, { hard: { maxDistanceMeters: 16_000 }, soft: {} });
-    expect(searchNearby).toHaveBeenLastCalledWith({ center, radiusMeters: 16_000 });
+    expect(searchNearby).toHaveBeenCalledWith({ center, radiusMeters: 16_000 });
+    searchNearby.mockClear();
 
     const unlimited = await lobbyOfTwo(provider);
     await unlimited.service.submit(unlimited.sessionId, unlimited.host, noPreferences);
     await unlimited.service.submit(unlimited.sessionId, unlimited.friend, noPreferences);
-    expect(searchNearby).toHaveBeenLastCalledWith({ center, radiusMeters: 3000 });
+    expect(searchNearby).toHaveBeenCalledWith({ center, radiusMeters: 3000 });
   });
 
   it('goes back to the lobby if the scan fails', async () => {
@@ -769,8 +772,9 @@ describe('SessionService', () => {
       expect(room.suggestions.map((p) => p.id)).toEqual(['steak', 'bbq', 'salad', 'curry']);
       await service.react(sessionId, friend, 'steak', 'like');
 
+      const searchesBefore = searches();
       room = await service.submit(sessionId, host, { hard: { vegetarian: true }, soft: {} });
-      expect(searches()).toBe(1); // No new (paid) search.
+      expect(searches()).toBe(searchesBefore); // No new (paid) search.
       // The voted steakhouse stays, marked; bbq (no votes) is replaced by the next vegetarian fit.
       expect(room.suggestions.map((p) => p.id)).toEqual(['steak', 'salad', 'curry', 'tofu']);
       expect(service.view(room, friend.id).noLongerFits).toEqual(['steak']);
@@ -833,16 +837,52 @@ describe('SessionService', () => {
     });
   });
 
+  describe('searching again for more options (TRADEOFFS.md 2k)', () => {
+    const many = (n: number, prefix: string, extra: Partial<PlaceCandidate> = {}) =>
+      Array.from({ length: n }, (_, i) => place(`${prefix}${i}`, { cuisines: ['american'], ...extra }));
+
+    it('searches once when enough places fit everyone', async () => {
+      const provider = new FixturePlacesProvider(many(20, 'p'));
+      const searchNearby = vi.spyOn(provider, 'searchNearby');
+      const { service, host, friend, sessionId } = await lobbyOfTwo(provider);
+      await service.submit(sessionId, host, noPreferences);
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(searchNearby).toHaveBeenCalledTimes(1);
+      expect(room.moreOptions).toHaveLength(16);
+    });
+
+    it('then searches for liked cuisines and by distance, at most three times, keeping each place once', async () => {
+      // Only two vegetarian places at first; a Mexican search finds more.
+      const provider = new FixturePlacesProvider([
+        ...many(8, 'meat', { servesVegetarian: false }),
+        ...many(2, 'veg', { servesVegetarian: true }),
+        ...many(6, 'taco', { cuisines: ['mexican'], servesVegetarian: true })
+      ]);
+      const searchNearby = vi.spyOn(provider, 'searchNearby');
+      const { service, host, friend, sessionId } = await lobbyOfTwo(provider);
+      await service.submit(sessionId, host, { hard: { vegetarian: true }, soft: { likedCuisines: ['mexican'] } });
+      const room = await service.submit(sessionId, friend, noPreferences);
+      expect(searchNearby).toHaveBeenCalledTimes(MAX_SEARCHES);
+      expect(searchNearby.mock.calls.map(([q]) => q.cuisines ?? q.rankBy ?? 'first')).toEqual([
+        'first',
+        ['mexican'],
+        'distance'
+      ]);
+      const ids = [...room.suggestions, ...room.moreOptions].map((p) => p.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.filter((id) => id.startsWith('taco'))).toHaveLength(6);
+    });
+  });
+
   describe('a scan cut off mid-way (the server stopped or crashed)', () => {
     it('finishes scans in progress before shutting down', async () => {
       let release!: () => void;
-      const slow: PlacesProvider = {
-        searchNearby: () => new Promise((resolve) => (release = () => resolve([place('a')] as never)))
-      };
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const slow: PlacesProvider = { searchNearby: () => gate.then(() => [place('a')] as never) };
       const { service, host, friend, sessionId } = await lobbyOfTwo(slow);
       await service.submit(sessionId, host, noPreferences);
       const scanning = service.submit(sessionId, friend, noPreferences);
-      await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       let settled = false;
       const shutdown = service.settle().then(() => (settled = true));

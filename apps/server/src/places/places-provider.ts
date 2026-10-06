@@ -3,6 +3,10 @@ import type { LatLng, PlaceCandidate } from '@arbiter/shared';
 export interface NearbySearchRequest {
   center: LatLng;
   radiusMeters: number;
+  /** Only places serving these cuisines (a follow-up search for what people liked). Default: any food place. */
+  cuisines?: readonly string[];
+  /** Default 'popularity'; 'distance' finds a different set of nearby places. */
+  rankBy?: 'popularity' | 'distance';
 }
 
 /**

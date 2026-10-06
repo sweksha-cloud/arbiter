@@ -29,6 +29,21 @@ export const FIELD_MASK = [
 /** Restaurants, cafes and fast food (spec section 2). Provisional: DESIGN.md section 4. */
 export const INCLUDED_TYPES = ['restaurant', 'cafe', 'fast_food_restaurant'];
 
+/** Google's place type for each cuisine on the preferences form (Places API Table A). */
+export const CUISINE_TYPES: Record<string, string> = {
+  american: 'american_restaurant',
+  burgers: 'hamburger_restaurant',
+  chinese: 'chinese_restaurant',
+  french: 'french_restaurant',
+  indian: 'indian_restaurant',
+  italian: 'italian_restaurant',
+  japanese: 'japanese_restaurant',
+  mexican: 'mexican_restaurant',
+  pizza: 'pizza_restaurant',
+  thai: 'thai_restaurant',
+  vietnamese: 'vietnamese_restaurant'
+};
+
 /** Nearby Search returns at most 20; one call per session is the budget rule. */
 const MAX_RESULTS = 20;
 
@@ -204,7 +219,9 @@ export class GooglePlacesProvider implements PlacesProvider {
     this.fetch = options.fetch ?? fetch;
   }
 
-  async searchNearby({ center, radiusMeters }: NearbySearchRequest): Promise<PlaceCandidate[]> {
+  async searchNearby({ center, radiusMeters, cuisines, rankBy }: NearbySearchRequest): Promise<PlaceCandidate[]> {
+    const cuisineTypes = (cuisines ?? []).flatMap((c) => CUISINE_TYPES[c.toLowerCase()] ?? []);
+    if (cuisines && cuisineTypes.length === 0) return [];
     const response = await this.fetch(ENDPOINT, {
       method: 'POST',
       headers: {
@@ -213,8 +230,9 @@ export class GooglePlacesProvider implements PlacesProvider {
         'X-Goog-FieldMask': FIELD_MASK
       },
       body: JSON.stringify({
-        includedTypes: INCLUDED_TYPES,
+        includedTypes: cuisineTypes.length > 0 ? cuisineTypes : INCLUDED_TYPES,
         maxResultCount: MAX_RESULTS,
+        ...(rankBy === 'distance' && { rankPreference: 'DISTANCE' }),
         locationRestriction: {
           circle: {
             center: { latitude: center.lat, longitude: center.lng },
