@@ -32,6 +32,7 @@ export function JoinCodeForm({ label = 'Got a code from a friend?' }: { label?: 
       <button className="button" disabled={code.trim() === ''}>
         Join session
       </button>
+      {code.trim() === '' && <p className="muted small">Type the code from your invite to join.</p>}
     </form>
   );
 }

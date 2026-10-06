@@ -62,19 +62,18 @@ export function Greeting({ identity }: { identity: Identity }) {
   }
 
   return (
-    <div className="stack tight">
-      <p>
+    <div className="greeting">
+      <p className="greeting-name">
         Hi <strong>{identity.guest.displayName}</strong>.
       </p>
-      <p className="small muted">
-        <button type="button" className="inline-link" onClick={() => setEditing(true)}>
+      <div className="greeting-actions">
+        <button type="button" className="pill-button" onClick={() => setEditing(true)}>
           Change name
         </button>
-        {' · '}
-        <button type="button" className="inline-link" onClick={notYou} disabled={leaving}>
+        <button type="button" className="pill-button" onClick={notYou} disabled={leaving}>
           Not you?
         </button>
-      </p>
+      </div>
     </div>
   );
 }

@@ -5,8 +5,9 @@
   --surface-cool: #b5f8fe;
   --surface-lilac: #f75590;
   --text: #241d27;
-  --muted: #685c62;
-  --border: #e7c8c3;
+  --muted: #5e5258;
+  --border: #e2c0ba;
+  --input-bg: #fff9f6;
   /* Deep enough for white text on it and for pink text on the peach background (WCAG AA, 4.5:1). */
   --accent: #cd0a51;
   --accent-text: #ffffff;
@@ -25,13 +26,15 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #211b38;
-    --surface: #30284a;
+    --surface: #342b52;
     --surface-warm: #493044;
     --surface-cool: #1f4b4b;
     --surface-lilac: #a93668;
     --text: #fff5e9;
-    --muted: #c4b9d3;
-    --border: #5b4d78;
+    /* Brighter secondary text and borders: readable on the dark background (TRADEOFFS.md 23c). */
+    --muted: #ddd4ec;
+    --border: #74649c;
+    --input-bg: #3e3462;
     --accent: #ff8066;
     --accent-text: #291827;
     --link: #ff8066;
@@ -43,9 +46,6 @@
     --notice-text: #ffe291;
   }
 
-  .rejoin {
-    border-color: #e15d91;
-  }
 }
 
 * {
@@ -77,10 +77,22 @@ body::before {
   z-index: 0;
   pointer-events: none;
   content: '';
-  /* Back to full strength (owner, 2026-10-06: didn't like them faded). */
-  opacity: 0.13;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Ctext x='24' y='58' font-size='38'%3E🍕%3C/text%3E%3Ctext x='140' y='92' font-size='34'%3E🥑%3C/text%3E%3Ctext x='62' y='170' font-size='36'%3E🍜%3C/text%3E%3Ctext x='170' y='202' font-size='30'%3E🍓%3C/text%3E%3C/svg%3E");
-  background-size: 220px 220px;
+  /* Food emoji, spaced out so they read as a pattern, not clutter (TRADEOFFS.md 23c). */
+  opacity: 0.11;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Ctext x='30' y='70' font-size='40'%3E🍕%3C/text%3E%3Ctext x='220' y='130' font-size='36'%3E🥑%3C/text%3E%3Ctext x='90' y='260' font-size='38'%3E🍜%3C/text%3E%3Ctext x='270' y='320' font-size='32'%3E🍓%3C/text%3E%3C/svg%3E");
+  background-size: 360px 360px;
+}
+
+/* A soft glow of the app's colours behind everything. */
+body::after {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: '';
+  background:
+    radial-gradient(60vmax 50vmax at 10% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(50vmax 45vmax at 100% 110%, color-mix(in srgb, #a98bff 20%, transparent), transparent 70%);
 }
 
 body > * {
@@ -250,8 +262,10 @@ a {
 }
 
 .rejoin {
-  background: var(--surface-lilac);
-  border-color: #e0447b;
+  /* A quiet reminder, not a competing call to action (TRADEOFFS.md 23c). */
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  padding: 12px 14px;
 }
 
 .muted {
@@ -312,7 +326,7 @@ input:not([type='checkbox']) {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  background: var(--input-bg);
   color: var(--text);
   width: 100%;
 }
@@ -406,16 +420,20 @@ input:not([type='checkbox']) {
 }
 
 .save-banner {
+  /* A slim line under the header, not a block (TRADEOFFS.md 23c). */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: calc(100% - 32px);
-  max-width: 448px;
-  margin: 8px auto 0;
-  padding: 6px 6px 6px 14px;
-  background: var(--notice-bg);
-  color: var(--notice-text);
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 10px auto 0;
+  padding: 2px 4px 2px 14px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
   border-radius: 10px;
 }
 
@@ -424,8 +442,17 @@ input:not([type='checkbox']) {
 }
 
 .save-banner a {
-  color: inherit;
+  color: var(--link);
   font-weight: 700;
+}
+
+.save-banner .button.icon {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
 }
 
 /* Too many choices for one row: a grid, with the gaps drawn as dividers. */
@@ -609,7 +636,6 @@ input:not([type='checkbox']) {
 }
 
 .rejoin {
-  border-color: var(--accent);
   gap: 12px;
 }
 
@@ -1599,6 +1625,53 @@ body {
   /* The list view gets the full width: its cards are long. */
   .results-layout:has(.results-main:not(.swiping)) {
     grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+/* The main action on the home page stands out from everything around it (TRADEOFFS.md 23c). */
+.start-card {
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.greeting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.greeting-name {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.greeting-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pill-button {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pill-button:disabled {
+  opacity: 0.5;
+}
+
+@media (min-width: 960px) {
+  /* The preview sits under the headline, aligned with it. */
+  .page.home .hero-preview {
+    width: 440px;
   }
 }
 

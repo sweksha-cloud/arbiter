@@ -39,7 +39,7 @@ export function RejoinBanner({ token }: { token: string }) {
         <p className="muted small">{summary.isHost ? 'You started it. Your friends may be waiting.' : 'It’s still going.'}</p>
       </div>
       <div className="row nowrap">
-        <Link className="button primary" href={`/s/${summary.sessionId}`}>
+        <Link className="button" href={`/s/${summary.sessionId}`}>
           Rejoin
         </Link>
         <button className="button icon" aria-label="Dismiss" onClick={() => forgetActiveSession(sessionId)}>

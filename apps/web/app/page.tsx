@@ -43,20 +43,18 @@ export default function HomePage() {
       ) : (
         <>
           <RejoinBanner token={identity.token} />
-          <section className="card stack">
+          <section className="card stack start-card">
             <Greeting identity={identity} />
             <button className="button primary" onClick={start} disabled={busy}>
               {busy ? 'Starting…' : 'Start a session'}
             </button>
-            <p className="muted small">You&apos;ll choose where to meet in the next step.</p>
+            <p className="muted small">
+              You&apos;ll choose where to meet in the next step. · <Link href="/preferences">Edit my preferences</Link>
+            </p>
             {error && <p className="error">{error}</p>}
           </section>
 
           <JoinCodeForm />
-
-          <p className="center">
-            <Link href="/preferences">Edit my preferences</Link>
-          </p>
         </>
       )}
 

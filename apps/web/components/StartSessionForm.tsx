@@ -33,7 +33,7 @@ export function StartSessionForm({ onStart }: { onStart: (token: string) => void
   }
 
   return (
-    <form className="card stack" onSubmit={submit}>
+    <form className="card stack start-card" onSubmit={submit}>
       <label className="field">
         <span>What should your friends call you?</span>
         <input
