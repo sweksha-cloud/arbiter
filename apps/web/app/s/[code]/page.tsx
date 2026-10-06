@@ -155,7 +155,15 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   };
 
   async function submitPreferences(preferences: Preferences) {
-    failOn(await (await joinedSocket()).emitWithAck('session:submit', { preferences }));
+    const ack = await (await joinedSocket()).emitWithAck('session:submit', { preferences });
+    if (ack.ok) return;
+    // The answers were saved; only starting results failed (daily limit, Google
+    // down). The form closes on submit, so say it on the page itself (BUG-032).
+    if (ack.code === 'quota' || ack.code === 'unavailable') {
+      setError(ack.error);
+      return;
+    }
+    throw new Error(ack.error);
   }
 
   const meetingActions: MeetingActions = {
