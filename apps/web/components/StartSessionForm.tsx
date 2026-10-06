@@ -10,7 +10,7 @@ import { saveIdentity } from '../lib/identity';
  * The home page for first-time visitors: their name and "Start a session" in
  * one step. The name is required; the session itself is started by `onStart`.
  */
-export function StartSessionForm({ onStart }: { onStart: (token: string) => void }) {
+export function StartSessionForm({ onStart, bare = false }: { onStart: (token: string) => void; bare?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -33,7 +33,7 @@ export function StartSessionForm({ onStart }: { onStart: (token: string) => void
   }
 
   return (
-    <form className="card stack start-card" onSubmit={submit}>
+    <form className={bare ? 'stack' : 'card stack start-card'} onSubmit={submit}>
       <label className="field">
         <span>What should your friends call you?</span>
         <input

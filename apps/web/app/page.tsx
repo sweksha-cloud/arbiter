@@ -15,58 +15,62 @@ export default function HomePage() {
 
   return (
     <main className="page stack home">
-      <header className="hero">
-        <h1>Where should we eat?</h1>
-        <p className="hero-lead">
-          Everyone sets their must-haves privately. Then swipe together until you match.
-        </p>
-      </header>
+      <div className="home-hero">
+        <header className="hero">
+          <h1>Where should we eat?</h1>
+          <p className="hero-lead">
+            Everyone sets their must-haves privately. Then swipe together until you match.
+          </p>
+        </header>
 
-      {/* One main action: Start. Joining and rejoining are quieter (TRADEOFFS.md 23d). */}
-      {identity === undefined ? null : identity === null ? (
-        <>
-          <StartSessionForm onStart={startWith} />
-          <JoinCodeForm compact />
-        </>
-      ) : (
-        <>
-          <section className="card stack start-card">
-            <Greeting identity={identity} />
-            <button className="button primary" onClick={start} disabled={busy}>
-              {busy ? 'Starting…' : 'Start a session'}
-            </button>
-            <p className="muted small">
-              You&apos;ll choose where to meet in the next step.
-              {/* Signed-in people only: guests fill these in during the session (owner, 2026-10-06). */}
-              {hasAccount(identity) && (
-                <>
-                  {' · '}
-                  <Link href="/preferences">Edit my preferences</Link>
-                </>
-              )}
+        {/* One main action: Start. Joining (inside the same card) and rejoining are quieter (TRADEOFFS.md 23d). */}
+        {identity === undefined ? null : (
+          <div className="card stack start-card home-actions">
+            {identity === null ? (
+              <StartSessionForm onStart={startWith} bare />
+            ) : (
+              <>
+                <Greeting identity={identity} />
+                <button className="button primary" onClick={start} disabled={busy}>
+                  {busy ? 'Starting…' : 'Start a session'}
+                </button>
+                <p className="muted small">
+                  You&apos;ll choose where to meet in the next step.
+                  {/* Signed-in people only: guests fill these in during the session (owner, 2026-10-06). */}
+                  {hasAccount(identity) && (
+                    <>
+                      {' · '}
+                      <Link href="/preferences">Edit my preferences</Link>
+                    </>
+                  )}
+                </p>
+                <RejoinBanner token={identity.token} inline />
+                {error && <p className="error">{error}</p>}
+              </>
+            )}
+            <p className="or" aria-hidden>
+              or
             </p>
-            <RejoinBanner token={identity.token} inline />
-            {error && <p className="error">{error}</p>}
-          </section>
-          <JoinCodeForm compact />
-        </>
-      )}
+            <JoinCodeForm compact />
+          </div>
+        )}
 
-      <section className="hero-more" aria-label="How it works">
-        <HeroPreview />
-        <ol className="hero-steps">
-          <li>
-            <span aria-hidden>🔒</span> Set your must-haves.{' '}
-            <span className="muted">Your answers are never shared with your group.</span>
-          </li>
-          <li>
-            <span aria-hidden>👉</span> Swipe on places nearby that work for everyone.
-          </li>
-          <li>
-            <span aria-hidden>🎉</span> Everyone likes the same place? That&apos;s your match.
-          </li>
-        </ol>
-      </section>
+        <section className="hero-more" aria-label="How it works">
+          <HeroPreview />
+          <ol className="hero-steps">
+            <li>
+              <span aria-hidden>🔒</span> Set your must-haves.{' '}
+              <span className="muted">Your answers are never shared with your group.</span>
+            </li>
+            <li>
+              <span aria-hidden>👉</span> Swipe on places nearby that work for everyone.
+            </li>
+            <li>
+              <span aria-hidden>🎉</span> Everyone likes the same place? That&apos;s your match.
+            </li>
+          </ol>
+        </section>
+      </div>
 
       <AboutArbiter />
     </main>

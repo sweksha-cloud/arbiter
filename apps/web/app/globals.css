@@ -78,7 +78,7 @@ body::before {
   pointer-events: none;
   content: '';
   /* Food emoji, spaced out so they read as a pattern, not clutter (TRADEOFFS.md 23c). */
-  opacity: 0.11;
+  opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Ctext x='30' y='70' font-size='40'%3E🍕%3C/text%3E%3Ctext x='220' y='130' font-size='36'%3E🥑%3C/text%3E%3Ctext x='90' y='260' font-size='38'%3E🍜%3C/text%3E%3Ctext x='270' y='320' font-size='32'%3E🍓%3C/text%3E%3C/svg%3E");
   background-size: 360px 360px;
 }
@@ -707,7 +707,8 @@ input:not([type='checkbox']) {
 .site-header .header-pill {
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  /* Quiet unless it's the main one (Sign up): TRADEOFFS.md 23e. */
+  border: 1px solid transparent;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
@@ -1566,50 +1567,88 @@ body {
     max-width: 560px;
   }
 
-  /* Home: the pitch on the left, start and join on the right. */
+  /* Home (TRADEOFFS.md 23e): navbar and hero share one 1200px container; a
+     balanced two-column hero that fills the first screen, vertically centred:
+     pitch and illustration on the left, the start card on the right. */
+  .site-header {
+    max-width: 1200px;
+  }
+
   .page.home {
-    max-width: 1080px;
+    max-width: 1200px;
+    padding: 0 32px 72px;
+  }
+
+  .page.home .home-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-    column-gap: 64px;
-    row-gap: 16px;
-    align-items: start;
-    padding: 48px 32px 64px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+    grid-template-rows: auto auto;
+    column-gap: 72px;
+    align-items: center;
+    align-content: center;
+    min-height: calc(100vh - 80px);
+    padding: 24px 0 40px;
   }
 
-  .page.home > * {
-    grid-column: 2;
-  }
-
-  .page.home > .hero {
+  .page.home .home-hero > .hero {
     grid-column: 1;
     grid-row: 1;
-    padding-top: 0;
+    align-self: end;
+    padding: 0;
   }
 
-  .page.home > .hero-more {
+  .page.home .home-hero > .hero-more {
     grid-column: 1;
-    grid-row: 2 / span 6;
+    grid-row: 2;
+    align-self: start;
+    margin-top: 8px;
+  }
+
+  .page.home .home-hero > .home-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .page.home .hero h1 {
-    font-size: 3.6rem;
+    font-size: 3.3rem;
   }
 
   .page.home .hero-lead {
-    font-size: 1.25rem;
+    max-width: 34ch;
+    font-size: 1.2rem;
   }
 
+  /* The illustration belongs to the hero: bigger, right under the text. */
   .page.home .hero-preview {
-    height: 250px;
+    width: 520px;
+    height: 300px;
+  }
+
+  .page.home .hero-card {
+    width: 260px;
+  }
+
+  .page.home .hero-card-top {
+    height: 112px;
+    font-size: 3.4rem;
+  }
+
+  .page.home .hero-card-body strong {
+    font-size: 1.15rem;
+  }
+
+  /* The steps are covered by "Why groups use Arbiter" on desktop. */
+  .page.home .hero-steps {
+    display: none;
   }
 
   .page.home > .about {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    grid-column: 1 / -1;
-    margin-top: 40px;
+    /* Starts below the first screen instead of peeking in at the bottom edge. */
+    margin-top: 72px;
   }
 
   /* Lobby: a wider form, still one readable column. */
@@ -1654,7 +1693,19 @@ body {
 
 /* The main action on the home page stands out from everything around it (TRADEOFFS.md 23c). */
 .start-card {
-  border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  /* Quiet card, bright button: one focal point (TRADEOFFS.md 23e). */
+  padding: 24px;
+}
+
+.home-actions .or {
+  margin: 2px 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.home-actions .join-compact {
+  padding: 0;
 }
 
 .greeting {
@@ -1699,6 +1750,15 @@ body {
   }
 }
 
+/* Phone: headline, start card, then the illustration, in one column. */
+@media (max-width: 959.98px) {
+  .page.home .home-hero {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+}
+
 /* The decorations come after the actions on phones (TRADEOFFS.md 23d). */
 .hero-more {
   display: flex;
@@ -1729,8 +1789,6 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   margin: 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
 }
 
 .rejoin-inline a {
@@ -1815,5 +1873,14 @@ body {
   padding: 8px 10px;
   text-decoration: none;
   font-weight: 700;
+}
+
+/* Phone polish for the home card: less vertical air between its lines. */
+.home-actions {
+  gap: 12px;
+}
+
+.home-actions form.stack {
+  gap: 12px;
 }
 
