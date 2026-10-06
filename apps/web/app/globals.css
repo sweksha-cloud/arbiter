@@ -789,6 +789,14 @@ details.collapsible:not([open]) {
   gap: 8px;
 }
 
+/* After results: at the end of the page, not pinned. */
+.host-bar.bottom {
+  position: static;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .host-bar .code {
   margin: 0;
   font-size: 1.5rem;
