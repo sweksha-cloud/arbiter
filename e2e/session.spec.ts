@@ -398,10 +398,12 @@ test("people whose must-haves weren't counted are told why", async ({ newPhone }
   await host.getByRole('button', { name: 'Show results now' }).click();
   await expect(host.locator('article').first()).toBeVisible();
 
-  await expect(friend.getByText("Results were shown before you submitted, so your must-haves weren't included.")).toBeVisible();
+  await expect(
+    friend.getByText('Results were shown before you submitted. Add your preferences and the list will re-sort to include them.')
+  ).toBeVisible();
   await joinSession(late, invite, 'Lia');
   await expect(late.getByText('Results are already in. Add your preferences and the list will re-sort to include them.')).toBeVisible();
-  await expect(host.getByText(/must-haves weren.t included/)).toBeHidden();
+  await expect(host.getByText(/will re-sort to include them/)).toBeHidden();
 
   // The late joiner's answers re-sort the list, and everyone is told (never who).
   await late.getByRole('button', { name: 'Submit', exact: true }).click();

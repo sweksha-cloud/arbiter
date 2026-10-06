@@ -792,11 +792,13 @@ describe('SessionService', () => {
       expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: false, reason: 'joined' });
     });
 
-    it("stays locked for someone who was there but hadn't submitted when the host showed results", async () => {
+    it("re-sorts when someone who hadn't submitted when the host showed results adds theirs", async () => {
       const { service, host, friend, sessionId } = await lobbyOfTwo(counting().provider);
       await service.submit(sessionId, host, noPreferences);
       await service.start(sessionId, host);
-      await expect(service.submit(sessionId, friend, noPreferences)).rejects.toThrow('preferences are locked');
+      const room = await service.submit(sessionId, friend, { hard: { vegetarian: true }, soft: {} });
+      expect(room.suggestions.map((p) => p.id)).toEqual(['salad', 'curry', 'tofu', 'pasta']);
+      expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: false, reason: 'added' });
     });
   });
 

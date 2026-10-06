@@ -4,6 +4,7 @@ import type {
   PlaceCandidate,
   Preferences,
   ReactionsByMember,
+  ReorganizeReason,
   SessionMember,
   SessionStatus,
   TagsByMember
@@ -53,9 +54,10 @@ export interface RoomState {
   noLongerFits?: string[];
   /**
    * How many times the results were re-filtered, by whom (never sent: only
-   * "you" or "someone"), and why: an edit, or a late joiner's first answers.
+   * "you" or "someone"), and why: an edit, a late joiner's first answers, or
+   * the first answers of someone who hadn't submitted when results came.
    */
-  reorganized?: { count: number; by: string; reason: 'edit' | 'joined' };
+  reorganized?: { count: number; by: string; reason: ReorganizeReason };
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;

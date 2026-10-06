@@ -29,6 +29,7 @@ import {
   type PlaceCandidate,
   type Preferences,
   type Reaction,
+  type ReorganizeReason,
   type SessionView
 } from '@arbiter/shared';
 
@@ -291,13 +292,14 @@ export class SessionService {
       if (!member) {
         throw new SessionError('forbidden', 'Join the session first');
       }
-      // After results, an edit, or the first answers of someone who joined
-      // after results, re-filters the same search for everyone, for free
-      // (TRADEOFFS.md 2i). Anyone else's first answers after results don't.
-      edited = current.status === 'voting' && (member.submitted || member.joinedAfterResults === true);
+      // After results, anyone's answers (an edit, someone who joined late, or
+      // someone who hadn't submitted when the host showed results) re-filter
+      // the same search for everyone, for free (TRADEOFFS.md 2i).
+      edited = current.status === 'voting';
       if (edited) {
         shownBefore = new Set(current.suggestions.map((p) => p.id));
-        return this.applyEdit(current, guest.id, preferences, member.submitted ? 'edit' : 'joined');
+        const reason = member.submitted ? 'edit' : member.joinedAfterResults ? 'joined' : 'added';
+        return this.applyEdit(current, guest.id, preferences, reason);
       }
       if (current.status !== 'lobby') {
         throw new SessionError('invalid_state', 'Results are already in; preferences are locked');
@@ -330,7 +332,7 @@ export class SessionService {
    * from the best fits, and everyone is told the options were reorganized
    * (never by whom).
    */
-  private applyEdit(room: RoomState, memberId: string, preferences: Preferences, reason: 'edit' | 'joined'): RoomState {
+  private applyEdit(room: RoomState, memberId: string, preferences: Preferences, reason: ReorganizeReason): RoomState {
     const updated: RoomState = {
       ...room,
       members: room.members.map((m) => (m.id === memberId ? { ...m, submitted: true } : m)),

@@ -122,6 +122,10 @@ export const MeetingViewSchema = z.object({
 });
 export type MeetingView = z.infer<typeof MeetingViewSchema>;
 
+/** Why the results were re-sorted: an edit, a late joiner's answers, or someone's first answers after results. */
+export const ReorganizeReasonSchema = z.enum(['edit', 'joined', 'added']);
+export type ReorganizeReason = z.infer<typeof ReorganizeReasonSchema>;
+
 export const SessionViewSchema = z.object({
   sessionId: z.string(),
   /** Goes up by one on every change, so clients can ignore out-of-order updates. */
@@ -157,7 +161,7 @@ export const SessionViewSchema = z.object({
    * time; never says who, only whether it was you.
    */
   reorganized: z
-    .object({ count: z.number().int().positive(), byYou: z.boolean(), reason: z.enum(['edit', 'joined']) })
+    .object({ count: z.number().int().positive(), byYou: z.boolean(), reason: ReorganizeReasonSchema })
     .nullable(),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),

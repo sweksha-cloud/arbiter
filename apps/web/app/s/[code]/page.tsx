@@ -228,11 +228,11 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <p className="notice small">
               {me.joinedAfterResults
                 ? 'Results are already in. Add your preferences and the list will re-sort to include them.'
-                : "Results were shown before you submitted, so your must-haves weren't included."}
+                : 'Results were shown before you submitted. Add your preferences and the list will re-sort to include them.'}
             </p>
           )}
 
-          {view.status === 'voting' && (me?.submitted || me?.joinedAfterResults) && (
+          {view.status === 'voting' && me && (
             <MyPreferences token={identity.token} submitted={me.submitted} afterResults onSubmit={submitPreferences} />
           )}
 
@@ -559,7 +559,9 @@ function ReorganizedNote({ sessionId, reorganized }: { sessionId: string; reorga
             : 'Your changes are in, so the options have been reorganized.'
           : reorganized.reason === 'joined'
             ? 'Someone new added their preferences, so the options have been reorganized.'
-            : 'Someone changed their preferences, so the options have been reorganized.'}
+            : reorganized.reason === 'added'
+              ? 'Someone added their preferences, so the options have been reorganized.'
+              : 'Someone changed their preferences, so the options have been reorganized.'}
       </p>
       <button className="button link" onClick={close} aria-label="Close this note">
         OK
