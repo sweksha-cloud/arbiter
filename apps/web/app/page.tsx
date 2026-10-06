@@ -6,7 +6,7 @@ import { Greeting } from '../components/Greeting';
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
 import { StartSessionForm } from '../components/StartSessionForm';
-import { useIdentity } from '../lib/identity';
+import { hasAccount, useIdentity } from '../lib/identity';
 import { useStartSession } from '../lib/use-start-session';
 
 export default function HomePage() {
@@ -36,7 +36,14 @@ export default function HomePage() {
               {busy ? 'Starting…' : 'Start a session'}
             </button>
             <p className="muted small">
-              You&apos;ll choose where to meet in the next step. · <Link href="/preferences">Edit my preferences</Link>
+              You&apos;ll choose where to meet in the next step.
+              {/* Signed-in people only: guests fill these in during the session (owner, 2026-10-06). */}
+              {hasAccount(identity) && (
+                <>
+                  {' · '}
+                  <Link href="/preferences">Edit my preferences</Link>
+                </>
+              )}
             </p>
             <RejoinBanner token={identity.token} inline />
             {error && <p className="error">{error}</p>}
