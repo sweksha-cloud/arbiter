@@ -22,7 +22,7 @@ import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
-import { Matches, SwipeDeck } from '../../../components/SwipeDeck';
+import { Matches, MatchToast, SwipeDeck } from '../../../components/SwipeDeck';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
 import { describeWishNotMet } from '../../../lib/format';
@@ -227,7 +227,6 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       {(view.status === 'voting' || view.status === 'ended') && (
         <section className="stack">
           {/* The deck (or list) comes first: it's what everyone is here for. */}
-          {view.status === 'voting' && view.suggestions.length > 0 && <Matches view={view} />}
 
           <SwipeOrList
             canSwipe={view.status === 'voting' && view.suggestions.length > 0}
@@ -283,6 +282,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               </>
             }
           />
+
+          {/* Below the deck, so nothing above the card moves while people swipe. */}
+          {view.status === 'voting' && view.suggestions.length > 0 && (
+            <>
+              <Matches view={view} />
+              <MatchToast view={view} />
+            </>
+          )}
 
           {view.placesSource === 'sample' && (
             <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
@@ -620,10 +627,12 @@ function SwipeOrList({ canSwipe, swipe, list }: { canSwipe: boolean; swipe: Reac
   if (!canSwipe) return <>{list}</>;
   return (
     <>
-      <div className="row spread">
-        <span className="muted small">{asList ? 'All places' : 'One at a time'}</span>
-        <button className="button link" onClick={() => setAsList(!asList)}>
-          {asList ? 'Back to swiping' : 'See all as a list'}
+      <div className="segmented view-switch" role="group" aria-label="How to see the places">
+        <button type="button" aria-pressed={!asList} onClick={() => setAsList(false)}>
+          Swipe
+        </button>
+        <button type="button" aria-pressed={asList} onClick={() => setAsList(true)}>
+          List
         </button>
       </div>
       {asList ? list : swipe}

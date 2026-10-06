@@ -513,7 +513,7 @@ test('swiping: everyone liking a place makes a match; alone, it lists what you l
   await expect(friend.getByRole('region', { name: 'Matches' }).getByText(first!)).toBeVisible();
 
   // Undo takes the like back, so the match goes away.
-  await friend.getByRole('button', { name: 'Undo' }).click();
+  await friend.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(host.getByText('No match yet.')).toBeVisible();
 });
 
@@ -524,11 +524,14 @@ test('swiping alone shows every place you liked', async ({ newPhone }) => {
   await phone.getByRole('button', { name: 'Show results now' }).click();
   const first = await phone.locator('.swipe-card h3').textContent();
   await phone.getByRole('button', { name: `Like ${first}` }).click();
+  await expect(phone.getByText(/^2 of \d+$/)).toBeVisible();
   await phone.keyboard.press('ArrowLeft'); // Keyboard works too: pass on the second.
+  await expect(phone.getByText(/^3 of \d+$/)).toBeVisible();
   const third = await phone.locator('.swipe-card h3').textContent();
   await phone.getByRole('button', { name: `Like ${third}` }).click();
   const liked = phone.getByRole('region', { name: 'Places you liked' });
   await expect(liked.getByRole('heading', { name: 'Places you liked (2)' })).toBeVisible();
+  await liked.getByRole('heading', { name: 'Places you liked (2)' }).click(); // A tap opens the list.
   await expect(liked.getByText(first!)).toBeVisible();
   await expect(liked.getByText(third!)).toBeVisible();
 });
