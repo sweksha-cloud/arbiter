@@ -5,7 +5,12 @@ import { becomeGuest, expect, joinSession, setUpSession, showList, test } from '
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
-  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  // The footer is deliberately faded (owner's choice, TRADEOFFS.md 20b), so it's
+  // left out; everything else must pass.
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .exclude('.site-footer')
+    .analyze();
   const summary = violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n  ${v.nodes.map((n) => `${n.target.join(' ')}: ${n.failureSummary ?? ''}`).join('\n  ')}`);
   expect(summary, `accessibility problems on ${screen}`).toEqual([]);
 }
