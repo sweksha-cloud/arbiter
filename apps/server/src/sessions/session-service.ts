@@ -291,12 +291,13 @@ export class SessionService {
       if (!member) {
         throw new SessionError('forbidden', 'Join the session first');
       }
-      // After results, people who submitted can edit: the same search is
-      // re-filtered for everyone, for free (TRADEOFFS.md 2i).
-      edited = current.status === 'voting' && member.submitted;
+      // After results, an edit, or the first answers of someone who joined
+      // after results, re-filters the same search for everyone, for free
+      // (TRADEOFFS.md 2i). Anyone else's first answers after results don't.
+      edited = current.status === 'voting' && (member.submitted || member.joinedAfterResults === true);
       if (edited) {
         shownBefore = new Set(current.suggestions.map((p) => p.id));
-        return this.applyEdit(current, guest.id, preferences);
+        return this.applyEdit(current, guest.id, preferences, member.submitted ? 'edit' : 'joined');
       }
       if (current.status !== 'lobby') {
         throw new SessionError('invalid_state', 'Results are already in; preferences are locked');
@@ -329,8 +330,12 @@ export class SessionService {
    * from the best fits, and everyone is told the options were reorganized
    * (never by whom).
    */
-  private applyEdit(room: RoomState, memberId: string, preferences: Preferences): RoomState {
-    const updated: RoomState = { ...room, submissions: { ...room.submissions, [memberId]: preferences } };
+  private applyEdit(room: RoomState, memberId: string, preferences: Preferences, reason: 'edit' | 'joined'): RoomState {
+    const updated: RoomState = {
+      ...room,
+      members: room.members.map((m) => (m.id === memberId ? { ...m, submitted: true } : m)),
+      submissions: { ...room.submissions, [memberId]: preferences }
+    };
     // Rooms from before edits existed only kept what was shown.
     const candidates = room.candidates ?? [...room.suggestions, ...room.moreOptions];
     const { ranked, fitting, closestMatches, eliminatedCount } = this.arrange(updated, candidates);
@@ -350,7 +355,7 @@ export class SessionService {
       eliminatedCount,
       // With closest matches the notice already says nothing fits everyone.
       noLongerFits: closestMatches ? [] : kept.filter((p) => !fittingIds.has(p.id)).map((p) => p.id),
-      reorganized: { count: (room.reorganized?.count ?? 0) + 1, by: memberId }
+      reorganized: { count: (room.reorganized?.count ?? 0) + 1, by: memberId, reason }
     };
   }
 
@@ -526,7 +531,9 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
-      reorganized: room.reorganized ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId } : null,
+      reorganized: room.reorganized
+        ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId, reason: room.reorganized.reason }
+        : null,
       meeting: {
         mode: room.meetingMode ?? null,
         area: room.area ?? null,

@@ -776,11 +776,23 @@ describe('SessionService', () => {
       expect(service.view(room, friend.id).noLongerFits).toEqual(['steak']);
       expect(room.moreOptions.map((p) => p.id)).toEqual(['pasta']);
       // Everyone is told the options were reorganized; only the editor is told it was them.
-      expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: true });
-      expect(service.view(room, friend.id).reorganized).toEqual({ count: 1, byYou: false });
+      expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: true, reason: 'edit' });
+      expect(service.view(room, friend.id).reorganized).toEqual({ count: 1, byYou: false, reason: 'edit' });
     });
 
-    it("stays locked for someone who never submitted", async () => {
+    it("re-sorts when someone who joined after results adds their preferences, and tells everyone", async () => {
+      const { service, guests, host, friend, sessionId } = await lobbyOfTwo(counting().provider);
+      await service.submit(sessionId, host, noPreferences);
+      await service.submit(sessionId, friend, noPreferences);
+      const late = (await guests.create('Late')).guest;
+      await service.join(sessionId, late);
+      const room = await service.submit(sessionId, late, { hard: { vegetarian: true }, soft: {} });
+      expect(room.suggestions.map((p) => p.id)).toEqual(['salad', 'curry', 'tofu', 'pasta']);
+      expect(room.members.find((m) => m.id === late.id)?.submitted).toBe(true);
+      expect(service.view(room, host.id).reorganized).toEqual({ count: 1, byYou: false, reason: 'joined' });
+    });
+
+    it("stays locked for someone who was there but hadn't submitted when the host showed results", async () => {
       const { service, host, friend, sessionId } = await lobbyOfTwo(counting().provider);
       await service.submit(sessionId, host, noPreferences);
       await service.start(sessionId, host);

@@ -400,8 +400,13 @@ test("people whose must-haves weren't counted are told why", async ({ newPhone }
 
   await expect(friend.getByText("Results were shown before you submitted, so your must-haves weren't included.")).toBeVisible();
   await joinSession(late, invite, 'Lia');
-  await expect(late.getByText("Results were chosen before you joined, so your must-haves weren't included.")).toBeVisible();
+  await expect(late.getByText('Results are already in. Add your preferences and the list will re-sort to include them.')).toBeVisible();
   await expect(host.getByText(/must-haves weren.t included/)).toBeHidden();
+
+  // The late joiner's answers re-sort the list, and everyone is told (never who).
+  await late.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(host.getByText('Someone new added their preferences, so the options have been reorganized.')).toBeVisible();
+  await expect(late.getByText('Your preferences are in, so the options have been reorganized.')).toBeVisible();
 });
 
 test('"only show me" kinds of place are saved and prefilled', async ({ newPhone }) => {

@@ -51,8 +51,11 @@ export interface RoomState {
   candidates?: PlaceCandidate[];
   /** Places people voted on that no longer fit after someone's edit. */
   noLongerFits?: string[];
-  /** How many times an edit re-filtered the results, and by whom (never sent: only "you" or "someone"). */
-  reorganized?: { count: number; by: string };
+  /**
+   * How many times the results were re-filtered, by whom (never sent: only
+   * "you" or "someone"), and why: an edit, or a late joiner's first answers.
+   */
+  reorganized?: { count: number; by: string; reason: 'edit' | 'joined' };
   reactions: ReactionsByMember;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;

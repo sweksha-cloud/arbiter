@@ -35,7 +35,7 @@ export type Guest = z.infer<typeof GuestSchema>;
 export const SessionMemberSchema = GuestSchema.extend({
   submitted: z.boolean(),
   online: z.boolean(),
-  /** Joined once results were being chosen, so their must-haves weren't included. */
+  /** Joined once results were being chosen; their first answers re-sort the list. */
   joinedAfterResults: z.boolean().optional()
 });
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
@@ -152,11 +152,13 @@ export const SessionViewSchema = z.object({
   /** Suggestions people voted on that no longer fit after someone edited their preferences. */
   noLongerFits: z.array(z.string()),
   /**
-   * Someone edited their preferences after results, so the list was
-   * re-filtered. `count` goes up with each edit; never says who, only
-   * whether it was you.
+   * Someone edited their preferences after results (or someone who joined
+   * late added theirs), so the list was re-filtered. `count` goes up each
+   * time; never says who, only whether it was you.
    */
-  reorganized: z.object({ count: z.number().int().positive(), byYou: z.boolean() }).nullable(),
+  reorganized: z
+    .object({ count: z.number().int().positive(), byYou: z.boolean(), reason: z.enum(['edit', 'joined']) })
+    .nullable(),
   scannedCount: z.number().int().nonnegative(),
   eliminatedCount: z.number().int().nonnegative(),
   /**
