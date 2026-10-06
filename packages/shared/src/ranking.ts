@@ -22,8 +22,8 @@ function normalize(cuisine: string): string {
 }
 
 /**
- * +1 for each member who likes one of the place's cuisines, -1 for each member
- * who dislikes one. A member counts at most once in each direction. Each member
+ * +1 for each member who likes one of the place's cuisines (a member counts
+ * once). Disliked cuisines aren't here: they rule a place out (TRADEOFFS.md 2l). Each member
  * who'd rather skip fast food takes another -1 off a known fast-food place, so
  * one can still win if it suits everyone better than the alternatives.
  * +1 for each member whose nutrition goals a menu item meets. Members who
@@ -36,7 +36,6 @@ export function softScore(place: PlaceCandidate, members: Pick<Preferences, 'sof
   let score = 0;
   for (const { soft } of members) {
     if (matches(soft.likedCuisines)) score += 1;
-    if (matches(soft.dislikedCuisines)) score -= 1;
     if (soft.noFastFood && place.isFastFood === true) score -= 1;
     if (fittingItem(place, soft.nutrition)) score += 1;
   }

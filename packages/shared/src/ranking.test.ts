@@ -6,7 +6,7 @@ import { makePlace } from './test-helpers.js';
 const ids = (places: { id: string }[]) => places.map((p) => p.id);
 
 describe('softScore', () => {
-  it('adds one per member who likes and subtracts one per member who dislikes', () => {
+  it('adds one per member who likes; a thumbs-down rules a place out elsewhere, not here (TRADEOFFS.md 2l)', () => {
     const place = makePlace({ id: 'p', cuisines: ['Thai', 'noodles'] });
     const score = softScore(place, [
       { soft: { likedCuisines: ['thai'] } },
@@ -14,7 +14,7 @@ describe('softScore', () => {
       { soft: { dislikedCuisines: ['noodles'] } },
       { soft: {} }
     ]);
-    expect(score).toBe(1);
+    expect(score).toBe(2);
   });
 
   it('lowers a fast-food place once for each member who would rather skip it', () => {

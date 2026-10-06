@@ -45,8 +45,11 @@ export function SuggestionCard({
   missed = [],
   noLongerFits = false,
   fitsAll = false,
-  myKinds = []
+  myKinds = [],
+  myRuledOut = []
 }: {
+  /** The viewer's own thumbed-down cuisines, for wording a cuisine miss. */
+  myRuledOut?: readonly string[];
   /** The viewer's own "only show me" kinds, for wording a kind miss. */
   myKinds?: readonly PlaceKind[];
   /** Meets every member's must-haves. */
@@ -86,7 +89,11 @@ export function SuggestionCard({
         </p>
         {fitsAll && !noLongerFits && <p className="small fits">✓ Fits everyone&apos;s must-haves</p>}
         {noLongerFits && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
-        {missed.length > 0 && <p className="small misses">{describeMisses(missed, { placeKind: place.kind, myKinds })}</p>}
+        {missed.length > 0 && (
+          <p className="small misses">
+            {describeMisses(missed, { placeKind: place.kind, myKinds, placeCuisines: place.cuisines, myRuledOut })}
+          </p>
+        )}
       </header>
 
       <div

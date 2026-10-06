@@ -251,6 +251,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                   noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
                   fitsAll={view.fitsAll.includes(suggestion.place.id)}
                   myKinds={view.myKinds}
+                  myRuledOut={view.myRuledOut}
                   source={view.placesSource}
                   canReact={view.status === 'voting'}
                   onReact={(reaction: Reaction | null) =>

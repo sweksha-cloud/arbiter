@@ -67,6 +67,10 @@ export const SoftPreferencesSchema = z.object({
   /** Lowers fast-food places in the ranking; never removes them. */
   noFastFood: z.boolean().optional(),
   likedCuisines: CuisineListSchema.optional(),
+  /**
+   * A hard no despite living under nice-to-haves (owner, 2026-10-06): places
+   * serving any of these are ruled out like a must-have (TRADEOFFS.md 2l).
+   */
   dislikedCuisines: CuisineListSchema.optional(),
   nutrition: NutritionGoalsSchema.optional()
 });
@@ -102,6 +106,8 @@ export type Preferences = z.infer<typeof PreferencesSchema>;
 export interface GroupConstraints {
   vegetarian: boolean;
   vegan?: boolean;
+  /** Cuisines anyone thumbed down (lower case): a place serving one is ruled out. */
+  ruledOutCuisines?: string[];
   maxPricePerPerson?: number;
   maxDistanceMeters?: number;
 }
@@ -134,6 +140,6 @@ export function hasNutritionGoals(goals: NutritionGoals | undefined): boolean {
 }
 
 /** A must-have of one person's that a place doesn't meet; shown only to that person. */
-export const MissedMustHaveSchema = z.enum(['vegetarian', 'vegan', 'budget', 'distance', 'kind']);
+export const MissedMustHaveSchema = z.enum(['vegetarian', 'vegan', 'budget', 'distance', 'kind', 'cuisine']);
 export type MissedMustHave = z.infer<typeof MissedMustHaveSchema>;
 

@@ -170,6 +170,8 @@ export const SessionViewSchema = z.object({
   ),
   /** Your own "only show me" kinds of place, to word "it's a restaurant, not a café". Only yours. */
   myKinds: z.array(PlaceKindSchema),
+  /** Your own thumbed-down cuisines, to word "serves thai, which you ruled out". Only yours. */
+  myRuledOut: z.array(z.string()),
   /** Your own swipe on every place (suggestions and more options). */
   myReactions: z.record(z.string(), ReactionSchema),
   /** Places everyone in the group liked, best-ranked first. */

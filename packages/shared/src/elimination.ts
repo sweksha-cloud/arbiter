@@ -45,7 +45,16 @@ function passes(place: PlaceCandidate, group: GroupConstraints, policy: MissingD
   // Strict, whatever the missing-data policy: unknown counts as no (TRADEOFFS.md 2h).
   if (group.vegan && !hasVeganOptions(place)) return false;
 
+  if (servesAny(place, group.ruledOutCuisines)) return false;
+
   return true;
+}
+
+/** Whether the place serves any of these cuisines (compared case-insensitively). */
+export function servesAny(place: PlaceCandidate, cuisines: readonly string[] | undefined): boolean {
+  if (!cuisines || cuisines.length === 0) return false;
+  const wanted = new Set(cuisines.map((c) => c.trim().toLowerCase()));
+  return place.cuisines.some((c) => wanted.has(c.trim().toLowerCase()));
 }
 
 /**
@@ -57,7 +66,9 @@ export function missedMustHaves(
   place: PlaceCandidate,
   hard: HardConstraints,
   policy: MissingDataPolicy,
-  distanceFromThem: number
+  distanceFromThem: number,
+  /** This person's thumbed-down cuisines: a hard no (TRADEOFFS.md 2l). */
+  ruledOutCuisines: readonly string[] = []
 ): MissedMustHave[] {
   const missed: MissedMustHave[] = [];
   if (hard.vegetarian) {
@@ -75,6 +86,7 @@ export function missedMustHaves(
   if ((hard.kinds?.length ?? 0) > 0 && !(place.kind !== undefined && hard.kinds!.includes(place.kind))) {
     missed.push('kind');
   }
+  if (servesAny(place, ruledOutCuisines)) missed.push('cuisine');
   return missed;
 }
 

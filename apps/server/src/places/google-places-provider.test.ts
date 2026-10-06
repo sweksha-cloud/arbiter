@@ -245,3 +245,21 @@ describe('card details (TRADEOFFS.md 22b)', () => {
     expect(FIELD_MASK).not.toContain('places.reviews');
   });
 });
+
+describe('food places only (owner, 2026-10-06)', () => {
+  it('drops places whose main type is not food, even when Google tags them as serving it', async () => {
+    const body = {
+      places: [
+        { id: 'r', displayName: { text: 'Thai Orchid' }, location: { latitude: 0, longitude: 0 }, primaryType: 'thai_restaurant', types: ['thai_restaurant', 'restaurant'] },
+        { id: 'g', displayName: { text: 'Golfland' }, location: { latitude: 0, longitude: 0 }, primaryType: 'miniature_golf_course', types: ['restaurant'] },
+        { id: 'm', displayName: { text: 'Cinemark' }, location: { latitude: 0, longitude: 0 }, primaryType: 'movie_theater', types: ['restaurant'] },
+        { id: 's', displayName: { text: 'Seafood City' }, location: { latitude: 0, longitude: 0 }, primaryType: 'supermarket', types: ['restaurant'] }
+      ]
+    };
+    const fetch = vi.fn(async () => Response.json(body));
+    const provider = new GooglePlacesProvider({ apiKey: 'KEY', fetch: fetch as unknown as typeof globalThis.fetch });
+    const found = await provider.searchNearby({ center: { lat: 0, lng: 0 }, radiusMeters: 1000 });
+    expect(found.map((p) => p.id)).toEqual(['r']);
+  });
+});
+

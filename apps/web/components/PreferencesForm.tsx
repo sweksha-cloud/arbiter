@@ -329,12 +329,12 @@ export function PreferencesForm({
         <summary>
           <h2>Nice-to-haves (optional)</h2>
         </summary>
-        <p className="muted small">These only change the order of suggestions, never remove a place.</p>
+        <p className="muted small">These move places up or down the list. A 👎 on a cuisine rules it out.</p>
         <label className="check">
           <input type="checkbox" checked={noFastFood} onChange={(e) => setNoFastFood(e.target.checked)} />
           <span>Rather not do fast food</span>
         </label>
-        <p className="muted small">Cuisines: tap once for 👍 love it, twice for 👎 rather not, three times to clear.</p>
+        <p className="muted small">Cuisines: tap once for 👍 love it, twice for 👎 no thanks (rules it out), three times to clear.</p>
         <div className="chips">
           {CUISINES.map((cuisine) => {
             const feeling = feelings[cuisine];

@@ -457,7 +457,16 @@ export function FitLine({ place, view }: { place: PlaceCandidate; view: SessionV
     return <p className="small fits">✓ {view.members.length === 1 ? 'Fits all your must-haves' : "Fits everyone's must-haves"}</p>;
   }
   if (missed) {
-    return <p className="small misses">{describeMisses(missed, { placeKind: place.kind, myKinds: view.myKinds })}</p>;
+    return (
+      <p className="small misses">
+        {describeMisses(missed, {
+          placeKind: place.kind,
+          myKinds: view.myKinds,
+          placeCuisines: place.cuisines,
+          myRuledOut: view.myRuledOut
+        })}
+      </p>
+    );
   }
   return <p className="small misses">Close match: doesn&apos;t fit someone else&apos;s must-haves</p>;
 }

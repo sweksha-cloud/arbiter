@@ -335,7 +335,10 @@ export class GooglePlacesProvider implements PlacesProvider {
     const { places = [] } = SearchNearbyResponseSchema.parse(await response.json());
     return places
       .map((place) => toCandidate(place, center))
-      .filter((place): place is PlaceCandidate => place !== undefined)
+      // Food places only (owner, 2026-10-06): Google tags golf courses,
+      // bowling alleys, theaters and supermarkets as serving food; a place whose
+      // main type isn't a restaurant, café, fast food, dessert or bar is dropped.
+      .filter((place): place is PlaceCandidate => place !== undefined && place.kind !== undefined)
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
   }
 }

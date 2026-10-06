@@ -149,3 +149,15 @@ describe('missedMustHaves', () => {
   });
 });
 
+describe('a thumbed-down cuisine is a hard no (TRADEOFFS.md 2l)', () => {
+  const policy = { price: 'keep', servesVegetarian: 'keep' } as const;
+  it('rules out places serving it, for the whole group, and says so to whoever ruled it out', () => {
+    const thai = makePlace({ id: 'thai', cuisines: ['Thai'] });
+    const pizza = makePlace({ id: 'pizza', cuisines: ['pizza'] });
+    const { kept } = eliminate([thai, pizza], { vegetarian: false, ruledOutCuisines: ['thai'] }, policy);
+    expect(kept.map((p) => p.id)).toEqual(['pizza']);
+    expect(missedMustHaves(thai, {}, policy, 0, ['thai'])).toEqual(['cuisine']);
+    expect(missedMustHaves(thai, {}, policy, 0, [])).toEqual([]);
+  });
+});
+

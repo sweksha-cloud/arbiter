@@ -35,7 +35,7 @@ export const metersToMiles = (meters: number) => meters / METERS_PER_MILE;
 export const MAX_MILES = Math.floor(metersToMiles(MAX_DISTANCE_METERS));
 export const MIN_MILES = 0.1;
 
-const MISSED_LABELS: Record<Exclude<MissedMustHave, 'kind'>, string> = {
+const MISSED_LABELS: Record<Exclude<MissedMustHave, 'kind' | 'cuisine'>, string> = {
   vegetarian: 'not known to have vegetarian options',
   vegan: 'not known to have vegan options',
   budget: 'over your budget',
@@ -58,15 +58,33 @@ function kindMiss(placeKind: PlaceKind | undefined, myKinds: readonly PlaceKind[
   return placeKind ? `it's ${KIND_PHRASE[placeKind]}, not ${wanted}` : `not ${wanted}`;
 }
 
+/** "serves thai, which you ruled out" (the cuisines of the place you thumbed down). */
+function cuisineMiss(placeCuisines: readonly string[], ruledOut: readonly string[]): string {
+  const out = new Set(ruledOut.map((c) => c.toLowerCase()));
+  const served = placeCuisines.filter((c) => out.has(c.toLowerCase()));
+  return served.length > 0 ? `serves ${served.join(' and ')}, which you ruled out` : 'serves a cuisine you ruled out';
+}
+
 /**
  * "Misses your must-haves: over your budget · it's a restaurant, not a café".
  * Only ever about the viewer's own must-haves.
  */
 export function describeMisses(
   missed: readonly MissedMustHave[],
-  kinds: { placeKind?: PlaceKind; myKinds: readonly PlaceKind[] } = { myKinds: [] }
+  context: {
+    placeKind?: PlaceKind;
+    myKinds: readonly PlaceKind[];
+    placeCuisines?: readonly string[];
+    myRuledOut?: readonly string[];
+  } = { myKinds: [] }
 ): string {
-  const parts = missed.map((m) => (m === 'kind' ? kindMiss(kinds.placeKind, kinds.myKinds) : MISSED_LABELS[m]));
+  const parts = missed.map((m) =>
+    m === 'kind'
+      ? kindMiss(context.placeKind, context.myKinds)
+      : m === 'cuisine'
+        ? cuisineMiss(context.placeCuisines ?? [], context.myRuledOut ?? [])
+        : MISSED_LABELS[m]
+  );
   return `Misses your must-haves: ${parts.join(' · ')}`;
 }
 

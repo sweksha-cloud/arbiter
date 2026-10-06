@@ -558,6 +558,7 @@ export class SessionService {
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
       myKinds: room.submissions[viewerId]?.hard.kinds ?? [],
+      myRuledOut: room.submissions[viewerId]?.soft.dislikedCuisines ?? [],
       fitsAll: this.fitsAll(room),
       ...this.swipeResults(room, viewerId),
       wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),
@@ -734,7 +735,12 @@ export class SessionService {
   private arrange(room: RoomState, candidates: PlaceCandidate[]) {
     const preferences = Object.values(room.submissions);
     // Distance is checked per person by `limits`, from where each one starts.
-    const group = { ...combineHardConstraints(preferences), maxDistanceMeters: undefined };
+    const group = {
+      ...combineHardConstraints(preferences),
+      maxDistanceMeters: undefined,
+      // A thumbs-down cuisine is a hard no (TRADEOFFS.md 2l).
+      ruledOutCuisines: [...new Set(preferences.flatMap((p) => p.soft.dislikedCuisines ?? []))]
+    };
     const { center, limits } = searchPlan(room, this.options.radiusMeters);
     const { kept, eliminatedCount } = eliminate(candidates, group, this.options.missingDataPolicy, limits);
     const keptIds = new Set(kept.map((p) => p.id));
@@ -848,7 +854,11 @@ export class SessionService {
     return Object.entries(room.submissions).reduce((total, [memberId, preferences]) => {
       const from = this.startOf(room, memberId, center);
       const distance = distanceMeters(from, place.location);
-      return total + missedMustHaves(place, preferences.hard, this.options.missingDataPolicy, distance).length;
+      return (
+        total +
+        missedMustHaves(place, preferences.hard, this.options.missingDataPolicy, distance, preferences.soft.dislikedCuisines)
+          .length
+      );
     }, 0);
   }
 
@@ -858,12 +868,18 @@ export class SessionService {
     viewerId: string,
     forViewer: (place: PlaceCandidate) => PlaceCandidate
   ): Record<string, MissedMustHave[]> {
-    const hard = room.submissions[viewerId]?.hard;
-    if (!hard) return {};
+    const mine = room.submissions[viewerId];
+    if (!mine) return {};
     const misses: Record<string, MissedMustHave[]> = {};
     for (const place of [...room.suggestions, ...room.moreOptions]) {
       const seen = forViewer(place);
-      const missed = missedMustHaves(seen, hard, this.options.missingDataPolicy, seen.distanceMeters);
+      const missed = missedMustHaves(
+        seen,
+        mine.hard,
+        this.options.missingDataPolicy,
+        seen.distanceMeters,
+        mine.soft.dislikedCuisines
+      );
       if (missed.length > 0) misses[place.id] = missed;
     }
     return misses;
@@ -920,7 +936,7 @@ export class SessionService {
         let fitMine = 0;
         for (const place of found) {
           const seen = forViewer(place);
-          const missed = missedMustHaves(seen, mine.hard, this.options.missingDataPolicy, seen.distanceMeters);
+          const missed = missedMustHaves(seen, mine.hard, this.options.missingDataPolicy, seen.distanceMeters, mine.soft.dislikedCuisines);
           if (missed.length === 0) fitMine += 1;
           for (const m of missed) counts.set(m, (counts.get(m) ?? 0) + 1);
         }
