@@ -34,7 +34,6 @@ export const FIELD_MASK = [
   // Card details (TRADEOFFS.md 22b): also the same tier as servesVegetarianFood.
   'places.userRatingCount',
   'places.editorialSummary',
-  'places.reviews',
   'places.websiteUri',
   'places.photos',
   'places.dineIn',
@@ -115,17 +114,6 @@ const GooglePlaceSchema = z.object({
     .optional(),
   userRatingCount: z.number().optional(),
   editorialSummary: z.object({ text: z.string() }).optional(),
-  reviews: z
-    .array(
-      z.object({
-        rating: z.number().optional(),
-        text: z.object({ text: z.string() }).optional(),
-        originalText: z.object({ text: z.string() }).optional(),
-        relativePublishTimeDescription: z.string().optional(),
-        authorAttribution: z.object({ displayName: z.string().optional(), uri: z.string().optional() }).optional()
-      })
-    )
-    .optional(),
   websiteUri: z.string().optional(),
   photos: z
     .array(
@@ -275,10 +263,6 @@ function cardDetails(place: GooglePlace): Partial<PlaceCandidate> {
   if (place.servesBeer || place.servesWine) features.push('beer_wine');
   if (place.goodForChildren) features.push('kid_friendly');
 
-  // The most helpful review: one with text, preferring a rating near the average.
-  const review = (place.reviews ?? [])
-    .map((r) => ({ ...r, body: (r.text?.text ?? r.originalText?.text ?? '').trim() }))
-    .find((r) => r.body.length >= 20 && r.authorAttribution?.displayName);
   const photo = place.photos?.[0];
   const photographer = photo?.authorAttributions?.[0];
 
@@ -286,15 +270,6 @@ function cardDetails(place: GooglePlace): Partial<PlaceCandidate> {
     ...(place.userRatingCount !== undefined && { userRatingCount: Math.round(place.userRatingCount) }),
     ...(place.editorialSummary?.text && { summary: place.editorialSummary.text }),
     ...(features.length > 0 && { features }),
-    ...(review && {
-      review: {
-        text: review.body.length > 600 ? `${review.body.slice(0, 597)}…` : review.body,
-        author: review.authorAttribution!.displayName!,
-        ...(isUrl(review.authorAttribution?.uri) && { authorUri: review.authorAttribution!.uri! }),
-        ...(review.rating !== undefined && review.rating >= 1 && review.rating <= 5 && { rating: review.rating }),
-        ...(review.relativePublishTimeDescription && { when: review.relativePublishTimeDescription })
-      }
-    }),
     ...(isUrl(place.websiteUri) && { website: place.websiteUri! }),
     ...(photo && {
       photo: {

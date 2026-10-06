@@ -1002,24 +1002,6 @@ body {
   margin: 0;
 }
 
-.swipe-review {
-  margin: 4px 0 0;
-  padding: 8px 12px;
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-}
-
-.swipe-review p,
-.swipe-review footer {
-  margin: 0;
-}
-
-.swipe-review footer {
-  margin-top: 4px;
-  font-size: 0.8rem;
-}
-
 .swipe-links {
   display: flex;
   gap: 16px;

@@ -33,64 +33,54 @@ function offset(center: LatLng, northMeters: number, eastMeters: number): LatLng
   return { lat: center.lat + northMeters / METERS_PER_DEGREE_LAT, lng: center.lng + eastMeters / metersPerDegreeLng };
 }
 
-type Details = Pick<PlaceCandidate, 'userRatingCount' | 'summary' | 'features' | 'review'>;
-const review = (text: string, rating: number): PlaceCandidate['review'] => ({ text, author: 'Sample reviewer', rating, when: 'a week ago' });
+type Details = Pick<PlaceCandidate, 'userRatingCount' | 'summary' | 'features'>;
 
 /** Card details for the sample places (made up; real places get Google's). */
 const SAMPLE_DETAILS: Record<string, Details> = {
   'demo-green-bowl': {
     userRatingCount: 412,
     summary: 'Build-your-own salads and grain bowls with seasonal vegetables.',
-    features: ['dine_in', 'takeout', 'delivery', 'outdoor_seating'],
-    review: review('Huge portions and the lemon tahini dressing is amazing. Quick even at lunch rush.', 5)
+    features: ['dine_in', 'takeout', 'delivery', 'outdoor_seating']
   },
   'demo-thai-orchid': {
     userRatingCount: 1280,
     summary: 'Cozy spot for curries, noodles and Thai street-food favorites.',
-    features: ['dine_in', 'takeout', 'reservations', 'good_for_groups', 'beer_wine'],
-    review: review('Best pad see ew around. Ask for it spicy if you can handle it.', 5)
+    features: ['dine_in', 'takeout', 'reservations', 'good_for_groups', 'beer_wine']
   },
   'demo-burger-barn': {
     userRatingCount: 860,
     summary: 'Smash burgers, crinkle fries and thick shakes.',
-    features: ['dine_in', 'takeout', 'delivery', 'kid_friendly'],
-    review: review('Cheap, fast and the fries are perfectly crispy. Gets loud at night.', 4)
+    features: ['dine_in', 'takeout', 'delivery', 'kid_friendly']
   },
   'demo-taco-stand': {
     userRatingCount: 2310,
     summary: 'Street tacos and burritos, open late.',
-    features: ['takeout', 'outdoor_seating', 'good_for_groups'],
-    review: review('Al pastor tacos are the move. Line moves fast.', 5)
+    features: ['takeout', 'outdoor_seating', 'good_for_groups']
   },
   'demo-prime-cut': {
     userRatingCount: 540,
     summary: 'Dry-aged steaks and classic sides in a dim, upscale room.',
-    features: ['dine_in', 'reservations', 'beer_wine'],
-    review: review('Pricey but worth it for a celebration. Ribeye was cooked perfectly.', 5)
+    features: ['dine_in', 'reservations', 'beer_wine']
   },
   'demo-spice-route': {
     userRatingCount: 730,
     summary: 'North Indian curries, tandoori and fresh naan.',
-    features: ['dine_in', 'takeout', 'delivery', 'good_for_groups'],
-    review: review('Garlic naan and butter chicken never miss. Generous lunch buffet.', 4)
+    features: ['dine_in', 'takeout', 'delivery', 'good_for_groups']
   },
   'demo-sushi-go': {
     userRatingCount: 990,
     summary: 'Conveyor-belt sushi and hand rolls.',
-    features: ['dine_in', 'takeout', 'kid_friendly'],
-    review: review('Fun for groups and the salmon nigiri is fresh. Gets busy on weekends.', 4)
+    features: ['dine_in', 'takeout', 'kid_friendly']
   },
   'demo-pho-house': {
     userRatingCount: 650,
     summary: 'Big bowls of pho and banh mi.',
-    features: ['dine_in', 'takeout'],
-    review: review('Rich broth, fast service. Perfect on a cold day.', 5)
+    features: ['dine_in', 'takeout']
   },
   'demo-corner-cafe': {
     userRatingCount: 310,
     summary: 'Coffee, pastries and all-day breakfast.',
-    features: ['dine_in', 'takeout', 'outdoor_seating'],
-    review: review('Great place to study. The breakfast burrito is underrated.', 4)
+    features: ['dine_in', 'takeout', 'outdoor_seating']
   },
   'demo-golden-wok': {
     userRatingCount: 470,

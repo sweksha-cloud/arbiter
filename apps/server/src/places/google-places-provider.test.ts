@@ -206,7 +206,7 @@ describe('card details (TRADEOFFS.md 22b)', () => {
   const at = { lat: 0, lng: 0 };
   const base = { id: 'p', displayName: { text: 'Bowl' }, location: { latitude: 0, longitude: 0 } };
 
-  it('keeps the review count, description, features, one review with its author, website and photo credit', () => {
+  it('keeps the review count, description, features, website and photo credit', () => {
     const place = toCandidate(
       {
         ...base,
@@ -216,15 +216,6 @@ describe('card details (TRADEOFFS.md 22b)', () => {
         takeout: true,
         servesWine: true,
         goodForGroups: false,
-        reviews: [
-          { rating: 5, text: { text: 'Too short' }, authorAttribution: { displayName: 'A' } },
-          {
-            rating: 4,
-            text: { text: 'Huge portions and the dressing is amazing.' },
-            relativePublishTimeDescription: '2 weeks ago',
-            authorAttribution: { displayName: 'Sam', uri: 'https://maps.google.com/contrib/1' }
-          }
-        ],
         websiteUri: 'https://bowl.example',
         photos: [{ name: 'places/p/photos/abc', authorAttributions: [{ displayName: 'Pat', uri: 'https://maps.google.com/contrib/2' }] }]
       },
@@ -234,7 +225,6 @@ describe('card details (TRADEOFFS.md 22b)', () => {
       userRatingCount: 1240,
       summary: 'Salads and grain bowls.',
       features: ['dine_in', 'takeout', 'beer_wine'],
-      review: { text: 'Huge portions and the dressing is amazing.', author: 'Sam', rating: 4, when: '2 weeks ago' },
       website: 'https://bowl.example',
       photo: { name: 'places/p/photos/abc', author: 'Pat', authorUri: 'https://maps.google.com/contrib/2' }
     });
@@ -242,14 +232,16 @@ describe('card details (TRADEOFFS.md 22b)', () => {
 
   it('leaves out what Google doesn\'t give, and drops links that aren\'t web addresses', () => {
     const place = toCandidate({ ...base, websiteUri: 'javascript:alert(1)' }, at)!;
-    for (const field of ['userRatingCount', 'summary', 'features', 'review', 'website', 'photo'] as const) {
+    for (const field of ['userRatingCount', 'summary', 'features', 'website', 'photo'] as const) {
       expect(place).not.toHaveProperty(field);
     }
   });
 
   it('asks Google for the details in the same request', () => {
-    for (const field of ['places.userRatingCount', 'places.editorialSummary', 'places.reviews', 'places.photos']) {
+    for (const field of ['places.userRatingCount', 'places.editorialSummary', 'places.photos']) {
       expect(FIELD_MASK).toContain(field);
     }
+    // Reviews aren't shown, so they aren't fetched (owner, 2026-10-06).
+    expect(FIELD_MASK).not.toContain('places.reviews');
   });
 });

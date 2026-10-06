@@ -77,19 +77,6 @@ export const PlaceFeatureSchema = z.enum([
 export type PlaceFeature = z.infer<typeof PlaceFeatureSchema>;
 
 /**
- * One review to show on a card. Google requires the author's name (and link)
- * shown with it; kept for the session only, like all Google data.
- */
-export const PlaceReviewSchema = z.object({
-  text: z.string().min(1).max(600),
-  author: z.string().min(1),
-  authorUri: z.string().url().optional(),
-  rating: z.number().min(1).max(5).optional(),
-  /** "2 weeks ago", as Google words it. */
-  when: z.string().optional()
-});
-
-/**
  * A photo. On the server, `name` is Google's photo reference (fetching it
  * needs the API key). Views replace it with `url`: a signed link to the
  * server's photo endpoint, so the key never reaches a browser.
@@ -119,7 +106,6 @@ export const PlaceCandidateSchema = z.object({
   /** Google's one-line description, where it has one. */
   summary: z.string().optional(),
   features: z.array(PlaceFeatureSchema).optional(),
-  review: PlaceReviewSchema.optional(),
   website: z.string().url().optional(),
   photo: PlacePhotoSchema.optional(),
   /** Open at the moment of the scan, per Google. Undefined means unknown. */

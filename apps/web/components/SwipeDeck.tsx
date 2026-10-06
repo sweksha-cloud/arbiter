@@ -309,25 +309,6 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
       {place.features && place.features.length > 0 && (
         <p className="small muted swipe-features">{place.features.map((f) => FEATURE_LABELS[f]).join('  ·  ')}</p>
       )}
-      {place.review && (
-        <blockquote className="swipe-review small">
-          <p>
-            {place.review.rating !== undefined && <span aria-label={`${place.review.rating} stars`}>{'★'.repeat(Math.round(place.review.rating))} </span>}
-            “{place.review.text.length > 160 ? `${place.review.text.slice(0, 157).trimEnd()}…` : place.review.text}”
-          </p>
-          <footer className="muted">
-            —{' '}
-            {place.review.authorUri ? (
-              <a href={place.review.authorUri} target="_blank" rel="noreferrer">
-                {place.review.author}
-              </a>
-            ) : (
-              place.review.author
-            )}
-            {place.review.when && `, ${place.review.when}`}
-          </footer>
-        </blockquote>
-      )}
       {view.noLongerFits.includes(place.id) && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
       {missed && <p className="small misses">{describeMisses(missed)}</p>}
       {fits && (
