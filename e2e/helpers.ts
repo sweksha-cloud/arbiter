@@ -145,3 +145,11 @@ export async function openSessionDetails(page: Page): Promise<void> {
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
 }
 
+/** Nutrition and Allergies start collapsed unless filled in before (TRADEOFFS.md 23). */
+export async function openOptionalSections(page: Page): Promise<void> {
+  for (const name of ['Nutrition (optional)', 'Allergies']) {
+    const details = page.locator('details', { has: page.getByRole('heading', { name, exact: true }) });
+    if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  }
+}
+

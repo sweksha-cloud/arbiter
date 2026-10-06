@@ -2,6 +2,7 @@
 
 import {
   ALLERGENS,
+  hasNutritionGoals,
   MAX_PRICE_PER_PERSON,
   PLACE_KINDS,
   type Allergen,
@@ -358,7 +359,8 @@ export function PreferencesForm({
         </div>
       </details>
 
-      <details className="card stack collapsible" open>
+      {/* Optional and rarely used: closed unless filled in before (TRADEOFFS.md 23). */}
+      <details className="card stack collapsible" open={hasNutritionGoals(start.soft.nutrition)}>
         <summary>
           <h2>Nutrition (optional)</h2>
         </summary>
@@ -380,7 +382,7 @@ export function PreferencesForm({
         </fieldset>
       </details>
 
-      <details className="card stack collapsible" open>
+      <details className="card stack collapsible" open={(start.allergies?.length ?? 0) > 0}>
         <summary>
           <h2>Allergies</h2>
         </summary>
@@ -404,9 +406,13 @@ export function PreferencesForm({
         </div>
       </details>
 
-      <button className="button primary" disabled={busy}>
-        {busy ? 'Saving…' : submitLabel}
-      </button>
+      <div className="form-submit">
+
+        <button className="button primary" disabled={busy}>
+          {busy ? 'Saving…' : submitLabel}
+        </button>
+
+      </div>
       {error && <p className="error">{error}</p>}
     </form>
   );

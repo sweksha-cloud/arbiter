@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { becomeGuest, expect, joinSession, setUpSession, showList, test } from './helpers';
+import { becomeGuest, expect, joinSession, openOptionalSections, setUpSession, showList, test } from './helpers';
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
@@ -35,6 +35,7 @@ test('every main screen passes automated WCAG 2.1 AA checks', async ({ newPhone 
   await host.getByRole('button', { name: /thai$/ }).click();
   await host.getByRole('button', { name: /pizza$/ }).click();
   await host.getByRole('button', { name: /pizza$/ }).click();
+  await openOptionalSections(host);
   await host.getByLabel('Protein at least (g)').fill('30');
   await host.getByLabel('Peanuts').check();
   await host.getByRole('button', { name: /save/i }).click();

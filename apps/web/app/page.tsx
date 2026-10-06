@@ -16,9 +16,22 @@ export default function HomePage() {
   return (
     <main className="page stack">
       <header className="hero">
-        <h1>Arbiter</h1>
-        <p className="muted">Where should we eat? Everyone&apos;s must-haves are respected automatically, then the group reacts live.</p>
-        <p className="privacy-note">🔒 Your answers are never shared with your group.</p>
+        <h1>Where should we eat?</h1>
+        <p className="hero-lead">
+          Everyone sets their must-haves privately. Then swipe together until you match.
+        </p>
+        <HeroPreview />
+        <ol className="hero-steps">
+          <li>
+            <span aria-hidden>🔒</span> Set your must-haves. <span className="muted">Nobody sees them.</span>
+          </li>
+          <li>
+            <span aria-hidden>👉</span> Swipe on places nearby that work for everyone.
+          </li>
+          <li>
+            <span aria-hidden>🎉</span> Everyone likes the same place? That&apos;s your match.
+          </li>
+        </ol>
       </header>
 
       {identity === undefined ? null : identity === null ? (
@@ -48,3 +61,24 @@ export default function HomePage() {
     </main>
   );
 }
+
+/** A small, decorative preview of a swipe card and a match (TRADEOFFS.md 23). */
+function HeroPreview() {
+  return (
+    <div className="hero-preview" aria-hidden>
+      <div className="hero-card back">
+        <div className="hero-card-top tint-gold">🍣</div>
+      </div>
+      <div className="hero-card">
+        <div className="hero-card-top tint-lilac">🍜</div>
+        <div className="hero-card-body">
+          <strong>Thai Orchid</strong>
+          <span className="muted small">★ 4.6 · $20–30 · 0.4 mi</span>
+          <span className="fits small">✓ Fits everyone</span>
+        </div>
+      </div>
+      <span className="hero-match">🎉 It&apos;s a match!</span>
+    </div>
+  );
+}
+

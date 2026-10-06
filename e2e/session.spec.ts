@@ -1,4 +1,14 @@
-import { becomeGuest, expect, hostSession, joinSession, openSessionDetails, showList, startAs, test } from './helpers';
+import {
+  becomeGuest,
+  expect,
+  hostSession,
+  joinSession,
+  openOptionalSections,
+  openSessionDetails,
+  showList,
+  startAs,
+  test
+} from './helpers';
 
 test('the host lands in the session straight away and results wait for everyone', async ({ newPhone }) => {
   const host = await newPhone();
@@ -251,6 +261,7 @@ test('nutrition goals, vegan and allergies are saved, prefilled, and checked', a
   const phone = await newPhone();
   await becomeGuest(phone, 'Nia');
 
+  await openOptionalSections(phone);
   // A minimum above its maximum is caught before saving.
   await phone.getByLabel('Calories at least').fill('900');
   await phone.getByLabel('Calories at most').fill('500');
@@ -293,6 +304,7 @@ test("a chain's published nutrition shows the dish that fits your own goals (ran
   const friend = await newPhone();
   const { invite } = await hostSession(host, 'Sweksha');
   // The host wants a lean meal; the friend sets no nutrition goals.
+  await openOptionalSections(host);
   await host.getByLabel('Calories at most').fill('700');
   await host.getByLabel('Protein at least (g)').fill('30');
   await host.getByRole('button', { name: 'Submit', exact: true }).click();
