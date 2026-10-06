@@ -63,6 +63,45 @@ export type MenuItem = z.infer<typeof MenuItemSchema>;
  * `undefined` means "no data", never "no" or "cheap". Elimination decides what
  * missing data means through an explicit MissingDataPolicy.
  */
+/** What a place offers, from Google, shown as tags on its card (TRADEOFFS.md 22b). */
+export const PlaceFeatureSchema = z.enum([
+  'dine_in',
+  'takeout',
+  'delivery',
+  'outdoor_seating',
+  'reservations',
+  'good_for_groups',
+  'beer_wine',
+  'kid_friendly'
+]);
+export type PlaceFeature = z.infer<typeof PlaceFeatureSchema>;
+
+/**
+ * One review to show on a card. Google requires the author's name (and link)
+ * shown with it; kept for the session only, like all Google data.
+ */
+export const PlaceReviewSchema = z.object({
+  text: z.string().min(1).max(600),
+  author: z.string().min(1),
+  authorUri: z.string().url().optional(),
+  rating: z.number().min(1).max(5).optional(),
+  /** "2 weeks ago", as Google words it. */
+  when: z.string().optional()
+});
+
+/**
+ * A photo. On the server, `name` is Google's photo reference (fetching it
+ * needs the API key). Views replace it with `url`: a signed link to the
+ * server's photo endpoint, so the key never reaches a browser.
+ */
+export const PlacePhotoSchema = z.object({
+  name: z.string().optional(),
+  url: z.string().optional(),
+  /** Google requires the photographer's name shown with the photo. */
+  author: z.string().optional(),
+  authorUri: z.string().url().optional()
+});
+
 export const PlaceCandidateSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -75,6 +114,14 @@ export const PlaceCandidateSchema = z.object({
   servesVegetarian: z.boolean().optional(),
   isFastFood: z.boolean().optional(),
   rating: z.number().min(1).max(5).optional(),
+  /** How many ratings `rating` is based on. */
+  userRatingCount: z.number().int().nonnegative().optional(),
+  /** Google's one-line description, where it has one. */
+  summary: z.string().optional(),
+  features: z.array(PlaceFeatureSchema).optional(),
+  review: PlaceReviewSchema.optional(),
+  website: z.string().url().optional(),
+  photo: PlacePhotoSchema.optional(),
   /** Open at the moment of the scan, per Google. Undefined means unknown. */
   openNow: z.boolean().optional(),
   /** This week's hours, one line per day ("Monday: 11:00 AM – 9:00 PM"), for the session only. */

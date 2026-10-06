@@ -91,6 +91,8 @@ export interface SessionServiceOptions {
   missingDataPolicy: MissingDataPolicy;
   /** For tests. */
   now?: () => number;
+  /** The link a card loads a place's photo from; without it, cards have no photos. */
+  photoUrl?: (sessionId: string, placeId: string) => string;
 }
 
 /**
@@ -522,7 +524,7 @@ export class SessionService {
     const myOrigin = room.origins[viewerId];
     // Meeting between everyone, distances mean most from where you start.
     const fromYou = room.meetingMode === 'between' && myOrigin !== undefined;
-    const forViewer = (place: PlaceCandidate) => (fromYou ? measuredFrom(place, myOrigin.center) : place);
+    const forViewer = (place: PlaceCandidate) => this.withPhotoUrl(room.sessionId, fromYou ? measuredFrom(place, myOrigin.center) : place);
     const origins = memberOrigins(room).map((o) => o.center);
     return {
       sessionId: room.sessionId,
@@ -745,6 +747,25 @@ export class SessionService {
         : ranked;
     const closestMatches = ranked.length > 0 && (nothingFits || (agreed !== undefined && fitting.length === 0));
     return { ranked, fitting, closestMatches, eliminatedCount, agreed };
+  }
+
+  /** Google's photo reference for a place in this session, for the photo endpoint. */
+  async photoName(sessionId: string, placeId: string): Promise<string | undefined> {
+    const room = await this.options.rooms.get(sessionId);
+    if (!room) return undefined;
+    const places = [...room.suggestions, ...room.moreOptions, ...(room.candidates ?? [])];
+    return places.find((p) => p.id === placeId)?.photo?.name;
+  }
+
+  /** Swaps Google's photo reference (useless without the key) for a signed link. */
+  private withPhotoUrl(sessionId: string, place: PlaceCandidate): PlaceCandidate {
+    if (!place.photo) return place;
+    const { name, ...credit } = place.photo;
+    if (!name || !this.options.photoUrl) {
+      const { photo: _photo, ...rest } = place;
+      return rest;
+    }
+    return { ...place, photo: { ...credit, url: this.options.photoUrl(sessionId, place.id) } };
   }
 
   /** Where a person's distances start: their own location when meeting between everyone. */

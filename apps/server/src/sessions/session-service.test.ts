@@ -893,6 +893,38 @@ describe('SessionService', () => {
     });
   });
 
+  describe('place photos (TRADEOFFS.md 22b)', () => {
+    const withPhoto = () =>
+      new FixturePlacesProvider([place('a', { photo: { name: 'places/a/photos/1', author: 'Pat' } }), place('b')]);
+
+    it("views carry a signed link and the photographer's credit, never Google's photo reference", async () => {
+      const guests = new InMemoryGuestStore();
+      const service = new SessionService({
+        rooms: new InMemoryRoomStore(),
+        guests,
+        history: new InMemorySessionHistory(),
+        places: withPhoto(),
+        placesSource: 'google',
+        radiusMeters: 3000,
+        missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' },
+        photoUrl: (sessionId: string, placeId: string) => `/photo/${sessionId}/${placeId}`
+      });
+      const host = (await guests.create('Host')).guest;
+      const sessionId = await service.create(host, { mode: 'area', area: { center } });
+      const room = await service.start(sessionId, host);
+      const shown = service.view(room, host.id).suggestions.find((s) => s.place.id === 'a')!.place;
+      expect(shown.photo).toEqual({ author: 'Pat', url: `/photo/${sessionId}/a` });
+      expect(JSON.stringify(service.view(room, host.id))).not.toContain('places/a/photos/1');
+      await expect(service.photoName(sessionId, 'a')).resolves.toBe('places/a/photos/1');
+    });
+
+    it('without a photo source, no photo is shown at all', async () => {
+      const { service, host, sessionId } = await setup(withPhoto());
+      const room = await service.start(sessionId, host);
+      expect(service.view(room, host.id).suggestions.find((s) => s.place.id === 'a')!.place).not.toHaveProperty('photo');
+    });
+  });
+
   describe('a scan cut off mid-way (the server stopped or crashed)', () => {
     it('finishes scans in progress before shutting down', async () => {
       let release!: () => void;

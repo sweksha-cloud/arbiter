@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
 import { Redis } from 'ioredis';
 
@@ -10,6 +11,7 @@ import { PostgresGuestStore } from './identity/postgres-guest-store.js';
 import { LogMailer, OutboxMailer, UnconfiguredMailer, type Mailer } from './identity/mailer.js';
 import { FatSecretMenuProvider } from './nutrition/fatsecret-menus.js';
 import { GoogleGeocoder } from './places/geocoder.js';
+import { GooglePhotos } from './places/photos.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
 import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
 import { RedisRoomStore } from './rooms/redis-room-store.js';
@@ -51,6 +53,9 @@ const { http } = await buildApp({
   ...(config.GOOGLE_PLACES_API_KEY
     ? {
         places: new GooglePlacesProvider({ apiKey: config.GOOGLE_PLACES_API_KEY }),
+        photos: new GooglePhotos({ apiKey: config.GOOGLE_PLACES_API_KEY }),
+        // Derived from the key, so both server slots sign photo links the same way.
+        photoSecret: createHash('sha256').update(`arbiter-photo-links:${config.GOOGLE_PLACES_API_KEY}`).digest('hex'),
         // Same key; the Geocoding API must also be enabled for it in Google Cloud.
         geocoder: new GoogleGeocoder({ apiKey: config.GOOGLE_PLACES_API_KEY }),
         placesSource: 'google' as const

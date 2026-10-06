@@ -1,8 +1,9 @@
 'use client';
 
-import type { PlaceCandidate, Reaction, SessionView } from '@arbiter/shared';
+import type { PlaceCandidate, PlaceFeature, Reaction, SessionView } from '@arbiter/shared';
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 
+import { SERVER_URL } from '../lib/config';
 import { describeMisses, formatDistance, formatPrice } from '../lib/format';
 import { directionsUrl } from './SuggestionCard';
 
@@ -42,6 +43,47 @@ const EMOJI: [RegExp, string][] = [
 function emojiFor(place: PlaceCandidate): string {
   const words = [...place.cuisines, place.kind ?? ''].join(' ').toLowerCase();
   return EMOJI.find(([pattern]) => pattern.test(words))?.[1] ?? '🍽️';
+}
+
+const FEATURE_LABELS: Record<PlaceFeature, string> = {
+  dine_in: '🍽️ Dine-in',
+  takeout: '🥡 Takeout',
+  delivery: '🛵 Delivery',
+  outdoor_seating: '🌤️ Outdoor seating',
+  reservations: '📅 Reservations',
+  good_for_groups: '👥 Good for groups',
+  beer_wine: '🍷 Beer & wine',
+  kid_friendly: '🧒 Kid-friendly'
+};
+
+/** The card's top: the place's photo (with the photographer's credit Google requires), or a big emoji. */
+function Hero({ place }: { place: PlaceCandidate }) {
+  const [failed, setFailed] = useState(false);
+  const photo = place.photo?.url && !failed ? place.photo : undefined;
+  return (
+    <div className={`swipe-hero ${photo ? 'has-photo' : ''}`}>
+      {photo ? (
+        <>
+          {/* A plain img: the photo comes from Google through our server, not Next's image optimizer. */}
+          <img src={`${SERVER_URL}${photo.url}`} alt="" draggable={false} onError={() => setFailed(true)} />
+          {photo.author && (
+            <span className="photo-credit">
+              Photo:{' '}
+              {photo.authorUri ? (
+                <a href={photo.authorUri} target="_blank" rel="noreferrer">
+                  {photo.author}
+                </a>
+              ) : (
+                photo.author
+              )}
+            </span>
+          )}
+        </>
+      ) : (
+        <span aria-hidden>{emojiFor(place)}</span>
+      )}
+    </div>
+  );
 }
 
 /** A header color per card, from the app's palette, so cards don't all look the same. */
@@ -181,9 +223,7 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
       <div className="swipe-stack">
         {next && (
           <div className={`swipe-card behind ${tintFor(next.id)}`} aria-hidden>
-            <div className="swipe-hero">
-              <span>{emojiFor(next)}</span>
-            </div>
+            <Hero place={next} />
           </div>
         )}
         <article
@@ -208,9 +248,7 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
           <span className="swipe-stamp pass" style={{ opacity: Math.max(0, -lean) }}>
             NOPE
           </span>
-          <div className="swipe-hero">
-            <span aria-hidden>{emojiFor(current)}</span>
-          </div>
+          <Hero place={current} />
           <PlaceDetails place={current} view={view} />
         </article>
         {leaving && (
@@ -223,9 +261,7 @@ export function SwipeDeck({ view, onSwipe }: { view: SessionView; onSwipe: Swipe
             <span className={`swipe-stamp ${leaving.direction === 'right' ? 'like' : 'pass'}`}>
               {leaving.direction === 'right' ? 'LIKE' : 'NOPE'}
             </span>
-            <div className="swipe-hero">
-              <span>{emojiFor(leaving.place)}</span>
-            </div>
+            <Hero place={leaving.place} />
             <PlaceDetails place={leaving.place} view={view} />
           </div>
         )}
@@ -254,7 +290,9 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
     place.openNow === undefined ? undefined : place.openNow ? '🟢 Open' : 'Closed',
     `📍 ${formatDistance(place.distanceMeters)}${fromYou ? ' from you' : ''}`,
     formatPrice(place.pricePerPerson, place.priceLevel),
-    place.rating === undefined ? undefined : `★ ${place.rating.toFixed(1)}`
+    place.rating === undefined
+      ? undefined
+      : `★ ${place.rating.toFixed(1)}${place.userRatingCount ? ` (${place.userRatingCount.toLocaleString()})` : ''}`
   ].filter(Boolean);
   const missed = view.missesForYou[place.id];
   const fits = view.suggestions.find((s) => s.place.id === place.id)?.menuNutrition?.fitsYou;
@@ -267,6 +305,29 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
         ))}
       </div>
       {place.cuisines.length > 0 && <p className="muted small swipe-cuisines">{place.cuisines.slice(0, 4).join(' · ')}</p>}
+      {place.summary && <p className="small swipe-summary">{place.summary}</p>}
+      {place.features && place.features.length > 0 && (
+        <p className="small muted swipe-features">{place.features.map((f) => FEATURE_LABELS[f]).join('  ·  ')}</p>
+      )}
+      {place.review && (
+        <blockquote className="swipe-review small">
+          <p>
+            {place.review.rating !== undefined && <span aria-label={`${place.review.rating} stars`}>{'★'.repeat(Math.round(place.review.rating))} </span>}
+            “{place.review.text.length > 160 ? `${place.review.text.slice(0, 157).trimEnd()}…` : place.review.text}”
+          </p>
+          <footer className="muted">
+            —{' '}
+            {place.review.authorUri ? (
+              <a href={place.review.authorUri} target="_blank" rel="noreferrer">
+                {place.review.author}
+              </a>
+            ) : (
+              place.review.author
+            )}
+            {place.review.when && `, ${place.review.when}`}
+          </footer>
+        </blockquote>
+      )}
       {view.noLongerFits.includes(place.id) && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
       {missed && <p className="small misses">{describeMisses(missed)}</p>}
       {fits && (
@@ -274,9 +335,16 @@ function PlaceDetails({ place, view }: { place: PlaceCandidate; view: SessionVie
           <strong>Fits your nutrition settings:</strong> {fits.name}
         </p>
       )}
-      <a className="small swipe-directions" href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer">
-        Directions ↗
-      </a>
+      <p className="small swipe-links">
+        <a href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer">
+          Directions ↗
+        </a>
+        {place.website && (
+          <a href={place.website} target="_blank" rel="noreferrer">
+            Website ↗
+          </a>
+        )}
+      </p>
     </div>
   );
 }

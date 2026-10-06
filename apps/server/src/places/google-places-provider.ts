@@ -1,4 +1,11 @@
-import { distanceMeters, MAX_DISTANCE_METERS, type PlaceCandidate, type PlaceKind, type PricePerPerson } from '@arbiter/shared';
+import {
+  distanceMeters,
+  MAX_DISTANCE_METERS,
+  type PlaceCandidate,
+  type PlaceFeature,
+  type PlaceKind,
+  type PricePerPerson
+} from '@arbiter/shared';
 import { z } from 'zod';
 
 import { PlacesQuotaExceededError, type NearbySearchRequest, type PlacesProvider } from './places-provider.js';
@@ -23,7 +30,22 @@ export const FIELD_MASK = [
   'places.primaryType',
   // Same billing tier as the fields above, so these cost nothing extra.
   'places.currentOpeningHours.openNow',
-  'places.currentOpeningHours.weekdayDescriptions'
+  'places.currentOpeningHours.weekdayDescriptions',
+  // Card details (TRADEOFFS.md 22b): also the same tier as servesVegetarianFood.
+  'places.userRatingCount',
+  'places.editorialSummary',
+  'places.reviews',
+  'places.websiteUri',
+  'places.photos',
+  'places.dineIn',
+  'places.takeout',
+  'places.delivery',
+  'places.outdoorSeating',
+  'places.reservable',
+  'places.goodForGroups',
+  'places.servesBeer',
+  'places.servesWine',
+  'places.goodForChildren'
 ].join(',');
 
 /** Restaurants, cafes and fast food (spec section 2). Provisional: DESIGN.md section 4. */
@@ -90,7 +112,38 @@ const GooglePlaceSchema = z.object({
   servesVegetarianFood: z.boolean().optional(),
   currentOpeningHours: z
     .object({ openNow: z.boolean().optional(), weekdayDescriptions: z.array(z.string()).optional() })
-    .optional()
+    .optional(),
+  userRatingCount: z.number().optional(),
+  editorialSummary: z.object({ text: z.string() }).optional(),
+  reviews: z
+    .array(
+      z.object({
+        rating: z.number().optional(),
+        text: z.object({ text: z.string() }).optional(),
+        originalText: z.object({ text: z.string() }).optional(),
+        relativePublishTimeDescription: z.string().optional(),
+        authorAttribution: z.object({ displayName: z.string().optional(), uri: z.string().optional() }).optional()
+      })
+    )
+    .optional(),
+  websiteUri: z.string().optional(),
+  photos: z
+    .array(
+      z.object({
+        name: z.string(),
+        authorAttributions: z.array(z.object({ displayName: z.string().optional(), uri: z.string().optional() })).optional()
+      })
+    )
+    .optional(),
+  dineIn: z.boolean().optional(),
+  takeout: z.boolean().optional(),
+  delivery: z.boolean().optional(),
+  outdoorSeating: z.boolean().optional(),
+  reservable: z.boolean().optional(),
+  goodForGroups: z.boolean().optional(),
+  servesBeer: z.boolean().optional(),
+  servesWine: z.boolean().optional(),
+  goodForChildren: z.boolean().optional()
 });
 type GooglePlace = z.infer<typeof GooglePlaceSchema>;
 
@@ -196,7 +249,60 @@ export function toCandidate(place: GooglePlace, center: NearbySearchRequest['cen
     servesVegan: isVeganPlace ? true : undefined,
     openNow: place.currentOpeningHours?.openNow,
     hours: place.currentOpeningHours?.weekdayDescriptions,
-    kind: kindFromTypes(place.primaryType, types)
+    kind: kindFromTypes(place.primaryType, types),
+    ...cardDetails(place)
+  };
+}
+
+const isUrl = (text: string | undefined) => {
+  if (!text) return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(text).protocol);
+  } catch {
+    return false;
+  }
+};
+
+/** Card details (TRADEOFFS.md 22b): what helps decide without opening Google Maps. */
+function cardDetails(place: GooglePlace): Partial<PlaceCandidate> {
+  const features: PlaceFeature[] = [];
+  if (place.dineIn) features.push('dine_in');
+  if (place.takeout) features.push('takeout');
+  if (place.delivery) features.push('delivery');
+  if (place.outdoorSeating) features.push('outdoor_seating');
+  if (place.reservable) features.push('reservations');
+  if (place.goodForGroups) features.push('good_for_groups');
+  if (place.servesBeer || place.servesWine) features.push('beer_wine');
+  if (place.goodForChildren) features.push('kid_friendly');
+
+  // The most helpful review: one with text, preferring a rating near the average.
+  const review = (place.reviews ?? [])
+    .map((r) => ({ ...r, body: (r.text?.text ?? r.originalText?.text ?? '').trim() }))
+    .find((r) => r.body.length >= 20 && r.authorAttribution?.displayName);
+  const photo = place.photos?.[0];
+  const photographer = photo?.authorAttributions?.[0];
+
+  return {
+    ...(place.userRatingCount !== undefined && { userRatingCount: Math.round(place.userRatingCount) }),
+    ...(place.editorialSummary?.text && { summary: place.editorialSummary.text }),
+    ...(features.length > 0 && { features }),
+    ...(review && {
+      review: {
+        text: review.body.length > 600 ? `${review.body.slice(0, 597)}…` : review.body,
+        author: review.authorAttribution!.displayName!,
+        ...(isUrl(review.authorAttribution?.uri) && { authorUri: review.authorAttribution!.uri! }),
+        ...(review.rating !== undefined && review.rating >= 1 && review.rating <= 5 && { rating: review.rating }),
+        ...(review.relativePublishTimeDescription && { when: review.relativePublishTimeDescription })
+      }
+    }),
+    ...(isUrl(place.websiteUri) && { website: place.websiteUri! }),
+    ...(photo && {
+      photo: {
+        name: photo.name,
+        ...(photographer?.displayName && { author: photographer.displayName }),
+        ...(isUrl(photographer?.uri) && { authorUri: photographer!.uri! })
+      }
+    })
   };
 }
 

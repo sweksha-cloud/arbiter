@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { SessionView } from '@arbiter/shared';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -18,6 +20,7 @@ import type { PlacesProvider } from './places/places-provider.js';
 import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
 import type { RoomStore } from './rooms/room-store.js';
 import { DEFAULT_RATE_LIMITS, MAX_BODY_BYTES, SlidingWindowLimiter, type RateLimits } from './rate-limits.js';
+import { PhotoSigner, type PhotoSource } from './places/photos.js';
 import { registerRoutes } from './routes.js';
 import { MISSING_DATA_POLICY, SCAN_RADIUS_METERS } from './sessions/scan-settings.js';
 import { SessionService } from './sessions/session-service.js';
@@ -43,6 +46,10 @@ export interface AppOptions {
   passwordParams?: ScryptParams;
   /** Chains' published menus; none means nutrition goals have no data to act on. */
   menus?: MenuProvider;
+  /** Place photos (Google); none means cards show an emoji instead. */
+  photos?: PhotoSource;
+  /** Signs photo links; the same in every server slot so links survive a deploy. */
+  photoSecret?: string;
 }
 
 export interface App {
@@ -135,8 +142,10 @@ export async function buildApp({
     },
     onMoveError: (error) => http.log.error({ err: error }, "Could not move a guest's progress to their account")
   });
+  const photoSigner = new PhotoSigner(deps.photoSecret ?? randomBytes(32).toString('hex'));
   const sessions = new SessionService({
     rooms: deps.rooms ?? new InMemoryRoomStore(),
+    ...(deps.photos && { photoUrl: (sessionId: string, placeId: string) => photoSigner.path(sessionId, placeId) }),
     guests,
     history,
     log: http.log,
@@ -167,6 +176,24 @@ export async function buildApp({
     geocodeBudget: new SlidingWindowLimiter(rateLimits.geocodesPerIpPerDay, 24 * 60 * 60_000)
   });
   registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits, trustProxy });
+
+  // A card's photo (TRADEOFFS.md 22b): only with a valid signature from that
+  // session's view; the browser is sent on to Google's image, never the key.
+  http.get<{ Params: { sessionId: string; placeId: string }; Querystring: { sig?: string } }>(
+    '/api/photos/:sessionId/:placeId',
+    async (request, reply) => {
+      const { sessionId, placeId } = request.params;
+      const photos = deps.photos;
+      if (!photos || !photoSigner.verify(sessionId, placeId, request.query.sig ?? '')) {
+        return reply.code(404).send({ error: 'Not found' });
+      }
+      const name = await sessions.photoName(sessionId, placeId);
+      const uri = name ? await photos.photoUri(name) : undefined;
+      if (!uri) return reply.code(404).send({ error: 'Not found' });
+      // The same phone showing the card again doesn't pay for the photo twice.
+      return reply.header('Cache-Control', 'private, max-age=3600').redirect(uri, 302);
+    }
+  );
 
   return { http, io };
 }
