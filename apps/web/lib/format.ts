@@ -1,4 +1,10 @@
-import { MAX_DISTANCE_METERS, type MissedMustHave, type PricePerPerson, type SessionView } from '@arbiter/shared';
+import {
+  MAX_DISTANCE_METERS,
+  type MissedMustHave,
+  type PlaceKind,
+  type PricePerPerson,
+  type SessionView
+} from '@arbiter/shared';
 
 const METERS_PER_MILE = 1609.344;
 
@@ -29,17 +35,39 @@ export const metersToMiles = (meters: number) => meters / METERS_PER_MILE;
 export const MAX_MILES = Math.floor(metersToMiles(MAX_DISTANCE_METERS));
 export const MIN_MILES = 0.1;
 
-const MISSED_LABELS: Record<MissedMustHave, string> = {
+const MISSED_LABELS: Record<Exclude<MissedMustHave, 'kind'>, string> = {
   vegetarian: 'not known to have vegetarian options',
   vegan: 'not known to have vegan options',
   budget: 'over your budget',
-  distance: "farther than you'll go",
-  kind: 'not a kind you picked'
+  distance: "farther than you'll go"
 };
 
-/** "Misses your must-haves: over your budget · not a kind you picked". Only ever about the viewer. */
-export function describeMisses(missed: readonly MissedMustHave[]): string {
-  return `Misses your must-haves: ${missed.map((m) => MISSED_LABELS[m]).join(' · ')}`;
+/** How a kind of place reads in a sentence: "a café", "fast food". */
+const KIND_PHRASE: Record<PlaceKind, string> = {
+  restaurant: 'a restaurant',
+  cafe: 'a café',
+  fast_food: 'fast food',
+  dessert: 'a dessert place',
+  bar: 'a bar'
+};
+
+/** "it's a restaurant, not a café or a bar" (or "not a café" when its kind is unknown). */
+function kindMiss(placeKind: PlaceKind | undefined, myKinds: readonly PlaceKind[]): string {
+  const wanted = myKinds.map((k) => KIND_PHRASE[k]).join(' or ');
+  if (!wanted) return 'not a kind of place you picked';
+  return placeKind ? `it's ${KIND_PHRASE[placeKind]}, not ${wanted}` : `not ${wanted}`;
+}
+
+/**
+ * "Misses your must-haves: over your budget · it's a restaurant, not a café".
+ * Only ever about the viewer's own must-haves.
+ */
+export function describeMisses(
+  missed: readonly MissedMustHave[],
+  kinds: { placeKind?: PlaceKind; myKinds: readonly PlaceKind[] } = { myKinds: [] }
+): string {
+  const parts = missed.map((m) => (m === 'kind' ? kindMiss(kinds.placeKind, kinds.myKinds) : MISSED_LABELS[m]));
+  return `Misses your must-haves: ${parts.join(' · ')}`;
 }
 
 const WHY: Record<SessionView['wishesNotMet'][number]['reason'], { one: string; many: string }> = {

@@ -4,6 +4,7 @@ import {
   NUTRITION_TAGS,
   type MenuItem,
   type MissedMustHave,
+  type PlaceKind,
   type NutritionTag,
   type Reaction,
   type SessionView,
@@ -43,8 +44,11 @@ export function SuggestionCard({
   onTag,
   missed = [],
   noLongerFits = false,
-  fitsAll = false
+  fitsAll = false,
+  myKinds = []
 }: {
+  /** The viewer's own "only show me" kinds, for wording a kind miss. */
+  myKinds?: readonly PlaceKind[];
   /** Meets every member's must-haves. */
   fitsAll?: boolean;
   suggestion: SuggestionView;
@@ -82,7 +86,7 @@ export function SuggestionCard({
         </p>
         {fitsAll && !noLongerFits && <p className="small fits">✓ Fits everyone&apos;s must-haves</p>}
         {noLongerFits && <p className="small misses">Doesn&apos;t fit the changed requirements</p>}
-        {missed.length > 0 && <p className="small misses">{describeMisses(missed)}</p>}
+        {missed.length > 0 && <p className="small misses">{describeMisses(missed, { placeKind: place.kind, myKinds })}</p>}
       </header>
 
       <div

@@ -8,7 +8,7 @@ import {
   type MeetingMode,
   type NamedLocation
 } from './meeting.js';
-import { MenuItemSchema, PlaceCandidateSchema } from './place.js';
+import { MenuItemSchema, PlaceCandidateSchema, PlaceKindSchema } from './place.js';
 import { MissedMustHaveSchema, PreferencesSchema, type Preferences } from './preferences.js';
 import { NutritionTagSchema, type NutritionTag } from './nutrition-tags.js';
 import { ReactionSchema, type Reaction } from './reactions.js';
@@ -168,6 +168,8 @@ export const SessionViewSchema = z.object({
       example: z.string().optional()
     })
   ),
+  /** Your own "only show me" kinds of place, to word "it's a restaurant, not a café". Only yours. */
+  myKinds: z.array(PlaceKindSchema),
   /** Your own swipe on every place (suggestions and more options). */
   myReactions: z.record(z.string(), ReactionSchema),
   /** Places everyone in the group liked, best-ranked first. */

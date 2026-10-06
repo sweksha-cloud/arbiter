@@ -200,7 +200,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       {error && <p className="error">{error}</p>}
 
       {view.status === 'lobby' && (
-        <>
+        <div className="stack lobby-layout">
           <SubmissionStatus view={view} myId={identity.guest.id} />
           <MeetingCard view={view} myId={identity.guest.id} token={identity.token} actions={meetingActions} />
           {view.meeting.mode === 'between' && !view.meeting.myOrigin ? (
@@ -210,7 +210,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           ) : (
             <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
           )}
-        </>
+        </div>
       )}
 
       {view.status === 'scanning' && <p className="card">Everyone&apos;s in. Finding places…</p>}
@@ -221,7 +221,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       )}
 
       {(view.status === 'voting' || view.status === 'ended') && (
-        <section className="stack">
+        <section className="stack results-layout">
           {/* The deck (or list) comes first: it's what everyone is here for. */}
 
           <SwipeOrList
@@ -250,6 +250,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                   missed={view.missesForYou[suggestion.place.id]}
                   noLongerFits={view.noLongerFits.includes(suggestion.place.id)}
                   fitsAll={view.fitsAll.includes(suggestion.place.id)}
+                  myKinds={view.myKinds}
                   source={view.placesSource}
                   canReact={view.status === 'voting'}
                   onReact={(reaction: Reaction | null) =>
@@ -301,8 +302,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 : 'Results were shown before you submitted. Add your preferences and the list will re-sort to include them.'}
             </p>
           )}
-          {view.status === 'voting' && me && !me.submitted && (
-            <MyPreferences token={identity.token} submitted={false} afterResults onSubmit={submitPreferences} />
+          {/* Editing your answers is a core feature: always in view, never folded away. */}
+          {view.status === 'voting' && me && (
+            <MyPreferences token={identity.token} submitted={me.submitted} afterResults onSubmit={submitPreferences} />
           )}
 
           {view.wishesNotMet.length > 0 && (
@@ -329,7 +331,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <summary>
               <span>Session details</span>
               <span className="muted small">
-                {view.members.length} {view.members.length === 1 ? 'person' : 'people'} · {isHost ? 'invite, end session' : 'your answers'}
+                {view.members.length} {view.members.length === 1 ? 'person' : 'people'} · {isHost ? 'invite, end session' : 'invite link'}
               </span>
             </summary>
             <div className="stack">
@@ -340,9 +342,6 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                 {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work
                 for someone in the group
               </p>
-              {view.status === 'voting' && me?.submitted && (
-                <MyPreferences token={identity.token} submitted afterResults onSubmit={submitPreferences} />
-              )}
               <Members view={view} myId={identity.guest.id} />
               {isHost ? <HostBar sessionId={view.sessionId} atBottom /> : <SessionCode sessionId={view.sessionId} />}
               {isHost && view.status === 'voting' && (
@@ -474,7 +473,7 @@ function MyPreferences({
             </span>
           </p>
           <button className="button" onClick={() => setEditing(true)}>
-            Change
+            {afterResults ? 'Change my preferences' : 'Change'}
           </button>
         </section>
       </>
@@ -634,9 +633,9 @@ function ReorganizedNote({ sessionId, reorganized }: { sessionId: string; reorga
  */
 function SwipeOrList({ canSwipe, swipe, list }: { canSwipe: boolean; swipe: ReactNode; list: ReactNode }) {
   const [asList, setAsList] = useState(false);
-  if (!canSwipe) return <>{list}</>;
+  if (!canSwipe) return <div className="results-main stack">{list}</div>;
   return (
-    <>
+    <div className={`results-main stack ${asList ? '' : 'swiping'}`}>
       <div className="segmented view-switch" role="group" aria-label="How to see the places">
         <button type="button" aria-pressed={!asList} onClick={() => setAsList(false)}>
           Swipe
@@ -646,7 +645,7 @@ function SwipeOrList({ canSwipe, swipe, list }: { canSwipe: boolean; swipe: Reac
         </button>
       </div>
       {asList ? list : swipe}
-    </>
+    </div>
   );
 }
 

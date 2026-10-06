@@ -77,8 +77,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   content: '';
-  /* A hint of personality, not wallpaper (TRADEOFFS.md 23). */
-  opacity: 0.05;
+  /* Back to full strength (owner, 2026-10-06: didn't like them faded). */
+  opacity: 0.13;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Ctext x='24' y='58' font-size='38'%3E🍕%3C/text%3E%3Ctext x='140' y='92' font-size='34'%3E🥑%3C/text%3E%3Ctext x='62' y='170' font-size='36'%3E🍜%3C/text%3E%3Ctext x='170' y='202' font-size='30'%3E🍓%3C/text%3E%3C/svg%3E");
   background-size: 220px 220px;
 }
@@ -1473,5 +1473,132 @@ body {
 .form-submit .button {
   width: 100%;
   box-shadow: 0 8px 24px rgb(20 10 30 / 0.25);
+}
+
+/* "About" is for the desktop website only (TRADEOFFS.md 23b). */
+.about {
+  display: none;
+}
+
+.about-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.about-icon {
+  font-size: 1.6rem;
+}
+
+.about-grid p {
+  margin: 0;
+}
+
+/* The installed app is just the tool: no pitch on the home page (TRADEOFFS.md 23b). */
+@media (display-mode: standalone) {
+  .hero-lead,
+  .hero-preview,
+  .hero-steps {
+    display: none;
+  }
+
+  .hero h1 {
+    font-size: 1.8rem;
+  }
+}
+
+/* Desktop (TRADEOFFS.md 23b): use the width instead of one phone-sized column. */
+@media (min-width: 960px) {
+  .site-header {
+    max-width: 1080px;
+    padding: 20px 32px 0;
+  }
+
+  .page {
+    max-width: 560px;
+  }
+
+  /* Home: the pitch on the left, start and join on the right. */
+  .page.home {
+    max-width: 1080px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    column-gap: 64px;
+    row-gap: 16px;
+    align-items: start;
+    padding: 48px 32px 64px;
+  }
+
+  .page.home > * {
+    grid-column: 2;
+  }
+
+  .page.home > .hero {
+    grid-column: 1;
+    grid-row: 1 / span 6;
+    padding-top: 0;
+  }
+
+  .page.home .hero h1 {
+    font-size: 3.6rem;
+  }
+
+  .page.home .hero-lead {
+    font-size: 1.25rem;
+  }
+
+  .page.home .hero-preview {
+    height: 250px;
+  }
+
+  .page.home > .about {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    grid-column: 1 / -1;
+    margin-top: 40px;
+  }
+
+  /* Lobby: a wider form, still one readable column. */
+  .page:has(.lobby-layout) {
+    max-width: 720px;
+  }
+
+  /* Results: the deck on the left (staying in view), everything else on the right. */
+  .page:has(.results-layout) {
+    max-width: 1080px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .results-layout {
+    display: grid;
+    grid-template-columns: 460px minmax(0, 1fr);
+    column-gap: 40px;
+    row-gap: 16px;
+    align-items: start;
+  }
+
+  .results-layout > * {
+    grid-column: 2;
+  }
+
+  .results-layout > .results-main {
+    grid-column: 1;
+    grid-row: 1 / span 40;
+  }
+
+  .results-main.swiping {
+    position: sticky;
+    top: 16px;
+  }
+
+  /* The list view gets the full width: its cards are long. */
+  .results-layout:has(.results-main:not(.swiping)) {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
 }
 

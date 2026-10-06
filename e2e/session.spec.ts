@@ -470,7 +470,7 @@ test('with nothing that fits, each person sees which of their own must-haves a c
   await friend.getByRole('button', { name: 'Submit', exact: true }).click();
 
   await expect(host.getByText('Nothing nearby fits all your preferences, so here are the closest matches.')).toBeVisible();
-  await expect(host.locator('article').first().getByText('Misses your must-haves: not a kind you picked')).toBeVisible();
+  await expect(host.locator('article').first().getByText(/^Misses your must-haves: it's (a restaurant|fast food|a café|a dessert place), not a bar$/)).toBeVisible();
   // The friend has no must-haves, so they never see the host's.
   await expect(friend.locator('article').first()).toBeVisible();
   await expect(friend.getByText(/Misses your must-haves/)).toHaveCount(0);

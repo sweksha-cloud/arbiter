@@ -557,6 +557,7 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
+      myKinds: room.submissions[viewerId]?.hard.kinds ?? [],
       fitsAll: this.fitsAll(room),
       ...this.swipeResults(room, viewerId),
       wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),

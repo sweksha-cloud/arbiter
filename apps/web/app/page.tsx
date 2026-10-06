@@ -14,7 +14,7 @@ export default function HomePage() {
   const { start, startWith, busy, error } = useStartSession(identity?.token);
 
   return (
-    <main className="page stack">
+    <main className="page stack home">
       <header className="hero">
         <h1>Where should we eat?</h1>
         <p className="hero-lead">
@@ -59,6 +59,8 @@ export default function HomePage() {
           </p>
         </>
       )}
+
+      <AboutArbiter />
     </main>
   );
 }
@@ -80,6 +82,55 @@ function HeroPreview() {
       </div>
       <span className="hero-match">🎉 It&apos;s a match!</span>
     </div>
+  );
+}
+
+/**
+ * More about Arbiter, for the desktop website only (TRADEOFFS.md 23b): like a
+ * product site, it explains as well as works. The installed app and phones
+ * skip it and go straight to the tool.
+ */
+function AboutArbiter() {
+  const features = [
+    {
+      icon: '🔒',
+      title: 'Private must-haves',
+      text: "Budget, distance, vegetarian or vegan, kinds of place. Nobody sees your answers, and Arbiter never says whose must-have ruled a place out."
+    },
+    {
+      icon: '👉',
+      title: 'Swipe together',
+      text: 'Everyone swipes on the same places, live. When everyone likes one, it pops up as a match. Alone? It keeps your likes and helps you narrow them down.'
+    },
+    {
+      icon: '✓',
+      title: 'Honest about trade-offs',
+      text: 'Every card says if it fits everyone, or exactly which of your must-haves it misses, so close matches are a choice, not a surprise.'
+    },
+    {
+      icon: '📍',
+      title: 'Meet anywhere',
+      text: 'Search around one area, or find a spot between where everyone is coming from. Photos, ratings, hours and directions on every card.'
+    }
+  ];
+  return (
+    <section className="about" aria-labelledby="about-heading">
+      <h2 id="about-heading">Why groups use Arbiter</h2>
+      <ul className="about-grid">
+        {features.map((f) => (
+          <li key={f.title} className="card stack tight">
+            <span className="about-icon" aria-hidden>
+              {f.icon}
+            </span>
+            <strong>{f.title}</strong>
+            <p className="muted small">{f.text}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">
+        Works on any phone, and installs like an app: on iPhone, Share → Add to Home Screen.
+      </p>
+    </section>
   );
 }
 
