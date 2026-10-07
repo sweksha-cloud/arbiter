@@ -36,7 +36,9 @@ export const SessionMemberSchema = GuestSchema.extend({
   submitted: z.boolean(),
   online: z.boolean(),
   /** Joined once results were being chosen; their first answers re-sort the list. */
-  joinedAfterResults: z.boolean().optional()
+  joinedAfterResults: z.boolean().optional(),
+  /** How many places they've swiped on: a count only, never which or which way. */
+  swiped: z.number().int().nonnegative().optional()
 });
 export type SessionMember = z.infer<typeof SessionMemberSchema>;
 

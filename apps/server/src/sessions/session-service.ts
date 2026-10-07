@@ -652,7 +652,11 @@ export class SessionService {
       version: room.version,
       status: room.status,
       hostId: room.hostId,
-      members: room.members.map((m) => ({ ...m, online: onlineIds.has(m.id) })),
+      members: room.members.map((m) => ({
+        ...m,
+        online: onlineIds.has(m.id),
+        swiped: Object.keys(room.reactions[m.id] ?? {}).length
+      })),
       suggestions: room.suggestions.map(({ menu, ...place }) => ({
         place: forViewer(place),
         likes: tally[place.id]?.likes ?? 0,

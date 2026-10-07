@@ -354,22 +354,25 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             <summary>
               <span>Session details</span>
               <span className="muted small">
-                {view.members.length} {view.members.length === 1 ? 'person' : 'people'} · {isHost ? 'invite, end session' : 'invite link'}
+                {view.members.length} {view.members.length === 1 ? 'person' : 'people'}
+                {view.members.length > 1 && ` · ${doneSwiping(view)} done swiping`}
               </span>
             </summary>
             <div className="stack">
+              <Members view={view} myId={identity.guest.id} />
               <p className="small">
-                <strong>How it ends:</strong> when everyone likes the same place, it&apos;s a match and shows up for
-                everyone with directions.
+                <strong>What happens next:</strong>{' '}
+                {view.members.length === 1
+                  ? 'your likes are kept, and you can go through them again until one is left.'
+                  : "when everyone likes the same place it's a match, shown to everyone with directions. No match? Start a final round with the places most of you liked."}
               </p>
-              {view.placesSource === 'sample' && (
+              {view.placesSource === 'sample' && !view.demo && (
                 <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
               )}
               <p className="muted small">
                 {searchedNearText(view)} · Looked at {view.scannedCount} places · {view.eliminatedCount} didn&apos;t work
                 for someone in the group
               </p>
-              <Members view={view} myId={identity.guest.id} />
               {isHost ? <HostBar sessionId={view.sessionId} atBottom /> : <SessionCode sessionId={view.sessionId} />}
               {isHost && view.status === 'voting' && (
                 <button className="button" onClick={() => send((s) => s.emit('session:end', handleAck))}>
@@ -604,6 +607,9 @@ function SessionEnded({ token }: { token: string }) {
 }
 
 function Members({ view, myId }: { view: SessionView; myId: string }) {
+  // After results: how far along each person is (counts only).
+  const resultsIn = view.status === 'voting' || view.status === 'ended';
+  const total = view.suggestions.length + view.moreOptions.length;
   return (
     <section className="stack tight">
       <h2 className="small muted">Who&apos;s here</h2>
@@ -613,6 +619,12 @@ function Members({ view, myId }: { view: SessionView; myId: string }) {
             {m.displayName}
             {m.id === myId && ' (you)'}
             {m.id === view.hostId && <span className="badge">host</span>}
+            {resultsIn && (
+              <span className="muted small">
+                {' '}
+                · {(m.swiped ?? 0) >= total ? 'done' : `${m.swiped ?? 0} of ${total}`}
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -695,3 +707,10 @@ function SessionCode({ sessionId }: { sessionId: string }) {
     </header>
   );
 }
+
+/** How many members have swiped on every place. */
+function doneSwiping(view: SessionView): number {
+  const total = view.suggestions.length + view.moreOptions.length;
+  return view.members.filter((m) => (m.swiped ?? 0) >= total).length;
+}
+
