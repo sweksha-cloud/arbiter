@@ -24,7 +24,7 @@ test('Arbiter can be installed as an app: manifest, icons and iPhone tags', asyn
 test('offline, a page shows a friendly offline screen instead of the browser error', async ({ newPhone, browserName }) => {
   // Playwright's WebKit doesn't run service workers.
   test.skip(browserName === 'webkit', 'no service workers in Playwright WebKit');
-  const phone = await newPhone();
+  const phone = await newPhone({ serviceWorkers: true });
   await phone.goto('/');
   await phone.evaluate(() => navigator.serviceWorker.ready);
   await phone.context().setOffline(true);

@@ -20,6 +20,8 @@ const ALLOWED_LOCATION: BrowserContextOptions = {
 interface PhoneOptions {
   /** Leave the location prompt unanswered instead of allowing it. */
   ignoreLocationPrompt?: boolean;
+  /** Let the offline-page service worker run (off by default; see below). */
+  serviceWorkers?: boolean;
 }
 
 export const test = base.extend<{ newPhone: (options?: PhoneOptions) => Promise<Page> }>({
@@ -31,10 +33,15 @@ export const test = base.extend<{ newPhone: (options?: PhoneOptions) => Promise<
     const PHONE = PHONES[browserName]!;
     const contexts: BrowserContext[] = [];
     const errors: string[] = [];
-    await use(async ({ ignoreLocationPrompt = false } = {}) => {
+    await use(async ({ ignoreLocationPrompt = false, serviceWorkers = false } = {}) => {
       // Any `permissions` list, even an empty one, makes Chromium answer the
       // prompt itself, so an unanswered prompt needs the option left out.
-      const context = await browser.newContext(ignoreLocationPrompt ? PHONE : { ...PHONE, ...ALLOWED_LOCATION });
+      // Service workers are off unless asked for: with one running, WebKit
+      // stops `page.route` from seeing the page's requests.
+      const context = await browser.newContext({
+        ...(ignoreLocationPrompt ? PHONE : { ...PHONE, ...ALLOWED_LOCATION }),
+        serviceWorkers: serviceWorkers ? 'allow' : 'block'
+      });
       contexts.push(context);
       const page = await context.newPage();
       page.on('pageerror', (error) => {
