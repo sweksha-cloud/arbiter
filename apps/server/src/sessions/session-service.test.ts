@@ -1051,6 +1051,42 @@ describe('SessionService', () => {
       // The match is kept in the session's history.
       expect((await history.get(sessionId))!.places.find((p) => p.placeId === 'a')!.matched).toBe(true);
     });
+
+    it('in a final round, the simulated friends join once and vote once', async () => {
+      const guests = new InMemoryGuestStore();
+      const rooms = new InMemoryRoomStore();
+      const service = new SessionService({
+        rooms,
+        guests,
+        history: new InMemorySessionHistory(),
+        places: new FixturePlacesProvider([]),
+        demoPlaces: new FixturePlacesProvider(['a', 'b', 'c'].map((id) => place(id))),
+        placesSource: 'google',
+        radiusMeters: 3000,
+        missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' },
+        demoSwipeDelayMs: () => 1
+      });
+      const host = (await guests.create('Host')).guest;
+      const sessionId = await service.createDemo(host);
+      await service.submit(sessionId, host, noPreferences);
+      await service.react(sessionId, host, 'a', 'like');
+      await service.react(sessionId, host, 'b', 'like');
+      // In a group of three a place needs two likes: wait for the friends' first swipes.
+      await vi.waitFor(async () => {
+        const room = await service.get(sessionId);
+        expect(room.demoBots!.every((id) => Object.keys(room.reactions[id] ?? {}).length === 3)).toBe(true);
+      });
+      await service.joinFinalRound(sessionId, host);
+      await vi.waitFor(async () => expect((await service.get(sessionId)).finalRound!.participants).toHaveLength(3));
+      await vi.waitFor(async () => expect(Object.keys((await service.get(sessionId)).finalRound!.votes)).toHaveLength(2));
+      const settled = (await service.get(sessionId)).version;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Nothing keeps changing once they've voted.
+      const later = await service.get(sessionId);
+      expect(later.finalRound!.participants).toHaveLength(3);
+      expect(later.version).toBe(settled);
+      await service.settle();
+    });
   });
 
   describe('a scan cut off mid-way (the server stopped or crashed)', () => {

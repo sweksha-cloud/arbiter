@@ -230,6 +230,8 @@ export class SessionService {
   /** Demo sessions whose simulated friends are swiping, and their timers. */
   private readonly demosRunning = new Set<string>();
   private readonly demoTimers = new Set<ReturnType<typeof setTimeout>>();
+  /** Set when shutting down: demo friends stop scheduling more swipes. */
+  private closing = false;
   /** Told about changes nobody's request caused (demo friends swiping), to send everyone the new state. */
   private backgroundListener?: (sessionId: string, room: RoomState) => void;
 
@@ -498,7 +500,11 @@ export class SessionService {
       }
       return { ...room, finalRound: { placeIds, startedBy: guest.id, participants: [guest.id], votes: {} } };
     });
-    if (updated.demo) this.startDemoFinalRound(sessionId);
+    // Demo friends join when a real person starts the round (not when one of them joins).
+    const round = updated.finalRound!;
+    if (updated.demo && round.startedBy === guest.id && round.participants.length === 1 && !updated.demoBots?.includes(guest.id)) {
+      this.startDemoFinalRound(sessionId);
+    }
     return updated;
   }
 
@@ -542,6 +548,7 @@ export class SessionService {
 
   /** Demo friends join a final round and like its first two places, so a host who likes one sees the pick. */
   private startDemoFinalRound(sessionId: string): void {
+    if (this.closing) return;
     const delay = this.options.demoSwipeDelayMs?.() ?? 1_500;
     const timer = setTimeout(() => {
       this.demoTimers.delete(timer);
@@ -1024,6 +1031,7 @@ export class SessionService {
       return stop();
     };
     const schedule = () => {
+      if (this.closing) return stop();
       const timer = setTimeout(() => {
         this.demoTimers.delete(timer);
         step().catch((error: unknown) => {
@@ -1184,6 +1192,7 @@ export class SessionService {
    * session is left "scanning", then writes the history they queued.
    */
   async settle(): Promise<void> {
+    this.closing = true;
     for (const timer of this.demoTimers) clearTimeout(timer);
     this.demoTimers.clear();
     await Promise.allSettled([...this.scansInFlight]);
