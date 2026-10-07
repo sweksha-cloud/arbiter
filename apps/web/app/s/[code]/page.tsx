@@ -22,7 +22,7 @@ import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
-import { Matches, MatchToast, SwipeDeck } from '../../../components/SwipeDeck';
+import { Matches, MatchToast, SwipeDeck, YourLikes } from '../../../components/SwipeDeck';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
 import { describeWishNotMet } from '../../../lib/format';
@@ -289,11 +289,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             }
           />
 
-          {/* Below the deck, so nothing above the card moves while people swipe. */}
+          {/* Below the deck on phones (nothing above the card moves while people swipe); the side panel on desktop. */}
           {view.status === 'voting' && view.suggestions.length > 0 && (
             <>
               <Matches view={view} />
               <MatchToast view={view} />
+              {view.members.length > 1 && <YourLikes view={view} />}
             </>
           )}
 
@@ -342,6 +343,10 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
               </span>
             </summary>
             <div className="stack">
+              <p className="small">
+                <strong>How it ends:</strong> when everyone likes the same place, it&apos;s a match and shows up for
+                everyone with directions.
+              </p>
               {view.placesSource === 'sample' && (
                 <p className="notice small">Sample places for testing. These aren&apos;t real restaurants yet.</p>
               )}
@@ -468,22 +473,29 @@ function MyPreferences({
   if (preferences === undefined) return null;
 
   if (submitted && !editing) {
-    return (
-      <>
-        <section className="card row spread">
-          <p>
-            <strong>✓ Submitted.</strong>{' '}
-            <span className="muted small">
-              {afterResults
-                ? 'Changing your answers re-sorts the list for everyone. Nobody sees what you changed.'
-                : 'Nobody else can see your answers.'}
-            </span>
+    // After results: one compact line, the explanation in a tooltip (TRADEOFFS.md 23f).
+    if (afterResults) {
+      return (
+        <section className="card row spread nowrap answers-in">
+          <p className="small">
+            <strong>✓ Your answers are in.</strong>{' '}
+            <span className="muted">Changing them re-sorts everyone&apos;s list.</span>
           </p>
-          <button className="button" onClick={() => setEditing(true)}>
-            {afterResults ? 'Change my preferences' : 'Change'}
+          <button className="pill-button" onClick={() => setEditing(true)} aria-label="Change my preferences">
+            Change
           </button>
         </section>
-      </>
+      );
+    }
+    return (
+      <section className="card row spread">
+        <p>
+          <strong>✓ Submitted.</strong> <span className="muted small">Nobody else can see your answers.</span>
+        </p>
+        <button className="button" onClick={() => setEditing(true)}>
+          Change
+        </button>
+      </section>
     );
   }
 

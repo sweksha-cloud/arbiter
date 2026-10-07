@@ -568,7 +568,7 @@ test('swiping comes in rounds of 7, then you can see more or narrow your likes t
   };
   // Like the 1st and 2nd, pass on the rest of the round.
   for (let i = 0; i < 7; i++) await swipe(i < 2);
-  await expect(phone.getByText('End of this round. You liked 2:')).toBeVisible();
+  await expect(phone.getByText('End of this round. Here are your likes:')).toBeVisible();
   // The end of a round lists what you liked.
   await expect(phone.getByRole('list', { name: 'Places you liked' }).getByRole('listitem')).toHaveCount(2);
   await expect(phone.getByRole('button', { name: /^See \d+ more places?$/ })).toBeVisible();

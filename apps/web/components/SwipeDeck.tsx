@@ -304,16 +304,32 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
         )}
       </div>
 
+      {/* Labelled, so the next action is obvious (TRADEOFFS.md 23f). */}
       <div className="swipe-buttons">
-        <button className="swipe-button pass" onClick={() => swipe('dislike')} aria-label={`Pass on ${current.name}`}>
-          ✕
-        </button>
-        <button className="swipe-button undo" onClick={() => void undo()} disabled={history.length === 0} aria-label="Undo">
-          ↺
-        </button>
-        <button className="swipe-button like" onClick={() => swipe('like')} aria-label={`Like ${current.name}`}>
-          ♥
-        </button>
+        <span className="swipe-action">
+          <button className="swipe-button pass" onClick={() => swipe('dislike')} aria-label={`Pass on ${current.name}`}>
+            ✕
+          </button>
+          <span className="swipe-label" aria-hidden>
+            Pass
+          </span>
+        </span>
+        <span className="swipe-action">
+          <button className="swipe-button undo" onClick={() => void undo()} disabled={history.length === 0} aria-label="Undo">
+            ↺
+          </button>
+          <span className="swipe-label" aria-hidden>
+            Undo
+          </span>
+        </span>
+        <span className="swipe-action">
+          <button className="swipe-button like" onClick={() => swipe('like')} aria-label={`Like ${current.name}`}>
+            ♥
+          </button>
+          <span className="swipe-label" aria-hidden>
+            Like
+          </span>
+        </span>
       </div>
       {done === 0 && <p className="muted small center">Swipe right to like, left to pass.</p>}
       {error && <p className="error">{error}</p>}
@@ -384,7 +400,7 @@ function RoundEnd({
                 : `${liked.length} still in the running.`
               : liked.length === 0
                 ? 'End of this round. No likes yet.'
-                : `End of this round. You liked ${liked.length}:`}
+                : 'End of this round. Here are your likes:'}
           </strong>
         </p>
       )}
@@ -418,7 +434,7 @@ function RoundEnd({
 }
 
 /** The places you've liked, compact: photo or emoji, name, key facts, directions. */
-function LikedList({ places, view }: { places: PlaceCandidate[]; view: SessionView }) {
+export function LikedList({ places, view }: { places: PlaceCandidate[]; view: SessionView }) {
   return (
     <ul className="liked-list" aria-label="Places you liked">
       {places.map((place) => {
@@ -623,3 +639,22 @@ export function Matches({ view }: { view: SessionView }) {
     </section>
   );
 }
+
+/**
+ * Desktop side panel (TRADEOFFS.md 23f): the places you've liked so far, so
+ * the right side holds decision information instead of empty space.
+ */
+export function YourLikes({ view }: { view: SessionView }) {
+  const liked = allPlaces(view).filter((p) => view.myReactions[p.id] === 'like');
+  return (
+    <section className="card stack tight your-likes" aria-label="Your likes so far">
+      <h2>Your likes {liked.length > 0 && <span className="muted">({liked.length})</span>}</h2>
+      {liked.length > 0 ? (
+        <LikedList places={liked} view={view} />
+      ) : (
+        <p className="muted small">Swipe right on a place and it shows up here.</p>
+      )}
+    </section>
+  );
+}
+

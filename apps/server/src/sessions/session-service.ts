@@ -596,7 +596,7 @@ export class SessionService {
       scannedCount: room.scannedCount,
       eliminatedCount: room.eliminatedCount,
       allergyReminder: Object.values(room.submissions).some((p) => (p.allergies?.length ?? 0) > 0),
-      placesSource: this.options.placesSource
+      placesSource: room.demo ? 'sample' : this.options.placesSource
     };
   }
 
