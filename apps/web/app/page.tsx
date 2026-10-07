@@ -24,8 +24,7 @@ export default function HomePage() {
           </p>
           <h1>Where should we eat?</h1>
           <p className="hero-lead">
-            Everyone sets their must-haves privately. Then swipe together until you match, or go solo and narrow your
-            likes down to one pick.
+            Everyone sets their must-haves privately. Then swipe together to find a match.
           </p>
         </header>
 
