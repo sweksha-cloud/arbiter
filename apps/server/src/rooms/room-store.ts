@@ -50,6 +50,9 @@ export interface RoomState {
    * Never sent to clients as is.
    */
   candidates?: PlaceCandidate[];
+  /** A "Try a demo" session (TRADEOFFS.md 24): sample places, and these simulated friends swipe on their own. */
+  demo?: boolean;
+  demoBots?: string[];
   /** Searches made so far, so "search for more places" knows how far to look next. */
   searches?: number;
   /** Places people voted on that no longer fit after someone's edit. */

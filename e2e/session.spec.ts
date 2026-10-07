@@ -581,3 +581,15 @@ test('swiping comes in rounds of 7, then you can see more or narrow your likes t
   await expect(phone.getByText(`Your top pick: ${keep}`)).toBeVisible();
 });
 
+test('"Try a demo" works alone: simulated friends swipe, and liking what they like is a match', async ({ newPhone }) => {
+  const phone = await newPhone();
+  await phone.goto('/');
+  await phone.getByRole('button', { name: '▶ Try a demo with sample friends' }).click();
+  await expect(phone.getByText('Demo session.')).toBeVisible();
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  // The simulated friends like the first places they see; like the first one too.
+  const first = await phone.locator('article.swipe-card h3').textContent();
+  await phone.getByRole('button', { name: `Like ${first}` }).click();
+  await expect(phone.locator('.match-toast')).toContainText(first!, { timeout: 20_000 });
+});
+

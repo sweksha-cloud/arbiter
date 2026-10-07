@@ -93,7 +93,20 @@ export interface SessionServiceOptions {
   now?: () => number;
   /** The link a card loads a place's photo from; without it, cards have no photos. */
   photoUrl?: (sessionId: string, placeId: string) => string;
+  /** Free sample places for "Try a demo" sessions, whatever `places` is (TRADEOFFS.md 24). */
+  demoPlaces?: PlacesProvider;
+  /** For tests: how long a simulated friend waits between swipes. */
+  demoSwipeDelayMs?: () => number;
 }
+
+/** Where a demo session searches: sample places are placed around any center. */
+const DEMO_AREA = { center: { lat: 37.3352, lng: -121.8811 }, label: 'downtown San Jose (demo)' };
+
+/** The simulated friends in a demo, and what they "chose". */
+const DEMO_FRIENDS: { name: string; preferences: Preferences }[] = [
+  { name: 'Alex (demo)', preferences: { hard: {}, soft: { likedCuisines: ['thai', 'mexican'] } } },
+  { name: 'Sam (demo)', preferences: { hard: { maxPricePerPerson: 50 }, soft: { likedCuisines: ['japanese', 'american'] } } }
+];
 
 /**
  * A session still "scanning" after this long lost its scan (the server
@@ -214,6 +227,11 @@ export class SessionService {
   private readonly historyWrites = new Map<string, Promise<void>>();
   /** Scans running in this process, finished before shutting down. */
   private readonly scansInFlight = new Set<Promise<unknown>>();
+  /** Demo sessions whose simulated friends are swiping, and their timers. */
+  private readonly demosRunning = new Set<string>();
+  private readonly demoTimers = new Set<ReturnType<typeof setTimeout>>();
+  /** Told about changes nobody's request caused (demo friends swiping), to send everyone the new state. */
+  private backgroundListener?: (sessionId: string, room: RoomState) => void;
 
   constructor(private readonly options: SessionServiceOptions) {}
 
@@ -557,6 +575,7 @@ export class SessionService {
       moreOptions: room.moreOptions.map(({ menu: _menu, ...place }) => forViewer(place)),
       missesForYou: this.missesFor(room, viewerId, forViewer),
       noLongerFits: room.noLongerFits ?? [],
+      demo: room.demo ?? false,
       myKinds: room.submissions[viewerId]?.hard.kinds ?? [],
       myRuledOut: room.submissions[viewerId]?.soft.dislikedCuisines ?? [],
       fitsAll: this.fitsAll(room),
@@ -603,7 +622,8 @@ export class SessionService {
     });
     // Charged only once this request has won the move to 'scanning', so a
     // refused duplicate never uses up the budget.
-    const wait = this.options.scanBudget?.take(room.hostIp ?? 'unknown') ?? 0;
+    // Demo sessions use free sample places, so they don't use up the network's daily searches.
+    const wait = room.demo ? 0 : (this.options.scanBudget?.take(room.hostIp ?? 'unknown') ?? 0);
     if (wait > 0) {
       await this.update(sessionId, (current) => ({ ...current, status: 'lobby' }));
       this.options.log?.info({ sessionId }, 'Scan refused: daily scan limit for this network');
@@ -665,6 +685,7 @@ export class SessionService {
         scannedCount: scanned.length,
         eliminatedCount
       }));
+      if (voting.demo) this.startDemoBots(sessionId);
       this.record(sessionId, 'suggestions', () =>
         this.options.history.recordSuggestions(
           sessionId,
@@ -695,7 +716,8 @@ export class SessionService {
    */
   private async searchUntilEnough(room: RoomState, center: LatLng, radiusMeters: number) {
     const liked = [...new Set(Object.values(room.submissions).flatMap((p) => p.soft.likedCuisines ?? []))];
-    const first = await this.options.places.searchNearby({ center, radiusMeters });
+    const places = this.placesFor(room);
+    const first = await places.searchNearby({ center, radiusMeters });
     const wider = Math.min(Math.max(radiusMeters * 4, WIDER_SEARCH_METERS), MAX_DISTANCE_METERS);
     const widen = first.length === 0 && wider > radiusMeters;
     const searchRadius = widen ? wider : radiusMeters;
@@ -711,7 +733,7 @@ export class SessionService {
       if (searches >= MAX_SEARCHES || enough()) break;
       searches += 1;
       try {
-        const found = await this.options.places.searchNearby({ center, radiusMeters: searchRadius, ...followUp });
+        const found = await places.searchNearby({ center, radiusMeters: searchRadius, ...followUp });
         const known = new Set(candidates.map((p) => p.id));
         const added = await addMenus(
           found.filter((p) => !known.has(p.id)),
@@ -782,7 +804,7 @@ export class SessionService {
         : { center, radiusMeters: Math.min(radiusMeters * 2 ** step, MAX_DISTANCE_METERS) };
     let found: PlaceCandidate[];
     try {
-      found = await this.options.places.searchNearby(request);
+      found = await this.placesFor(room).searchNearby(request);
     } catch (error) {
       if (error instanceof PlacesQuotaExceededError) throw error;
       this.options.log?.error({ err: error, sessionId }, 'Search for more places failed');
@@ -808,6 +830,7 @@ export class SessionService {
       };
     });
     this.options.log?.info({ sessionId, searches: updated.searches, added }, 'Searched for more places');
+    if (updated.demo) this.startDemoBots(sessionId);
     return { room: updated, added };
   }
 
@@ -842,6 +865,85 @@ export class SessionService {
       return rest;
     }
     return { ...place, photo: { ...credit, url: this.options.photoUrl(sessionId, place.id) } };
+  }
+
+  /** Called with changes no request caused, e.g. demo friends swiping; the socket layer sends them out. */
+  onBackgroundChange(listener: (sessionId: string, room: RoomState) => void): void {
+    this.backgroundListener = listener;
+  }
+
+  /**
+   * "Try a demo" (TRADEOFFS.md 24): a session with two simulated friends who
+   * have already joined and submitted, sample places (never a paid search),
+   * and, once results are in, friends who swipe on their own so the host sees
+   * matches happen. Everything else is a normal session.
+   */
+  async createDemo(host: Guest, hostIp?: string): Promise<string> {
+    const sessionId = await this.create(host, { mode: 'area', area: DEMO_AREA }, hostIp);
+    const bots: string[] = [];
+    for (const friend of DEMO_FRIENDS) {
+      const { guest } = await this.options.guests.create(friend.name);
+      await this.join(sessionId, guest);
+      bots.push(guest.id);
+      await this.update(sessionId, (room) => ({
+        ...room,
+        members: room.members.map((m) => (m.id === guest.id ? { ...m, submitted: true } : m)),
+        submissions: { ...room.submissions, [guest.id]: friend.preferences }
+      }));
+    }
+    await this.update(sessionId, (room) => ({ ...room, demo: true, demoBots: bots }));
+    this.options.log?.info({ sessionId }, 'Demo session created');
+    return sessionId;
+  }
+
+  private placesFor(room: RoomState): PlacesProvider {
+    return room.demo && this.options.demoPlaces ? this.options.demoPlaces : this.options.places;
+  }
+
+  /**
+   * Demo friends swipe one place at a time, a second or two apart, in deck
+   * order: each likes the first three places and about half the rest, so a
+   * host who likes one of the first few gets a match. Stops when they've
+   * swiped everything, voting ends, or the session is gone.
+   */
+  private startDemoBots(sessionId: string): void {
+    if (this.demosRunning.has(sessionId)) return;
+    this.demosRunning.add(sessionId);
+    const delay = () => this.options.demoSwipeDelayMs?.() ?? 1_200 + Math.random() * 1_400;
+    const stop = () => this.demosRunning.delete(sessionId);
+    const step = async () => {
+      const room = await this.options.rooms.get(sessionId);
+      if (!room || room.status !== 'voting' || !room.demoBots) return stop();
+      const places = [...room.suggestions, ...room.moreOptions];
+      // The friend with the fewest swipes goes next, so they keep pace with each other.
+      const turns = room.demoBots
+        .map((id) => ({ id, done: Object.keys(room.reactions[id] ?? {}).length }))
+        .sort((a, b) => a.done - b.done);
+      for (const { id } of turns) {
+        const index = places.findIndex((p) => !room.reactions[id]?.[p.id]);
+        if (index === -1) continue;
+        const place = places[index]!;
+        const coin = [...`${id}${place.id}`].reduce((sum, c) => sum + c.charCodeAt(0), 0) % 10;
+        const member = room.members.find((m) => m.id === id);
+        if (!member) continue;
+        const updated = await this.react(sessionId, { id, displayName: member.displayName } as Guest, place.id, index < 3 || coin < 5 ? 'like' : 'dislike');
+        this.backgroundListener?.(sessionId, updated);
+        return schedule();
+      }
+      return stop();
+    };
+    const schedule = () => {
+      const timer = setTimeout(() => {
+        this.demoTimers.delete(timer);
+        step().catch((error: unknown) => {
+          stop();
+          this.options.log?.error({ err: error, sessionId }, 'Demo friend could not swipe');
+        });
+      }, delay());
+      timer.unref?.();
+      this.demoTimers.add(timer);
+    };
+    schedule();
   }
 
   /** Where a person's distances start: their own location when meeting between everyone. */
@@ -991,6 +1093,8 @@ export class SessionService {
    * session is left "scanning", then writes the history they queued.
    */
   async settle(): Promise<void> {
+    for (const timer of this.demoTimers) clearTimeout(timer);
+    this.demoTimers.clear();
     await Promise.allSettled([...this.scansInFlight]);
     await this.settleHistory();
   }

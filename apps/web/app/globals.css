@@ -1884,3 +1884,21 @@ body {
   gap: 12px;
 }
 
+/* "Try a demo": a clear secondary option under the start card's actions. */
+.demo-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.demo-cta p {
+  margin: 0;
+}
+
+.demo-button {
+  width: 100%;
+}
+

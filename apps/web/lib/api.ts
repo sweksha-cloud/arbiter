@@ -131,6 +131,10 @@ export const api = {
       (r) => r.sessionId
     ),
 
+  /** "Try a demo": a session with simulated friends and sample places (TRADEOFFS.md 24). */
+  createDemoSession: (token: string) =>
+    request(CreateSessionResponseSchema, '/api/sessions/demo', { method: 'POST', token, body: {} }).then((r) => r.sessionId),
+
   /** Typed text ("san francisco", an address) to a point and its full name. */
   geocode: (token: string, query: string) =>
     request(GeocodeResponseSchema, '/api/geocode', { method: 'POST', token, body: { query } }).then((r) => r.location)

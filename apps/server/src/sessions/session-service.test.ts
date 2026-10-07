@@ -966,6 +966,47 @@ describe('SessionService', () => {
     });
   });
 
+  describe('"Try a demo" (TRADEOFFS.md 24)', () => {
+    it('two simulated friends join and submit; after you submit they swipe on their own, and you can match', async () => {
+      const guests = new InMemoryGuestStore();
+      const paid: PlacesProvider = { searchNearby: vi.fn(async () => [] as never) };
+      const service = new SessionService({
+        rooms: new InMemoryRoomStore(),
+        guests,
+        history: new InMemorySessionHistory(),
+        places: paid,
+        demoPlaces: new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e'].map((id, i) => place(id, { rating: 5 - i * 0.2 }))),
+        placesSource: 'google',
+        radiusMeters: 3000,
+        missingDataPolicy: { price: 'keep', servesVegetarian: 'eliminate' },
+        demoSwipeDelayMs: () => 1
+      });
+      const updates: string[] = [];
+      service.onBackgroundChange((sessionId) => updates.push(sessionId));
+      const host = (await guests.create('Host')).guest;
+      const sessionId = await service.createDemo(host);
+
+      let room = await service.get(sessionId);
+      expect(room.members.map((m) => m.displayName)).toEqual(['Host', 'Alex (demo)', 'Sam (demo)']);
+      expect(room.members.filter((m) => m.submitted)).toHaveLength(2);
+      expect(service.view(room, host.id).demo).toBe(true);
+
+      room = await service.submit(sessionId, host, noPreferences);
+      expect(room.status).toBe('voting');
+      expect(paid.searchNearby).not.toHaveBeenCalled(); // Never a paid search.
+
+      // The friends like the first places; once they have, liking the first one is a match.
+      await vi.waitFor(async () => {
+        const now = await service.get(sessionId);
+        expect(now.demoBots!.every((id) => now.reactions[id]?.a === 'like')).toBe(true);
+      });
+      room = await service.react(sessionId, host, 'a', 'like');
+      expect(service.view(room, host.id).matches).toContain('a');
+      expect(updates.length).toBeGreaterThan(0);
+      await service.settle();
+    });
+  });
+
   describe('a scan cut off mid-way (the server stopped or crashed)', () => {
     it('finishes scans in progress before shutting down', async () => {
       let release!: () => void;

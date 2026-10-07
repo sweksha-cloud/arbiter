@@ -14,6 +14,7 @@ const view = (sessionId: string, version: number): SessionView => ({
   missesForYou: {},
   noLongerFits: [],
   myKinds: [],
+  demo: false,
   myRuledOut: [],
   fitsAll: [],
   myReactions: {},

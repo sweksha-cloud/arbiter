@@ -196,6 +196,12 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
           moves to the bottom for everyone, out of the way of swiping. */}
       {!resultsIn && (isHost ? <HostBar sessionId={view.sessionId} /> : <SessionCode sessionId={view.sessionId} />)}
       <HostLeftNotice view={view} isHost={isHost} />
+      {view.demo && (
+        <p className="notice small demo-notice" role="note">
+          <strong>Demo session.</strong> Alex and Sam are simulated friends: they&apos;ve already chosen, and they swipe on
+          their own once results appear. The places are samples, not real restaurants.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 

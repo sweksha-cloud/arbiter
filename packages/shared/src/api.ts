@@ -168,6 +168,8 @@ export const SessionViewSchema = z.object({
       example: z.string().optional()
     })
   ),
+  /** A "Try a demo" session: the other members are simulated (TRADEOFFS.md 24). */
+  demo: z.boolean(),
   /** Your own "only show me" kinds of place, to word "it's a restaurant, not a café". Only yours. */
   myKinds: z.array(PlaceKindSchema),
   /** Your own thumbed-down cuisines, to word "serves thai, which you ruled out". Only yours. */

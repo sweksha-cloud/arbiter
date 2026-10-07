@@ -3,6 +3,7 @@
 import Link from 'next/link';
 
 import { Greeting } from '../components/Greeting';
+import { DemoButton } from '../components/DemoButton';
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
 import { StartSessionForm } from '../components/StartSessionForm';
@@ -52,6 +53,7 @@ export default function HomePage() {
               or
             </p>
             <JoinCodeForm compact />
+            <DemoButton identity={identity} />
           </div>
         )}
 

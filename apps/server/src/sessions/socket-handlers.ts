@@ -87,6 +87,9 @@ export function registerSocketHandlers(
     }
   }
 
+  // Changes no request caused (demo friends swiping) still reach everyone.
+  sessions.onBackgroundChange((sessionId, room) => void broadcast(sessionId, room));
+
   /** `context` (guest, session, event) goes into the log if the action fails unexpectedly. */
   async function respond(ack: unknown, context: object, action: () => Promise<void>) {
     const reply = (result: Ack) => {

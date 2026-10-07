@@ -134,6 +134,14 @@ export function registerRoutes(
     return reply.code(201).send({ sessionId });
   });
 
+  // "Try a demo": simulated friends and free sample places (TRADEOFFS.md 24).
+  http.post('/api/sessions/demo', perMinute(rateLimits.sessionsPerMinute), async (request, reply) => {
+    const guest = await requireGuest(guests, request, reply);
+    if (!guest) return reply;
+    const sessionId = await sessions.createDemo(guest, request.ip);
+    return reply.code(201).send({ sessionId });
+  });
+
   // Signed-in only, and limited per network: each lookup can be a paid Google request.
   http.post('/api/geocode', async (request, reply) => {
     const guest = await requireGuest(guests, request, reply);
