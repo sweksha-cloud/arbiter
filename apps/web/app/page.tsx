@@ -19,6 +19,9 @@ export default function HomePage() {
     <main className="page stack home">
       <div className="home-hero">
         <header className="hero">
+          <p className="live-pill">
+            <span className="live-dot" aria-hidden /> Real-time restaurant matching for groups
+          </p>
           <h1>Where should we eat?</h1>
           <p className="hero-lead">
             Everyone sets their must-haves privately. Then swipe together until you match.
@@ -79,6 +82,7 @@ export default function HomePage() {
         </section>
       </div>
 
+      <HowItWorks />
       <AboutArbiter />
     </main>
   );
@@ -109,6 +113,33 @@ function HeroPreview() {
  * product site, it explains as well as works. The installed app and phones
  * skip it and go straight to the tool.
  */
+/** The workflow in three steps, right under the hero. */
+function HowItWorks() {
+  const steps = [
+    { title: 'Set private preferences', text: 'Budget, distance, diet and kinds of place. Nobody else in the group sees them.' },
+    { title: 'Join your group session', text: 'Share a link or a six-letter code. Everyone joins from their own phone.' },
+    { title: 'Swipe until everyone matches', text: "Like or pass on the same places, live. When everyone likes one, it's a match." }
+  ];
+  return (
+    <section id="how-it-works" className="how-it-works" aria-labelledby="how-heading">
+      <h2 id="how-heading">How it works</h2>
+      <ol className="how-steps">
+        {steps.map((step, index) => (
+          <li key={step.title}>
+            <span className="how-number" aria-hidden>
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <div className="stack tight">
+              <strong>{step.title}</strong>
+              <p className="muted small">{step.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function AboutArbiter() {
   const features = [
     {

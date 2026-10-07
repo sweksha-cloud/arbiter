@@ -1616,8 +1616,8 @@ body {
     column-gap: 72px;
     align-items: center;
     align-content: center;
-    min-height: calc(100vh - 80px);
-    padding: 24px 0 40px;
+    /* Less empty space before the sections below (owner, 2026-10-06). */
+    padding: 56px 0 8px;
   }
 
   .page.home .home-hero > .hero {
@@ -1677,8 +1677,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    /* Starts below the first screen instead of peeking in at the bottom edge. */
-    margin-top: 72px;
+    margin-top: 48px;
   }
 
   /* Lobby: preferences on the left, the session in a sidebar that stays in view (TRADEOFFS.md 26). */
@@ -2082,6 +2081,142 @@ body:has(.results-layout) .save-banner {
 
 @media (min-width: 960px) {
   .prefs-title {
+    font-size: 2rem;
+  }
+}
+
+/* Home: the site navigation (desktop), the live pill and "How it works" (owner, 2026-10-06). */
+.site-nav {
+  display: none;
+}
+
+.live-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34c27a;
+  box-shadow: 0 0 0 0 rgb(52 194 122 / 0.6);
+  animation: live-pulse 2s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  70% {
+    box-shadow: 0 0 0 8px rgb(52 194 122 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(52 194 122 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
+.how-it-works {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.how-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.how-steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.how-steps p {
+  margin: 0;
+}
+
+.how-number {
+  flex: none;
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "How it works" replaces the short step list on phones too. */
+.page.home .hero-steps {
+  display: none;
+}
+
+/* The installed app is just the tool. */
+@media (display-mode: standalone) {
+  .live-pill,
+  .how-it-works {
+    display: none !important;
+  }
+}
+
+@media (min-width: 960px) {
+  .site-header .site-nav {
+    display: flex;
+    gap: 28px;
+    margin-left: 48px;
+    margin-right: auto;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .site-nav a {
+    color: var(--text);
+    text-decoration: none;
+    opacity: 0.8;
+  }
+
+  .site-nav a:hover {
+    opacity: 1;
+  }
+
+  .how-it-works {
+    margin-top: 40px;
+  }
+
+  .how-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .how-steps li {
+    flex-direction: column;
+    gap: 10px;
+    padding: 22px;
+  }
+
+  .how-number {
     font-size: 2rem;
   }
 }

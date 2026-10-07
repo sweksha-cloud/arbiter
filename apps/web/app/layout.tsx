@@ -51,7 +51,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </a>
           . Nothing here is nutrition or medical advice.
           <br />
-          <Link href="/terms">Terms of Use</Link> · <Link href="/privacy">Privacy Policy</Link> ·{' '}
+          <Link href="/#how-it-works">How it works</Link> · <Link href="/privacy">Privacy Policy</Link> ·{' '}
+          <Link href="/terms">Terms of Use</Link> ·{' '}
           <a href="https://github.com/sweksha-cloud/arbiter" target="_blank" rel="noreferrer">
             Code on GitHub
           </a>

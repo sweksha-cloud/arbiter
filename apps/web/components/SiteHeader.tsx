@@ -33,6 +33,12 @@ export function SiteHeader() {
         <img src="/icons/icon-192.png" alt="" width={28} height={28} />
         Arbiter
       </Link>
+      {/* Desktop only: the site's sections, so the home page reads as a whole product. */}
+      <nav aria-label="Site" className="site-nav">
+        <Link href="/#how-it-works">How it works</Link>
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/#join-code">Join a session</Link>
+      </nav>
       {identity !== undefined && (
         <nav aria-label="Account" className="row nowrap">
           {hasAccount(identity) ? (
