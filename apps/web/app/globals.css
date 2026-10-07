@@ -2222,3 +2222,14 @@ body:has(.results-layout) .save-banner {
   }
 }
 
+/* "Show results now" under your answers: a full-width button (owner, 2026-10-07). */
+.lobby-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.show-results-now .button {
+  width: 100%;
+}
+

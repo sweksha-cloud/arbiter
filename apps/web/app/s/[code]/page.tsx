@@ -76,6 +76,9 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [notFound, setNotFound] = useState(false);
+  // "Show results now" failures, kept here so the message survives the button moving
+  // between the lobby and the searching screen (BUG-031).
+  const [startError, setStartError] = useState<string>();
 
   useEffect(() => {
     const socket: ArbiterSocket = io(SERVER_URL, {
@@ -190,6 +193,14 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const isHost = view.hostId === identity.guest.id;
   const me = view.members.find((m) => m.id === identity.guest.id);
   const resultsIn = view.status === 'voting' || view.status === 'ended';
+  const showResultsNow = (
+    <ShowResultsNow
+      view={view}
+      onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))}
+      error={startError}
+      setError={setStartError}
+    />
+  );
 
   return (
     <>
@@ -224,16 +235,16 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
             ) : (
               <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
             )}
+            {/* Under your answers (the right column on desktop), as a real button (owner, 2026-10-07). */}
+            {isHost && showResultsNow}
           </div>
         </>
       )}
 
       {view.status === 'scanning' && <p className="card">Everyone&apos;s in. Finding places…</p>}
 
-      {/* Kept on the page while searching, so a failed search's message isn't lost (BUG-031). */}
-      {isHost && (view.status === 'lobby' || view.status === 'scanning') && (
-        <ShowResultsNow view={view} onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))} />
-      )}
+      {/* While searching, only a failed try's message shows (BUG-031). */}
+      {isHost && view.status === 'scanning' && showResultsNow}
       </div>
 
       {(view.status === 'voting' || view.status === 'ended') && (
@@ -537,8 +548,17 @@ function MyPreferences({
 }
 
 /** Host fallback so one person who never submits (or shares a starting point) can't stall the group. */
-function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => Promise<void> }) {
-  const [error, setError] = useState<string>();
+function ShowResultsNow({
+  view,
+  onStart,
+  error,
+  setError
+}: {
+  view: SessionView;
+  onStart: () => Promise<void>;
+  error: string | undefined;
+  setError: (error: string | undefined) => void;
+}) {
   const submitted = view.members.filter((m) => m.submitted).length;
   if (submitted === 0) return null;
   // Only the host sees this, so the host is "you".
@@ -561,7 +581,7 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => P
   if (view.status !== 'lobby') return error ? <p className="error center">{error}</p> : null;
 
   return (
-    <section className="stack tight center">
+    <section className="stack tight center show-results-now">
       <p className="muted small">
         {waitingOn.length === 1 && waitingOn[0] === 'you'
           ? "Everyone else has submitted. Your must-haves won't count if you go now."
@@ -571,7 +591,8 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => P
         {notShared.length > 0 &&
           ` ${notShared.join(', ')} ${notShared.length === 1 ? "hasn't" : "haven't"} shared where they're coming from, so the meeting spot won't count them.`}
       </p>
-      <button className="button link" onClick={start}>
+      {/* A real button, the main one once everyone's in (owner, 2026-10-07). */}
+      <button className={`button ${waitingOn.length === 0 ? 'primary' : ''}`} onClick={start}>
         Show results now
       </button>
       {error && <p className="error">{error}</p>}
