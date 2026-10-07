@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { Greeting } from '../components/Greeting';
 import { DemoButton } from '../components/DemoButton';
+import { Icon } from '../components/Icon';
 import { JoinCodeForm } from '../components/JoinCodeForm';
 import { RejoinBanner } from '../components/RejoinBanner';
 import { StartSessionForm } from '../components/StartSessionForm';
@@ -61,14 +62,18 @@ export default function HomePage() {
           <HeroPreview />
           <ol className="hero-steps">
             <li>
-              <span aria-hidden>🔒</span> Set your must-haves.{' '}
-              <span className="muted">Your answers are never shared with your group.</span>
+              <Icon name="lock" />
+              <span>
+                Set your must-haves. <span className="muted">Your answers are never shared with your group.</span>
+              </span>
             </li>
             <li>
-              <span aria-hidden>👉</span> Swipe on places nearby that work for everyone.
+              <Icon name="heart" />
+              <span>Swipe on places nearby that work for everyone.</span>
             </li>
             <li>
-              <span aria-hidden>🎉</span> Everyone likes the same place? That&apos;s your match.
+              <Icon name="sparkles" />
+              <span>Everyone likes the same place? That&apos;s your match.</span>
             </li>
           </ol>
         </section>
@@ -107,22 +112,22 @@ function HeroPreview() {
 function AboutArbiter() {
   const features = [
     {
-      icon: '🔒',
+      icon: 'lock' as const,
       title: 'Private must-haves',
       text: "Budget, distance, vegetarian or vegan, kinds of place. Nobody sees your answers, and Arbiter never says whose must-have ruled a place out."
     },
     {
-      icon: '👉',
+      icon: 'heart' as const,
       title: 'Swipe together',
       text: 'Everyone swipes on the same places, live. When everyone likes one, it pops up as a match. Alone? It keeps your likes and helps you narrow them down.'
     },
     {
-      icon: '✓',
+      icon: 'check' as const,
       title: 'Honest about trade-offs',
       text: 'Every card says if it fits everyone, or exactly which of your must-haves it misses, so close matches are a choice, not a surprise.'
     },
     {
-      icon: '📍',
+      icon: 'pin' as const,
       title: 'Meet anywhere',
       text: 'Search around one area, or find a spot between where everyone is coming from. Photos, ratings, hours and directions on every card.'
     }
@@ -133,8 +138,8 @@ function AboutArbiter() {
       <ul className="about-grid">
         {features.map((f) => (
           <li key={f.title} className="card stack tight">
-            <span className="about-icon" aria-hidden>
-              {f.icon}
+            <span className="about-icon">
+              <Icon name={f.icon} />
             </span>
             <strong>{f.title}</strong>
             <p className="muted small">{f.text}</p>

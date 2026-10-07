@@ -71,18 +71,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  content: '';
-  /* Food emoji, spaced out so they read as a pattern, not clutter (TRADEOFFS.md 23c). */
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Ctext x='30' y='70' font-size='40'%3E🍕%3C/text%3E%3Ctext x='220' y='130' font-size='36'%3E🥑%3C/text%3E%3Ctext x='90' y='260' font-size='38'%3E🍜%3C/text%3E%3Ctext x='270' y='320' font-size='32'%3E🍓%3C/text%3E%3C/svg%3E");
-  background-size: 360px 360px;
-}
-
 /* A soft glow of the app's colours behind everything. */
 body::after {
   position: fixed;
@@ -248,8 +236,14 @@ a {
 .hero-steps li {
   display: flex;
   gap: 10px;
-  align-items: baseline;
+  align-items: flex-start;
   font-size: 0.95rem;
+}
+
+.hero-steps .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
 }
 
 .card {
@@ -1518,7 +1512,42 @@ body {
 }
 
 .about-icon {
-  font-size: 1.6rem;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+}
+
+/* A slim, quiet note that this is a demo (TRADEOFFS.md 26). */
+.demo-notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.demo-notice .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.demo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .about-grid p {
@@ -1652,9 +1681,46 @@ body {
     margin-top: 72px;
   }
 
-  /* Lobby: a wider form, still one readable column. */
+  /* Lobby: preferences on the left, the session in a sidebar that stays in view (TRADEOFFS.md 26). */
   .page:has(.lobby-layout) {
-    max-width: 720px;
+    max-width: 1080px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .lobby-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    column-gap: 40px;
+    row-gap: 16px;
+    align-items: start;
+  }
+
+  .lobby-layout > * {
+    grid-column: 2;
+  }
+
+  .lobby-layout > .lobby-prefs {
+    grid-column: 1;
+    grid-row: 1 / span 20;
+  }
+
+  /* The sidebar is narrow: the count above its explanation. */
+  .lobby-layout .submission-status > .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* The invite is a card in the sidebar, not a bar pinned across the page. */
+  .lobby-layout > .host-bar,
+  .lobby-layout > header {
+    position: static;
+    margin: 0;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
   }
 
   /* Results: the deck on the left (staying in view), everything else on the right. */

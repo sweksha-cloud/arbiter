@@ -22,6 +22,7 @@ import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
+import { Icon } from '../../../components/Icon';
 import { FinalRoundInvite, Matches, MatchToast, SwipeDeck, YourLikes } from '../../../components/SwipeDeck';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
@@ -195,29 +196,36 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       <ConnectionBanner connected={connected} />
       {/* Session info sits on top while people join; once results are in it
           moves to the bottom for everyone, out of the way of swiping. */}
+      {/* Lobby on desktop: preferences on the left, the session in a sidebar (TRADEOFFS.md 26). */}
+      <div className={view.status === 'lobby' ? 'stack lobby-layout' : 'stack'}>
       {!resultsIn && (isHost ? <HostBar sessionId={view.sessionId} /> : <SessionCode sessionId={view.sessionId} />)}
       <HostLeftNotice view={view} isHost={isHost} />
       {view.demo && (
-        <p className="notice small demo-notice" role="note">
-          <strong>Demo session.</strong> Alex and Sam are simulated friends: they&apos;ve already chosen, and they swipe on
-          their own once results appear. The places are samples, not real restaurants.
+        <p className="demo-notice small" role="note">
+          <Icon name="info" size={16} />
+          <span>
+            <strong>Demo session.</strong> Alex and Sam are simulated friends who swipe on their own. The places are
+            samples.
+          </span>
         </p>
       )}
 
       {error && <p className="error">{error}</p>}
 
       {view.status === 'lobby' && (
-        <div className="stack lobby-layout">
+        <>
           <SubmissionStatus view={view} myId={identity.guest.id} />
           <MeetingCard view={view} myId={identity.guest.id} token={identity.token} actions={meetingActions} />
-          {view.meeting.mode === 'between' && !view.meeting.myOrigin ? (
-            <p className="notice">
-              First, share where you&apos;re coming from (above). Then you can fill in your preferences.
-            </p>
-          ) : (
-            <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
-          )}
-        </div>
+          <div className="lobby-prefs">
+            {view.meeting.mode === 'between' && !view.meeting.myOrigin ? (
+              <p className="notice">
+                First, share where you&apos;re coming from. Then you can fill in your preferences.
+              </p>
+            ) : (
+              <MyPreferences token={identity.token} submitted={me?.submitted ?? false} onSubmit={submitPreferences} />
+            )}
+          </div>
+        </>
       )}
 
       {view.status === 'scanning' && <p className="card">Everyone&apos;s in. Finding places…</p>}
@@ -226,6 +234,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       {isHost && (view.status === 'lobby' || view.status === 'scanning') && (
         <ShowResultsNow view={view} onStart={async () => failOn(await (await joinedSocket()).emitWithAck('session:start'))} />
       )}
+      </div>
 
       {(view.status === 'voting' || view.status === 'ended') && (
         <section className="stack results-layout">
@@ -384,7 +393,7 @@ function SubmissionStatus({ view, myId }: { view: SessionView; myId: string }) {
   const alone = total < 2;
 
   return (
-    <section className="card stack" aria-live="polite">
+    <section className="card stack submission-status" aria-live="polite">
       <div className="row spread">
         <strong>
           {submitted} of {total} submitted
@@ -529,7 +538,8 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => P
   const [error, setError] = useState<string>();
   const submitted = view.members.filter((m) => m.submitted).length;
   if (submitted === 0) return null;
-  const waitingOn = view.members.filter((m) => !m.submitted).map((m) => m.displayName);
+  // Only the host sees this, so the host is "you".
+  const waitingOn = view.members.filter((m) => !m.submitted).map((m) => (m.id === view.hostId ? 'you' : m.displayName));
   const notShared =
     view.meeting.mode === 'between'
       ? view.members.filter((m) => !view.meeting.sharedIds.includes(m.id)).map((m) => m.displayName)
@@ -550,9 +560,11 @@ function ShowResultsNow({ view, onStart }: { view: SessionView; onStart: () => P
   return (
     <section className="stack tight center">
       <p className="muted small">
-        {waitingOn.length > 0
-          ? `Still waiting on ${waitingOn.join(', ')}. Their must-haves won't count if you go now.`
-          : 'Everyone here has submitted.'}
+        {waitingOn.length === 1 && waitingOn[0] === 'you'
+          ? "Everyone else has submitted. Your must-haves won't count if you go now."
+          : waitingOn.length > 0
+            ? `Still waiting on ${waitingOn.join(', ')}. Their must-haves won't count if you go now.`
+            : 'Everyone here has submitted.'}
         {notShared.length > 0 &&
           ` ${notShared.join(', ')} ${notShared.length === 1 ? "hasn't" : "haven't"} shared where they're coming from, so the meeting spot won't count them.`}
       </p>

@@ -584,7 +584,7 @@ test('swiping comes in rounds of 7, then you can see more or narrow your likes t
 test('"Try a demo" works alone: simulated friends swipe, and liking what they like is a match', async ({ newPhone }) => {
   const phone = await newPhone();
   await phone.goto('/');
-  await phone.getByRole('button', { name: '▶ Try a demo with sample friends' }).click();
+  await phone.getByRole('button', { name: 'Try a demo with sample friends' }).click();
   await expect(phone.getByText('Demo session.')).toBeVisible();
   await phone.getByRole('button', { name: 'Submit', exact: true }).click();
   // The simulated friends like the first places they see; like the first one too.
@@ -597,7 +597,7 @@ test("a group's final round: start it from the round's end, and a place everyone
   test.slow();
   const phone = await newPhone();
   await phone.goto('/');
-  await phone.getByRole('button', { name: '▶ Try a demo with sample friends' }).click();
+  await phone.getByRole('button', { name: 'Try a demo with sample friends' }).click();
   await phone.getByRole('button', { name: 'Submit', exact: true }).click();
   // Like the first two places (the simulated friends like the first three), pass on the rest.
   for (let i = 0; i < 7; i++) {
