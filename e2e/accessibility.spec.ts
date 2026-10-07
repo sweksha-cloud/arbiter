@@ -5,6 +5,8 @@ import { becomeGuest, expect, joinSession, openOptionalSections, setUpSession, s
 
 /** Fails on any WCAG 2.1 A or AA problem axe can detect automatically, listing each one. */
 async function expectNoViolations(page: Page, screen: string) {
+  // Right after a navigation WebKit can briefly have no <title> yet; scan once it's there.
+  await expect(page).toHaveTitle(/\S/);
   // The footer is deliberately faded (owner's choice, TRADEOFFS.md 20b), so it's
   // left out; everything else must pass.
   const { violations } = await new AxeBuilder({ page })
