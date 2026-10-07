@@ -5,6 +5,7 @@ import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import { SaveProgress } from '../components/SaveProgress';
+import { ServiceWorker } from '../components/ServiceWorker';
 import { SiteHeader } from '../components/SiteHeader';
 import './globals.css';
 
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body>
         <SiteHeader />
         <SaveProgress />
+        <ServiceWorker />
         {children}
         <footer className="site-footer muted small">
           Chain nutrition information{' '}

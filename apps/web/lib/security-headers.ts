@@ -15,10 +15,12 @@ export function contentSecurityPolicy({ nonce, serverUrl, dev }: { nonce: string
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
     // Inline style attributes (like the progress bar's width) need this; styles can't run code.
     "style-src 'self' 'unsafe-inline'",
-    // The food pattern background is an inline SVG data: URL. Place photos load
+    // Inline SVG data: URLs are allowed for small graphics. Place photos load
     // from the API server, which sends the browser on to Google's image host.
     `img-src 'self' data: ${server.origin} https://*.googleusercontent.com`,
     "font-src 'self'",
+    // The offline-page service worker (public/sw.js), from this site only.
+    "worker-src 'self'",
     `connect-src 'self' ${server.origin} ${socketOrigin}`,
     "object-src 'none'",
     "base-uri 'self'",

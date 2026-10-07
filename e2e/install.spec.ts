@@ -20,3 +20,16 @@ test('Arbiter can be installed as an app: manifest, icons and iPhone tags', asyn
   await expect(phone.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
   await expect(phone.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Arbiter');
 });
+
+test('offline, a page shows a friendly offline screen instead of the browser error', async ({ newPhone, browserName }) => {
+  // Playwright's WebKit doesn't run service workers.
+  test.skip(browserName === 'webkit', 'no service workers in Playwright WebKit');
+  const phone = await newPhone();
+  await phone.goto('/');
+  await phone.evaluate(() => navigator.serviceWorker.ready);
+  await phone.context().setOffline(true);
+  await phone.goto('/history');
+  await expect(phone.getByRole('heading', { name: "You're offline" })).toBeVisible();
+  await phone.context().setOffline(false);
+});
+

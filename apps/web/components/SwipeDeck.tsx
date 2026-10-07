@@ -635,7 +635,11 @@ export function MatchToast({ view }: { view: SessionView }) {
     }
     const fresh = view.matches.find((id) => !seen.current!.has(id));
     for (const id of view.matches) seen.current.add(id);
-    if (fresh && view.members.length > 1) setShowing(fresh);
+    if (fresh && view.members.length > 1) {
+      setShowing(fresh);
+      // A short buzz on phones that support it (Android; iPhones ignore it).
+      navigator.vibrate?.([60, 40, 60]);
+    }
   }, [view.matches, view.members.length]);
   const place = showing ? allPlaces(view).find((p) => p.id === showing) : undefined;
   if (!place) return null;
