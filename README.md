@@ -4,7 +4,27 @@
 
 Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences privately, places that don't work for someone are removed automatically, and then the group **swipes**: right to like, left to pass, Tinder-style. When everyone likes the same place, it's a match. Each card shows a photo, rating, price, distance, what the place offers, and which of *your* must-haves it misses, so nobody needs to open Google Maps to decide.
 
-**Try it: [arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)**. Open it on two phones (or a normal and a private window), start a session on one, and join with the link on the other.
+## Live
+
+**[arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)**
+
+- **Try it alone in 30 seconds:** tap **Try a demo with sample friends** on the home page. Two simulated friends (Alex and Sam) join, have already chosen, and swipe along with you on sample places, so you'll see "It's a match!" and the group's final round without needing anyone else.
+- **Try it with a real group:** start a session, share the link or 6-letter code, and everyone joins from their own phone (or test it yourself with a normal and a private window).
+- **Server health:** [arbiter-sweksha.duckdns.org/health](https://arbiter-sweksha.duckdns.org/health). Every push to `main` that passes CI deploys automatically, with no downtime.
+
+### Install it as an app
+
+Arbiter is a progressive web app: it installs from the browser, opens full screen from its own icon, and shows just the tool (no marketing pages).
+
+| Device | How |
+| --- | --- |
+| **iPhone / iPad** | Open the link in **Safari** → tap **Share** (the square with an arrow) → **Add to Home Screen** → **Add**. |
+| **Android** | Open the link in **Chrome** → tap **Install app** when it's offered, or **⋮** → **Add to Home screen** / **Install app**. |
+| **Desktop (Chrome, Edge)** | Click the install icon at the right of the address bar, or **⋮** → **Cast, save and share** → **Install page as app**. |
+
+With no connection, it shows a friendly "You're offline" page instead of the browser's error (a live session needs the server, so there's no offline mode beyond that). On Android, a new match makes the phone buzz.
+
+## Where it runs
 
 | Part | Runs on |
 | --- | --- |
@@ -28,6 +48,7 @@ The idea is simple; making it correct with several phones at once isn't. Each of
 - **Deploys with no downtime.** Two server slots (blue/green) behind Caddy: a deploy starts the new version in the idle slot, Caddy switches only once it's healthy, then the old one stops; live sessions live in Redis, so phones reconnect in about a second and carry on. Measured: 0 failed requests across a swap.
 - **Editing preferences after results, for free.** The session keeps every place the search found, and one function filters and ranks for both the first search and every later edit. Changing your answers (or a late joiner adding theirs) re-sorts everyone's list without another paid search; places people already voted on stay, marked if they no longer fit, and the group is told "someone changed their preferences", never who.
 - **Photos without leaking the API key.** A card's photo link points at our server, signed per session and place; the server asks Google for a short-lived image link and redirects the browser there. The key never reaches a browser, and nobody outside a session can make the server fetch photos on our bill.
+- **A demo that exercises the real system.** "Try a demo" isn't a recording or a client-side fake: simulated members swipe through the same server, sockets and matching code as people do, on free sample places. A test caught them re-triggering themselves forever (each join scheduled another); they now start only when a real person acts, and stop on shutdown.
 - **Swiping that never drops a tap.** The next card is live the moment you tap, while a copy of the old one animates away, so fast swipes all count; nothing above the card moves while people swipe (found by testing: fast taps were being lost).
 
 ## Architecture
@@ -55,7 +76,7 @@ flowchart LR
 
 ## Status
 
-Live, and the whole loop works: start a session, choose where to meet, invite friends, everyone submits private preferences, and the group swipes through real nearby places until there's a match. Each card shows a photo, distance, price, rating and how many people rated it, Google's one-line description, what the place offers (dine-in, takeout, outdoor seating…), which of your own must-haves it misses, and for big chains a dish that fits your nutrition goals. A **List** view shows every place side by side. Anyone can change their answers after results and the list re-sorts for everyone. Alone, it works too: the top shows every place you liked.
+Live, and the whole loop works: start a session, choose where to meet, invite friends, everyone submits private preferences, and the group swipes through real nearby places until there's a match. With no match (or several), anyone can start a **final round**: everyone who joins swipes again on the places most of the group liked, and a place every participant likes is **the group's pick**. Matches and picks are saved in each person's **Past sessions**. Each card shows a photo, distance, price, rating and how many people rated it, Google's one-line description, what the place offers (dine-in, takeout, outdoor seating…), which of your own must-haves it misses, and for big chains a dish that fits your nutrition goals. A **List** view shows every place side by side. Anyone can change their answers after results and the list re-sorts for everyone. Alone, it works too: the top shows every place you liked.
 
 Accounts are optional: sign up, log in and out, and change your password from any page. An account keeps your preferences and your past sessions on any device; guests are offered "Save your progress" after filling in the form, and signing up keeps everything they did as a guest. Terms of Use and Privacy Policy pages are linked from every page.
 
@@ -64,7 +85,7 @@ Known limits:
 - **One server machine.** Deploys have no downtime (two server slots swapped one at a time, live sessions in Redis), but the whole app runs on one small VM: if it goes down, Arbiter is down until it restarts.
 - **Password reset and email confirmation are switched off in production** until an email provider is set up (locally, the emails are printed in the server log).
 - **Browser tests run in Chromium (Chrome, Android) and WebKit (Safari, every iPhone browser)**; Firefox isn't tested.
-- **No final pick yet.** Matches show which places everyone liked, but nothing "locks in" the group's choice.
+- **Demo friends live in the server process.** A deploy in the middle of a demo stops their swiping (the session itself survives).
 
 ## Run it locally
 
@@ -112,6 +133,8 @@ pnpm dev:web      # 3. Web app on http://localhost:3000
 Open http://localhost:3000.
 
 ### 4. Try it with two people
+
+The quickest way: tap **Try a demo with sample friends** on the home page. Two simulated friends swipe along with you, so one window is enough. To try it as real people:
 
 Use one normal browser window and one private window (or a second browser). Each window is a separate guest.
 
@@ -206,9 +229,9 @@ Load-tested on the production machine type (a free-tier Google Cloud **e2-micro*
 
 Every 15 minutes a GitHub workflow (`.github/workflows/monitor.yml`) checks that the website and server answer over HTTPS, the certificate has more than 14 days left, the server, Redis and Caddy containers are healthy, and the server logged no errors; a failure emails the repo owner.
 
-## On your phone
+## The installed app (PWA)
 
-Arbiter installs like an app (a progressive web app): on an iPhone, open the site in Safari → Share → **Add to Home Screen**; on Android, Chrome offers **Install app**. It then opens full screen from its own icon. There's no offline mode, since a live session needs the server. The manifest is `apps/web/app/manifest.ts`; icons are in `apps/web/public/icons/`.
+How to install it is under [Install it as an app](#install-it-as-an-app). Under the hood: the manifest is `apps/web/app/manifest.ts` (standalone display, theme colours, maskable icons in `apps/web/public/icons/`); a minimal service worker (`apps/web/public/sw.js`) only serves `offline.html` when a page can't load, and caches nothing else, so a deploy is never hidden behind a stale copy. Opened from its icon (`display-mode: standalone`), the home page drops the pitch and shows just the tool. Shared links get a preview image (`apps/web/app/opengraph-image.tsx`).
 
 ## How a session works
 
@@ -223,4 +246,7 @@ Arbiter installs like an app (a progressive web app): on an iPhone, open the sit
    - ranks what's left by everyone's nice-to-haves (liked and disliked cuisines, fast food, and nutrition goals for chains with published menus), then rating, then distance. The top 4 lead the deck (only the kinds of place everyone allows), with the rest after them; several branches of one chain share a card. If nothing fits everyone, the group gets the closest matches and each person sees which of their own must-haves each place misses.
 6. Swipes go to the server as 👍/👎 reactions. The server checks them, then sends each person their own view: totals, matches (places everyone liked), plus that person's own swipes and missed must-haves. Nobody's preferences are ever sent to anyone.
 7. Anyone can change their preferences after results, and someone who joins late can add theirs: the same search is re-filtered for everyone at no cost, and the group is told the options were reorganized (never by whom).
-8. Each state change has a version number, so a phone ignores any update older than the one it's showing.
+8. **Final round:** after a round, anyone can start one with the places at least half the group liked (up to 7). Others see "X started a final round · Join". Final-round swipes are kept apart from the first round's, and a place every participant likes is the group's pick, shown to everyone and saved in history.
+9. Each state change has a version number, so a phone ignores any update older than the one it's showing.
+
+**Demo sessions** are ordinary sessions with two simulated members who have already submitted. They always use the free sample places (never a paid search), and once results are in they swipe one place every second or two and join a final round, so the whole flow can be tried alone.
