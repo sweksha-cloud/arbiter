@@ -1631,7 +1631,8 @@ body {
     grid-column: 1;
     grid-row: 2;
     align-self: start;
-    margin-top: 8px;
+    /* Room between the lead text and the cards (owner, 2026-10-06). */
+    margin-top: 40px;
   }
 
   .page.home .home-hero > .home-actions {
