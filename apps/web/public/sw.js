@@ -1,3 +1,4 @@
+/* global self, caches */
 // Arbiter's service worker: only an offline page (TRADEOFFS.md 28). Pages,
 // data and live updates always come from the network; when a page can't load
 // at all, this shows a friendly "you're offline" page instead of the
