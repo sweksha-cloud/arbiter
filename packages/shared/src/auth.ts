@@ -67,7 +67,9 @@ export const PastPlaceSchema = z.object({
   likes: z.number().int().nonnegative(),
   dislikes: z.number().int().nonnegative(),
   /** A Google Maps link, or null for sample places. Names aren't stored (Google's terms). */
-  mapsUrl: z.string().nullable()
+  mapsUrl: z.string().nullable(),
+  /** Everyone liked it: the group's match. */
+  matched: z.boolean()
 });
 
 export const PastSessionSchema = z.object({

@@ -43,6 +43,13 @@
       "when": 1790812071968,
       "tag": "0005_email_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791341991667,
+      "tag": "0006_match_history",
+      "breakpoints": true
     }
   ]
 }

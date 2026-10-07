@@ -11,6 +11,8 @@ export interface PastPlace {
   dislikes: number;
   /** A Google Maps link, or null for sample places whose IDs aren't real. */
   mapsUrl: string | null;
+  /** Everyone liked it at some point: the group's match. */
+  matched: boolean;
 }
 
 export interface SessionRecord {
@@ -50,6 +52,8 @@ export interface SessionHistory {
    * overwrites a newer one.
    */
   recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number): Promise<void>;
+  /** Records that everyone liked a suggested place. Recording it again keeps the first time. */
+  recordMatch(sessionId: string, placeId: string): Promise<void>;
   end(sessionId: string): Promise<void>;
   /**
    * Gives `toId` everything `fromId` did in past sessions: membership, hosting
@@ -80,6 +84,7 @@ interface InMemoryRecord {
   endedAt: Date | null;
   members: Guest[];
   placeIds: string[];
+  matched: Set<string>;
   /** `${memberId} ${placeId}` -> latest reaction and the version that set it. */
   reactions: Map<string, { memberId: string; placeId: string; reaction: Reaction | null; version: number }>;
 }
@@ -99,6 +104,7 @@ export class InMemorySessionHistory implements SessionHistory {
       endedAt: null,
       members: [host],
       placeIds: [],
+      matched: new Set(),
       reactions: new Map()
     });
   }
@@ -128,6 +134,12 @@ export class InMemorySessionHistory implements SessionHistory {
     record.reactions.set(key, { memberId, placeId, reaction, version });
   }
 
+  async recordMatch(sessionId: string, placeId: string) {
+    const record = this.require(sessionId);
+    if (!record.placeIds.includes(placeId)) throw new Error(`${placeId} was not suggested in session ${sessionId}`);
+    record.matched.add(placeId);
+  }
+
   async end(sessionId: string) {
     const record = this.require(sessionId);
     if (record.status === 'ended') return;
@@ -153,7 +165,7 @@ export class InMemorySessionHistory implements SessionHistory {
   async get(sessionId: string): Promise<SessionRecord | undefined> {
     const record = this.sessions.get(sessionId);
     if (!record) return undefined;
-    const { placeIds, reactions, ...rest } = record;
+    const { placeIds, reactions, matched, ...rest } = record;
     const counts = [...reactions.values()];
     return {
       ...rest,
@@ -163,7 +175,8 @@ export class InMemorySessionHistory implements SessionHistory {
         rank,
         likes: counts.filter((r) => r.placeId === placeId && r.reaction === 'like').length,
         dislikes: counts.filter((r) => r.placeId === placeId && r.reaction === 'dislike').length,
-        mapsUrl: mapsUrlFor(placeId, record.placesSource)
+        mapsUrl: mapsUrlFor(placeId, record.placesSource),
+        matched: matched.has(placeId)
       }))
     };
   }

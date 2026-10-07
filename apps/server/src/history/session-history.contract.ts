@@ -96,6 +96,19 @@ export function describeSessionHistory(name: string, makeContext: () => HistoryT
       ]);
     });
 
+    it('remembers which places were matches, once, and refuses places that were not suggested', async () => {
+      const { history, code } = await sessionWithTwo();
+      await history.recordSuggestions(code, ['a', 'b']);
+      await history.recordMatch(code, 'b');
+      await history.recordMatch(code, 'b');
+      const { places } = (await history.get(code))!;
+      expect(places.map((p) => [p.placeId, p.matched])).toEqual([
+        ['a', false],
+        ['b', true]
+      ]);
+      await expect(history.recordMatch(code, 'nope')).rejects.toThrow();
+    });
+
     it('totals reactions per place, and a changed or cleared reaction counts once', async () => {
       const { history, host, friend, code } = await sessionWithTwo();
       await history.recordSuggestions(code, ['a', 'b']);

@@ -470,6 +470,10 @@ export class SessionService {
       this.record(sessionId, 'react', () =>
         this.options.history.recordReaction(sessionId, guest.id, placeId, reaction, updated.version)
       );
+      // Everyone liked it: keep the match in the session's history.
+      if (reaction === 'like' && updated.members.every((m) => updated.reactions[m.id]?.[placeId] === 'like')) {
+        this.record(sessionId, 'match', () => this.options.history.recordMatch(sessionId, placeId));
+      }
     }
     return updated;
   }

@@ -90,6 +90,15 @@ export class PostgresSessionHistory implements SessionHistory {
     });
   }
 
+  async recordMatch(sessionId: string, placeId: string) {
+    const updated = await this.db
+      .update(sessionPlaces)
+      .set({ matchedAt: sql`coalesce(${sessionPlaces.matchedAt}, now())` })
+      .where(and(eq(sessionPlaces.sessionId, sessionId), eq(sessionPlaces.placeId, placeId)))
+      .returning({ placeId: sessionPlaces.placeId });
+    if (updated.length === 0) throw new Error(`${placeId} was not suggested in session ${sessionId}`);
+  }
+
   async end(sessionId: string) {
     await this.db
       .update(sessions)
@@ -125,6 +134,7 @@ export class PostgresSessionHistory implements SessionHistory {
         .select({
           placeId: sessionPlaces.placeId,
           rank: sessionPlaces.rank,
+          matched: sql<boolean>`${sessionPlaces.matchedAt} is not null`,
           likes: sql<number>`count(*) filter (where ${reactions.reaction} = 'like')::int`,
           dislikes: sql<number>`count(*) filter (where ${reactions.reaction} = 'dislike')::int`
         })
@@ -134,7 +144,7 @@ export class PostgresSessionHistory implements SessionHistory {
           and(eq(reactions.sessionId, sessionPlaces.sessionId), eq(reactions.placeId, sessionPlaces.placeId))
         )
         .where(eq(sessionPlaces.sessionId, sessionId))
-        .groupBy(sessionPlaces.placeId, sessionPlaces.rank)
+        .groupBy(sessionPlaces.placeId, sessionPlaces.rank, sessionPlaces.matchedAt)
         .orderBy(asc(sessionPlaces.rank))
     ]);
 

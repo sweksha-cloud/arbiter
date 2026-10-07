@@ -1,0 +1,1 @@
+ALTER TABLE "session_places" ADD COLUMN "matched_at" timestamp with time zone;

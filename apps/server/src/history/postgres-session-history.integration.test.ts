@@ -78,6 +78,7 @@ describe('PostgresSessionHistory (real Postgres)', () => {
       'session_places.session_id',
       'session_places.place_id',
       'session_places.rank',
+      'session_places.matched_at',
       'sessions.id',
       'sessions.host_id',
       'sessions.places_source',

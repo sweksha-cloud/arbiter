@@ -38,6 +38,7 @@ export function PastSessionCard({ session, headingLevel = 2 }: { session: PastSe
               <span className="muted small">
                 👍 {place.likes} · 👎 {place.dislikes}
               </span>
+              {place.matched && <span className="fits small">🎉 Match</span>}
             </li>
           ))}
         </ol>

@@ -138,7 +138,9 @@ export const sessionPlaces = pgTable(
     /** Google place ID: the only Google content we keep. */
     placeId: text().notNull(),
     /** 0 = ranked first. Our own data. */
-    rank: integer().notNull()
+    rank: integer().notNull(),
+    /** When everyone first liked it (a match). Kept even if someone changes their mind later. */
+    matchedAt: timestamp({ withTimezone: true })
   },
   (table) => [
     primaryKey({ columns: [table.sessionId, table.placeId] }),

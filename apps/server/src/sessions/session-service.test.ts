@@ -970,10 +970,11 @@ describe('SessionService', () => {
     it('two simulated friends join and submit; after you submit they swipe on their own, and you can match', async () => {
       const guests = new InMemoryGuestStore();
       const paid: PlacesProvider = { searchNearby: vi.fn(async () => [] as never) };
+      const history = new InMemorySessionHistory();
       const service = new SessionService({
         rooms: new InMemoryRoomStore(),
         guests,
-        history: new InMemorySessionHistory(),
+        history,
         places: paid,
         demoPlaces: new FixturePlacesProvider(['a', 'b', 'c', 'd', 'e'].map((id, i) => place(id, { rating: 5 - i * 0.2 }))),
         placesSource: 'google',
@@ -1004,6 +1005,8 @@ describe('SessionService', () => {
       expect(service.view(room, host.id).matches).toContain('a');
       expect(updates.length).toBeGreaterThan(0);
       await service.settle();
+      // The match is kept in the session's history.
+      expect((await history.get(sessionId))!.places.find((p) => p.placeId === 'a')!.matched).toBe(true);
     });
   });
 
