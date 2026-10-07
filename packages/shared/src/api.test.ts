@@ -15,6 +15,8 @@ const view = (sessionId: string, version: number): SessionView => ({
   noLongerFits: [],
   myKinds: [],
   demo: false,
+  finalRound: null,
+  finalRoundPlaces: [],
   myRuledOut: [],
   fitsAll: [],
   myReactions: {},

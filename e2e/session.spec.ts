@@ -593,3 +593,26 @@ test('"Try a demo" works alone: simulated friends swipe, and liking what they li
   await expect(phone.locator('.match-toast')).toContainText(first!, { timeout: 20_000 });
 });
 
+test("a group's final round: start it from the round's end, and a place everyone in it likes is the pick", async ({ newPhone }) => {
+  test.slow();
+  const phone = await newPhone();
+  await phone.goto('/');
+  await phone.getByRole('button', { name: '▶ Try a demo with sample friends' }).click();
+  await phone.getByRole('button', { name: 'Submit', exact: true }).click();
+  // Like the first two places (the simulated friends like the first three), pass on the rest.
+  for (let i = 0; i < 7; i++) {
+    const name = await phone.locator('article.swipe-card h3').textContent();
+    await phone.getByRole('button', { name: `${i < 2 ? 'Like' : 'Pass on'} ${name}` }).click();
+  }
+  await phone.getByRole('button', { name: /Start a final round with the group/ }).click({ timeout: 20_000 });
+  await expect(phone.getByText(/Final round ·/)).toBeVisible();
+  const first = await phone.locator('article.swipe-card h3').textContent();
+  await phone.getByRole('button', { name: `Like ${first}` }).click();
+  while (await phone.locator('article.swipe-card h3').isVisible()) {
+    const name = await phone.locator('article.swipe-card h3').textContent();
+    await phone.getByRole('button', { name: `Pass on ${name}` }).click();
+  }
+  await expect(phone.getByText("The group's pick:")).toBeVisible({ timeout: 20_000 });
+  await expect(phone.locator('.swipe-done .liked-list')).toContainText(first!);
+});
+

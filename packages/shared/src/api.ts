@@ -178,6 +178,24 @@ export const SessionViewSchema = z.object({
   myReactions: z.record(z.string(), ReactionSchema),
   /** Places everyone in the group liked, best-ranked first. */
   matches: z.array(z.string()),
+  /**
+   * The group's final round (TRADEOFFS.md 25), or null before anyone starts
+   * one. `picks` are the places every participant liked; `finished` counts
+   * participants who have swiped all of them. Never who voted what.
+   */
+  finalRound: z
+    .object({
+      placeIds: z.array(z.string()),
+      startedBy: z.string(),
+      participants: z.number().int().positive(),
+      finished: z.number().int().nonnegative(),
+      joined: z.boolean(),
+      myVotes: z.record(z.string(), ReactionSchema),
+      picks: z.array(z.string())
+    })
+    .nullable(),
+  /** The places a final round would hold now (liked by at least half the group), when one could start. */
+  finalRoundPlaces: z.array(z.string()),
   /** Up to three most-liked places (for "no match yet"), with how many liked each. Never who. */
   mostLiked: z.array(z.object({ placeId: z.string(), likes: z.number().int().positive() })),
   /**
@@ -258,6 +276,10 @@ export interface ClientToServerEvents {
   'session:more-places': (ack: (result: Ack) => void) => void;
   /** Liking one of the more options adds it to the suggestions; nothing else is allowed on them. */
   'session:react': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
+  /** Starts the group's final round, or joins the one already running. */
+  'session:final-round': (ack: (result: Ack) => void) => void;
+  /** A swipe in the final round. */
+  'session:final-vote': (payload: { placeId: string; reaction: Reaction | null }, ack: (result: Ack) => void) => void;
   /** Marks (or unmarks) a suggested place as having, e.g., high-protein options. */
   'session:tag': (payload: { placeId: string; tag: NutritionTag; on: boolean }, ack: (result: Ack) => void) => void;
   'session:end': (ack: (result: Ack) => void) => void;

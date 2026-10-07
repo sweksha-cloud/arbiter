@@ -966,6 +966,49 @@ describe('SessionService', () => {
     });
   });
 
+  describe('the final round (TRADEOFFS.md 25)', () => {
+    async function voting() {
+      const ctx = await lobbyOfTwo();
+      await ctx.service.submit(ctx.sessionId, ctx.host, noPreferences);
+      await ctx.service.submit(ctx.sessionId, ctx.friend, noPreferences);
+      return ctx;
+    }
+
+    it('holds the places at least half the group liked, and needs two of them', async () => {
+      const { service, host, friend, sessionId } = await voting();
+      await service.react(sessionId, host, 'a', 'like');
+      await expect(service.joinFinalRound(sessionId, host)).rejects.toThrow(/at least two places/);
+      await service.react(sessionId, friend, 'c', 'like');
+      await service.react(sessionId, friend, 'a', 'like');
+      const room = await service.get(sessionId);
+      // Liked by both first, then by one.
+      expect(service.view(room, friend.id).finalRoundPlaces).toEqual(['a', 'c']);
+
+      const started = await service.joinFinalRound(sessionId, friend);
+      expect(service.view(started, host.id).finalRound).toMatchObject({ placeIds: ['a', 'c'], startedBy: 'Friend', joined: false });
+      expect(service.view(started, friend.id).finalRound).toMatchObject({ startedBy: 'You', joined: true, participants: 1 });
+    });
+
+    it("a place every participant likes is the group's pick, kept in history; one person alone doesn't pick", async () => {
+      const { service, host, friend, sessionId, history } = await voting();
+      for (const id of ['a', 'b']) await service.react(sessionId, host, id, 'like');
+      await service.joinFinalRound(sessionId, host);
+      let room = await service.voteFinalRound(sessionId, host, 'b', 'like');
+      expect(service.view(room, host.id).finalRound!.picks).toEqual([]);
+      await expect(service.voteFinalRound(sessionId, friend, 'b', 'like')).rejects.toThrow(/Join the final round/);
+
+      await service.joinFinalRound(sessionId, friend);
+      await service.voteFinalRound(sessionId, friend, 'a', 'dislike');
+      room = await service.voteFinalRound(sessionId, friend, 'b', 'like');
+      expect(service.view(room, host.id).finalRound!.picks).toEqual(['b']);
+      expect(service.view(room, host.id).finalRound!.finished).toBe(1);
+      // The first round's votes are untouched.
+      expect(room.reactions[host.id]).toEqual({ a: 'like', b: 'like' });
+      await service.settle();
+      expect((await history.get(sessionId))!.places.filter((p) => p.matched).map((p) => p.placeId)).toEqual(['b']);
+    });
+  });
+
   describe('"Try a demo" (TRADEOFFS.md 24)', () => {
     it('two simulated friends join and submit; after you submit they swipe on their own, and you can match', async () => {
       const guests = new InMemoryGuestStore();

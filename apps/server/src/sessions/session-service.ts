@@ -39,7 +39,7 @@ import { addMenus } from '../nutrition/enrich.js';
 import type { MenuProvider } from '../nutrition/fatsecret-menus.js';
 import { PlacesQuotaExceededError, type PlacesProvider } from '../places/places-provider.js';
 import { describeWait, type SlidingWindowLimiter } from '../rate-limits.js';
-import { RoomExistsError, RoomNotFoundError, type RoomState, type RoomStore } from '../rooms/room-store.js';
+import { RoomExistsError, RoomNotFoundError, type FinalRound, type RoomState, type RoomStore } from '../rooms/room-store.js';
 
 /** The slice of a pino/Fastify logger the session rules use. */
 export interface SessionLog {
@@ -479,6 +479,92 @@ export class SessionService {
   }
 
   /**
+   * Starts the group's final round (TRADEOFFS.md 25), or joins it if it's
+   * running. It holds the places at least half the group liked, best first,
+   * at most FINAL_ROUND_SIZE; it needs two or more of them and a group.
+   */
+  async joinFinalRound(sessionId: string, guest: Guest): Promise<RoomState> {
+    const updated = await this.update(sessionId, (room) => {
+      if (!room.members.some((m) => m.id === guest.id)) throw new SessionError('forbidden', 'Join the session first');
+      if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
+      if (room.finalRound) {
+        if (room.finalRound.participants.includes(guest.id)) return room;
+        return { ...room, finalRound: { ...room.finalRound, participants: [...room.finalRound.participants, guest.id] } };
+      }
+      if (room.members.length < 2) throw new SessionError('invalid_state', 'A final round is for groups');
+      const placeIds = finalRoundPlaces(room);
+      if (placeIds.length < 2) {
+        throw new SessionError('invalid_state', 'A final round needs at least two places most of the group liked');
+      }
+      return { ...room, finalRound: { placeIds, startedBy: guest.id, participants: [guest.id], votes: {} } };
+    });
+    if (updated.demo) this.startDemoFinalRound(sessionId);
+    return updated;
+  }
+
+  /** A swipe in the final round. A place every participant likes is the group's pick, kept in history. */
+  async voteFinalRound(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
+    const updated = await this.update(sessionId, (room) => {
+      const round = room.finalRound;
+      if (room.status !== 'voting') throw new SessionError('invalid_state', 'Voting is not open');
+      if (!round || !round.participants.includes(guest.id)) throw new SessionError('forbidden', 'Join the final round first');
+      if (!round.placeIds.includes(placeId)) throw new SessionError('invalid_place', "That place isn't in the final round");
+      return { ...room, finalRound: { ...round, votes: setReaction(round.votes, guest.id, placeId, reaction) } };
+    });
+    const round = updated.finalRound!;
+    // A pick by one person alone isn't the group's: it takes two or more.
+    if (reaction === 'like' && round.participants.length >= 2 && finalPicks(round).includes(placeId)) {
+      this.record(sessionId, 'final pick', () => this.options.history.recordMatch(sessionId, placeId));
+    }
+    return updated;
+  }
+
+  private finalRoundView(room: RoomState, viewerId: string): Pick<SessionView, 'finalRound' | 'finalRoundPlaces'> {
+    const round = room.finalRound;
+    if (!round) {
+      const offer = room.status === 'voting' && room.members.length > 1 ? finalRoundPlaces(room) : [];
+      return { finalRound: null, finalRoundPlaces: offer.length >= 2 ? offer : [] };
+    }
+    const starter = room.members.find((m) => m.id === round.startedBy);
+    return {
+      finalRound: {
+        placeIds: round.placeIds,
+        startedBy: round.startedBy === viewerId ? 'You' : (starter?.displayName ?? 'Someone'),
+        participants: round.participants.length,
+        finished: round.participants.filter((id) => round.placeIds.every((p) => round.votes[id]?.[p])).length,
+        joined: round.participants.includes(viewerId),
+        myVotes: round.votes[viewerId] ?? {},
+        picks: round.participants.length >= 2 ? finalPicks(round) : []
+      },
+      finalRoundPlaces: []
+    };
+  }
+
+  /** Demo friends join a final round and like its first two places, so a host who likes one sees the pick. */
+  private startDemoFinalRound(sessionId: string): void {
+    const delay = this.options.demoSwipeDelayMs?.() ?? 1_500;
+    const timer = setTimeout(() => {
+      this.demoTimers.delete(timer);
+      void (async () => {
+        const room = await this.options.rooms.get(sessionId);
+        if (!room?.finalRound || !room.demoBots) return;
+        for (const id of room.demoBots) {
+          const member = room.members.find((m) => m.id === id);
+          if (!member) continue;
+          const bot = { id, displayName: member.displayName } as Guest;
+          let updated = await this.joinFinalRound(sessionId, bot);
+          for (const [index, placeId] of room.finalRound.placeIds.entries()) {
+            updated = await this.voteFinalRound(sessionId, bot, placeId, index < 2 ? 'like' : 'dislike');
+          }
+          this.backgroundListener?.(sessionId, updated);
+        }
+      })().catch((error: unknown) => this.options.log?.error({ err: error, sessionId }, 'Demo friend could not join the final round'));
+    }, delay);
+    timer.unref?.();
+    this.demoTimers.add(timer);
+  }
+
+  /**
    * Marks a suggested place as having (or, with on = false, not having) e.g.
    * high-protein options, in this member's view. Same rules as reacting.
    * Kept for this session only.
@@ -584,6 +670,7 @@ export class SessionService {
       myRuledOut: room.submissions[viewerId]?.soft.dislikedCuisines ?? [],
       fitsAll: this.fitsAll(room),
       ...this.swipeResults(room, viewerId),
+      ...this.finalRoundView(room, viewerId),
       wishesNotMet: this.wishesNotMet(room, viewerId, forViewer),
       reorganized: room.reorganized
         ? { count: room.reorganized.count, byYou: room.reorganized.by === viewerId, reason: room.reorganized.reason }
@@ -1144,3 +1231,24 @@ export class SessionService {
     }
   }
 }
+
+/** The most places a final round holds. */
+const FINAL_ROUND_SIZE = 7;
+
+/** The places at least half the group liked, most-liked first (ties keep the list's order). */
+function finalRoundPlaces(room: RoomState): string[] {
+  const half = Math.ceil(room.members.length / 2);
+  const likes = (placeId: string) => room.members.filter((m) => room.reactions[m.id]?.[placeId] === 'like').length;
+  return room.suggestions
+    .map((p, index) => ({ id: p.id, likes: likes(p.id), index }))
+    .filter((p) => p.likes >= half)
+    .sort((a, b) => b.likes - a.likes || a.index - b.index)
+    .slice(0, FINAL_ROUND_SIZE)
+    .map((p) => p.id);
+}
+
+/** The final round's places every participant liked. */
+function finalPicks(round: FinalRound): string[] {
+  return round.placeIds.filter((p) => round.participants.every((id) => round.votes[id]?.[p] === 'like'));
+}
+

@@ -98,9 +98,27 @@ const tintFor = (id: string) => TINTS[[...id].reduce((sum, c) => sum + c.charCod
  * at once and the vote saves in the background, so swiping never waits on
  * the network. Swipes are the same 👍/👎 the list uses, so the views agree.
  */
-export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwipe: Swipe; onMore: () => Promise<void> }) {
+export function SwipeDeck({
+  view,
+  onSwipe,
+  onMore,
+  onFinalRound,
+  onFinalVote
+}: {
+  view: SessionView;
+  onSwipe: Swipe;
+  onMore: () => Promise<void>;
+  /** Starts the group's final round, or joins it (TRADEOFFS.md 25). */
+  onFinalRound: () => Promise<void>;
+  onFinalVote: Swipe;
+}) {
   const places = allPlaces(view);
   const byId = new Map(places.map((p) => [p.id, p]));
+  // The group's final round, while you're in it (you can step out to the main deck).
+  const [outOfFinal, setOutOfFinal] = useState(false);
+  const final = view.finalRound?.joined && !outOfFinal ? view.finalRound : null;
+  const [pendingFinal, setPendingFinal] = useState<Record<string, Reaction>>({});
+  const finalVoteOf = (id: string) => (id in pendingFinal ? pendingFinal[id] : view.finalRound?.myVotes[id]);
   // Swiped here but not yet confirmed by the server: hidden straight away.
   const [pending, setPending] = useState<Record<string, Reaction>>({});
   const reactionOf = (id: string) => (id in pending ? pending[id] : view.myReactions[id]);
@@ -108,12 +126,14 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
   const [batchEnd, setBatchEnd] = useState(BATCH);
   // A narrowing round: only the places you liked; right keeps, left drops.
   const [narrow, setNarrow] = useState<{ ids: string[]; decided: Record<string, 'keep' | 'drop'> } | null>(null);
-  const left = narrow
+  const left = final
+    ? final.placeIds.filter((id) => byId.has(id) && finalVoteOf(id) === undefined).map((id) => byId.get(id)!)
+    : narrow
     ? narrow.ids.filter((id) => !narrow.decided[id] && byId.has(id)).map((id) => byId.get(id)!)
     : places.slice(0, batchEnd).filter((p) => reactionOf(p.id) === undefined);
-  const total = narrow ? narrow.ids.length : Math.min(batchEnd, places.length);
+  const total = final ? final.placeIds.length : narrow ? narrow.ids.length : Math.min(batchEnd, places.length);
   const [current, next] = left;
-  const [history, setHistory] = useState<{ id: string; reaction: Reaction; narrowing: boolean }[]>([]);
+  const [history, setHistory] = useState<{ id: string; reaction: Reaction; narrowing: boolean; final?: boolean }[]>([]);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   // A copy of the card just swiped, animating off on top while the next one is
@@ -136,7 +156,21 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
     });
   }, [view.myReactions]);
 
+  // The same for final-round votes.
+  useEffect(() => {
+    setPendingFinal((all) => {
+      const still = Object.fromEntries(Object.entries(all).filter(([id, r]) => view.finalRound?.myVotes[id] !== r));
+      return Object.keys(still).length === Object.keys(all).length ? all : still;
+    });
+  }, [view.finalRound?.myVotes]);
+
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : 'Something went wrong');
+
+  async function joinFinal() {
+    setError(undefined);
+    setOutOfFinal(false);
+    await onFinalRound().catch(fail);
+  }
 
   function swipe(reaction: Reaction) {
     if (!current) return;
@@ -146,6 +180,18 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
     setHistory((h) => [...h, { id: place.id, reaction, narrowing: narrow !== null }]);
     setDrag(0);
     setError(undefined);
+    if (final) {
+      setHistory((h) => [...h.slice(0, -1), { id: place.id, reaction, narrowing: false, final: true }]);
+      setPendingFinal((all) => ({ ...all, [place.id]: reaction }));
+      onFinalVote(place.id, reaction).catch((e: unknown) => {
+        setPendingFinal((all) => {
+          const { [place.id]: _dropped, ...rest } = all;
+          return rest;
+        });
+        fail(e);
+      });
+      return;
+    }
     if (narrow) {
       // Keeping a like changes nothing on the server; dropping it is a 👎.
       setNarrow({ ...narrow, decided: { ...narrow.decided, [place.id]: reaction === 'like' ? 'keep' : 'drop' } });
@@ -172,6 +218,14 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
     if (!last) return;
     setError(undefined);
     setHistory((h) => h.slice(0, -1));
+    if (last.final) {
+      setPendingFinal((all) => {
+        const { [last.id]: _dropped, ...rest } = all;
+        return rest;
+      });
+      await onFinalVote(last.id, null).catch(fail);
+      return;
+    }
     if (last.narrowing) {
       setNarrow((n) => {
         if (!n) return n;
@@ -213,6 +267,20 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
   const done = total - left.length;
   const lean = Math.max(-1, Math.min(1, drag / SWIPE_DISTANCE));
 
+  if (!current && final) {
+    return (
+      <section className="swipe" aria-label="The final round">
+        <FinalRoundEnd view={view} onBack={() => setOutOfFinal(true)} />
+        {history.at(-1)?.final && (
+          <button className="button link center" onClick={() => void undo()}>
+            Undo last swipe
+          </button>
+        )}
+        {error && <p className="error">{error}</p>}
+      </section>
+    );
+  }
+
   if (!current) {
     const liked = places.filter((p) => reactionOf(p.id) === 'like');
     return (
@@ -233,6 +301,7 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
           }}
           onNarrow={() => setNarrow({ ids: liked.map((p) => p.id), decided: {} })}
           onDone={() => setNarrow(null)}
+          onFinalRound={joinFinal}
         />
         {history.length > 0 && (
           <button className="button link center" onClick={() => void undo()}>
@@ -251,7 +320,7 @@ export function SwipeDeck({ view, onSwipe, onMore }: { view: SessionView; onSwip
           <div style={{ width: `${(done / total) * 100}%` }} />
         </div>
         <p className="muted small swipe-count">
-          {narrow ? 'Narrowing down · ' : ''}
+          {final ? '🏁 Final round · ' : narrow ? 'Narrowing down · ' : ''}
           {done + 1} of {total}
         </p>
         <MatchCount view={view} />
@@ -350,7 +419,8 @@ function RoundEnd({
   onSeeMore,
   onSearchMore,
   onNarrow,
-  onDone
+  onDone,
+  onFinalRound
 }: {
   view: SessionView;
   liked: PlaceCandidate[];
@@ -360,6 +430,7 @@ function RoundEnd({
   onSearchMore: () => Promise<void>;
   onNarrow: () => void;
   onDone: () => void;
+  onFinalRound: () => Promise<void>;
 }) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
@@ -407,8 +478,10 @@ function RoundEnd({
       {/* Your choices so far, so the next step is an informed one. */}
       {!pick && liked.length > 0 && <LikedList places={liked} view={view} />}
       <div className="stack tight round-actions">
+        {/* With a group, choosing between everyone's likes together comes first (TRADEOFFS.md 25). */}
+        {!narrowing && <FinalRoundButton view={view} onFinalRound={onFinalRound} />}
         {liked.length >= 2 && (
-          <button className="button primary" onClick={onNarrow}>
+          <button className={`button ${groupRoundOffered(view) ? '' : 'primary'}`} onClick={onNarrow}>
             {narrowing ? `Narrow down again (${liked.length} left)` : `Go through my ${liked.length} likes again`}
           </button>
         )}
@@ -592,6 +665,26 @@ export function MatchToast({ view }: { view: SessionView }) {
  */
 export function Matches({ view }: { view: SessionView }) {
   const byId = new Map(allPlaces(view).map((p) => [p.id, p]));
+  const picks = (view.finalRound?.picks ?? []).map((id) => byId.get(id)).filter((p): p is PlaceCandidate => p !== undefined);
+  if (picks.length > 0) {
+    return (
+      <section id="matches" className="card matches" aria-label="The group's pick">
+        <h2>🏆 {picks.length === 1 ? "The group's pick" : "The group's picks"}</h2>
+        <p className="muted small">Everyone in the final round liked {picks.length === 1 ? 'this place' : 'these places'}.</p>
+        <ul className="match-list">
+          {picks.map((place) => (
+            <li key={place.id}>
+              <span aria-hidden>{emojiFor(place)}</span>
+              <strong>{place.name}</strong>
+              <a href={directionsUrl(place, view.placesSource)} target="_blank" rel="noreferrer">
+                Directions ↗
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
   const solo = view.members.length === 1;
   const ids = view.matches;
   if (ids.length > 0) {
@@ -655,6 +748,114 @@ export function YourLikes({ view }: { view: SessionView }) {
         <p className="muted small">Swipe right on a place and it shows up here.</p>
       )}
     </section>
+  );
+}
+
+/** Whether "start" or "join the final round" is on offer to this viewer. */
+function groupRoundOffered(view: SessionView): boolean {
+  return view.finalRound ? !view.finalRound.joined : view.finalRoundPlaces.length >= 2;
+}
+
+/**
+ * Starts the group's final round, or joins the one someone started
+ * (TRADEOFFS.md 25): everyone swipes again on the places most of the group
+ * liked, and a place every participant likes is the group's pick.
+ */
+export function FinalRoundButton({ view, onFinalRound }: { view: SessionView; onFinalRound: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  if (view.status !== 'voting' || !groupRoundOffered(view)) return null;
+  const round = view.finalRound;
+  const count = round ? round.placeIds.length : view.finalRoundPlaces.length;
+  async function go() {
+    setBusy(true);
+    try {
+      await onFinalRound();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="stack tight">
+      <button className="button primary" onClick={() => void go()} disabled={busy}>
+        {round ? `Join the final round (${count} places)` : `Start a final round with the group (${count} places)`}
+      </button>
+      <p className="muted small">
+        {round
+          ? `${round.startedBy} started it: the places most of you liked. A place everyone in it likes wins.`
+          : 'Everyone can join to choose between the places most of you liked.'}
+      </p>
+    </div>
+  );
+}
+
+/** Someone started a final round you haven't joined: say so above the deck. */
+export function FinalRoundInvite({ view, onFinalRound }: { view: SessionView; onFinalRound: () => Promise<void> }) {
+  const round = view.finalRound;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  if (view.status !== 'voting' || !round || round.joined) return null;
+  return (
+    <section className="card row spread final-invite" aria-label="Final round">
+      <p className="small">
+        🏁 <strong>{round.startedBy} started a final round</strong>{' '}
+        <span className="muted">
+          with the {round.placeIds.length} places most of you liked · {round.participants} in it
+        </span>
+      </p>
+      <button
+        className="button primary"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(undefined);
+          onFinalRound()
+            .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Something went wrong'))
+            .finally(() => setBusy(false));
+        }}
+      >
+        Join
+      </button>
+      {error && <p className="error small">{error}</p>}
+    </section>
+  );
+}
+
+/** After your last final-round swipe: the group's pick, or who's still choosing. */
+function FinalRoundEnd({ view, onBack }: { view: SessionView; onBack: () => void }) {
+  const round = view.finalRound!;
+  const byId = new Map(allPlaces(view).map((p) => [p.id, p]));
+  const picks = round.picks.map((id) => byId.get(id)).filter((p): p is PlaceCandidate => p !== undefined);
+  const waiting = round.participants - round.finished;
+  return (
+    <div className="card stack center swipe-done">
+      <p className="swipe-done-emoji" aria-hidden>
+        {picks.length > 0 ? '🏆' : '🏁'}
+      </p>
+      {picks.length > 0 ? (
+        <>
+          <p>
+            <strong>{picks.length === 1 ? "The group's pick:" : `${picks.length} places everyone in the final round liked:`}</strong>
+          </p>
+          <LikedList places={picks} view={view} />
+        </>
+      ) : (
+        <p>
+          <strong>
+            {round.participants < 2
+              ? 'Waiting for someone else to join the final round.'
+              : waiting > 0
+                ? `No pick yet. Waiting for ${waiting} ${waiting === 1 ? 'person' : 'people'} to finish.`
+                : 'Nobody in the final round liked the same place.'}
+          </strong>
+        </p>
+      )}
+      <p className="muted small">
+        {round.participants} in the final round · {round.finished} finished
+      </p>
+      <button className="button link" onClick={onBack}>
+        Back to all places
+      </button>
+    </div>
   );
 }
 

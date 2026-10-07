@@ -22,7 +22,7 @@ import { NameForm } from '../../../components/NameForm';
 import { PreferencesForm } from '../../../components/PreferencesForm';
 import { SessionNotFound } from '../../../components/SessionNotFound';
 import { SuggestionCard } from '../../../components/SuggestionCard';
-import { Matches, MatchToast, SwipeDeck, YourLikes } from '../../../components/SwipeDeck';
+import { FinalRoundInvite, Matches, MatchToast, SwipeDeck, YourLikes } from '../../../components/SwipeDeck';
 import { forgetActiveSession, rememberActiveSession } from '../../../lib/active-session';
 import { SERVER_URL } from '../../../lib/config';
 import { describeWishNotMet } from '../../../lib/format';
@@ -154,6 +154,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const failOn = (ack: Ack) => {
     if (!ack.ok) throw new Error(ack.error);
   };
+  const joinFinalRound = async () => failOn(await (await joinedSocket()).emitWithAck('session:final-round'));
 
   async function submitPreferences(preferences: Preferences) {
     const ack = await (await joinedSocket()).emitWithAck('session:submit', { preferences });
@@ -230,6 +231,7 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
         <section className="stack results-layout">
           {/* The deck (or list) comes first: it's what everyone is here for. */}
 
+          <FinalRoundInvite view={view} onFinalRound={joinFinalRound} />
           <SwipeOrList
             canSwipe={view.status === 'voting' && view.suggestions.length > 0}
             swipe={
@@ -239,6 +241,10 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
                   failOn(await (await joinedSocket()).emitWithAck('session:react', { placeId, reaction }))
                 }
                 onMore={async () => failOn(await (await joinedSocket()).emitWithAck('session:more-places'))}
+                onFinalRound={joinFinalRound}
+                onFinalVote={async (placeId, reaction) =>
+                  failOn(await (await joinedSocket()).emitWithAck('session:final-vote', { placeId, reaction }))
+                }
               />
             }
             list={

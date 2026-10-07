@@ -17,6 +17,14 @@ export type RoomMember = Omit<SessionMember, 'online'>;
  * Live state of one session. Holds Google place data, which by Google's terms
  * may only be kept for the life of the session.
  */
+export interface FinalRound {
+  placeIds: string[];
+  startedBy: string;
+  /** In the order they joined. */
+  participants: string[];
+  votes: ReactionsByMember;
+}
+
 export interface RoomState {
   sessionId: string;
   /** Set by the store: starts at 0 and goes up by one on every update. */
@@ -64,6 +72,12 @@ export interface RoomState {
    */
   reorganized?: { count: number; by: string; reason: ReorganizeReason };
   reactions: ReactionsByMember;
+  /**
+   * The group's final round (TRADEOFFS.md 25): the places most of the group
+   * liked, swiped again by whoever joins. A place every participant likes is
+   * the group's pick. Separate from `reactions`, so the first round's votes stay.
+   */
+  finalRound?: FinalRound;
   /** What members marked each suggestion as having. In memory only, for this session. */
   tags: TagsByMember;
   /** When the current scan started (ms since epoch), to spot one that died mid-way. */

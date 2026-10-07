@@ -237,6 +237,21 @@ export function registerSocketHandlers(
       })
     );
 
+    socket.on('session:final-round', (ack) =>
+      respond(ack, logContext('session:final-round'), async () => {
+        const sessionId = currentSession(socket);
+        await broadcast(sessionId, await sessions.joinFinalRound(sessionId, guest));
+      })
+    );
+
+    socket.on('session:final-vote', (payload, ack) =>
+      respond(ack, logContext('session:final-vote'), async () => {
+        const sessionId = currentSession(socket);
+        const { placeId, reaction } = ReactPayloadSchema.parse(payload);
+        await broadcast(sessionId, await sessions.voteFinalRound(sessionId, guest, placeId, reaction));
+      })
+    );
+
     socket.on('session:tag', (payload, ack) =>
       respond(ack, logContext('session:tag'), async () => {
         const sessionId = currentSession(socket);
