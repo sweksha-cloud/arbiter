@@ -68,7 +68,7 @@ BUNDLE="$(mktemp -d)/load-test.mjs"
 
 # 3. Copy and start on the VM; clean up there whatever happens here.
 cleanup() {
-  ssh_vm "sudo pkill -f '$RUN_DIR/benchmark-remote.sh' ; sudo docker rm -f bench-server bench-redis bench-postgres; sudo docker network rm arbiter-bench; rm -rf '$RUN_DIR'" > /dev/null 2>&1 || true
+  ssh_vm "sudo pkill -f '$RUN_DIR/benchmark-remote.sh' ; sudo docker rm -f bench-server bench-redis bench-postgres; sudo docker network rm arbiter-bench; sudo rm -rf '$RUN_DIR'" > /dev/null 2>&1 || true
 }
 trap cleanup EXIT
 ssh_vm "mkdir -p '$RUN_DIR'"
@@ -79,7 +79,8 @@ levels=$(echo "$GROUPS_LIST" | tr ',' '\n' | wc -l | tr -d ' ')
 minutes=$(( (4 * (REST + 30 + levels * (SECONDS_EACH + 30 + REST / 4))) / 60 + 1 ))
 echo "Running on the VM: ${A_SHA:0:7} vs ${B_SHA:0:7}, groups $GROUPS_LIST, both orders. About $minutes minutes."
 
-# 4. Follow progress; give up if nothing new appears for 6 minutes.
+# 4. Follow progress; give up if nothing new appears for 12 minutes (a saturated
+#    level, e.g. 100 groups, can take ~7 minutes to set up and run: BUG-040).
 lines=0
 quiet=0
 for _ in $(seq 1 $((minutes * 6 + 60))); do
@@ -96,8 +97,8 @@ for _ in $(seq 1 $((minutes * 6 + 60))); do
     quiet=$((quiet + 10))
   fi
   printf '%s\n' "$out" | grep -q '^DONE$' && break
-  if [ "$quiet" -ge 360 ]; then
-    echo "No progress for 6 minutes: stopping. Last output on the VM:"
+  if [ "$quiet" -ge 720 ]; then
+    echo "No progress for 12 minutes: stopping. Last output on the VM:"
     ssh_vm "tail -20 '$RUN_DIR/nohup.log'" || true
     exit 1
   fi

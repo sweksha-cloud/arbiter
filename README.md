@@ -216,20 +216,21 @@ pnpm test:e2e                                                                   
 
 Load-tested on the production machine type (a free-tier Google Cloud **e2-micro**: 2 shared vCPUs, 1 GB) with the production server image, Redis and Postgres, using `apps/server/scripts/load-test.ts`. Each simulated person joins a group of 4, the group gets results, then everyone votes about every 2 seconds for 20 seconds. "Seen by the whole group" is the time from sending a vote until every member's phone has the updated session.
 
+Measured 2026-10-07 with `gcp/benchmark.sh` (both orders, the VM rested before each version; only numbers that hold in both runs are shown as reliable):
+
 | Groups (people) | Votes/s | Seen by whole group p50 | p95 | p99 | Failed |
 | --- | --- | --- | --- | --- | --- |
-| 10 (40) | 17 | 7 ms | 29 ms | 56 ms | 0 |
-| 25 (100) | 43 | 7 ms | 27 ms | 60 ms | 0 |
-| **50 (200)** | **83** | **8 ms** | **89 ms** | **214 ms** | **0** |
-| 100 (400) | 27 | 3.2 s | 12 s | 15 s | 0 |
+| **25 (100)** | **41–42** | **6–8 ms** | **19–43 ms** | **32–95 ms** | **0** |
+| 50 (200) | 26–84 | 7–73 ms | 30 ms – 4.5 s | 59 ms – 6 s | 0 |
+| 75 (300) | 13–65 | 15 ms – 6 s | 7–9.5 s | 8.8–12.7 s | 0 |
 
-- **Capacity:** about 50 groups (200 people) voting at once with every update reaching the whole group within 0.1 s for 95% of votes; the machine saturates (CPU near 100%) around 100 groups. Real groups vote far less often than every 2 seconds, so this is a pessimistic load.
+- **Capacity:** 100 people voting at once, every update reaching the whole group within 43 ms for 95% of votes, reproducibly, with no failures. Around 200 people the e2-micro saturates: an e2-micro gets 2 vCPUs only while it has burst credits, then is throttled, so the same load is fast on a rested machine (30 ms p95 in one run; 89 ms on 2026-10-05) and seconds once credits run out. Nothing fails at any level; it slows down. Real groups vote far less often than every 2 seconds, so this is a pessimistic load.
 - **What's measured:** server-side latency inside the data center (the load generator ran on the same VM, also using some of its CPU). Phones add their own network trip, about 100 ms from the US west coast. Memory stayed under 630 MB of 1 GB.
 - **Reproduce:** start a server with `RATE_LIMITS=off` and no Google key (sample places), then `pnpm --filter @arbiter/server load-test --url <server> --groups 50 --seconds 20` from a machine close to it. Never against production: it fills the database and, with a key, uses Google searches.
 
 ## Monitoring
 
-Every 15 minutes a GitHub workflow (`.github/workflows/monitor.yml`) checks that the website and server answer over HTTPS, the certificate has more than 14 days left, the server, Redis and Caddy containers are healthy, and the server logged no errors; a failure emails the repo owner.
+A scheduled GitHub workflow (`.github/workflows/monitor.yml`, every 15 minutes, though GitHub runs free-tier schedules only every few hours) checks that the website and server answer over HTTPS, the certificate has more than 14 days left, the server, Redis and Caddy containers are healthy, and the server logged no errors; a failure emails the repo owner.
 
 ## The installed app (PWA)
 
