@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { ConcurrencyLimiter, describeWait, SlidingWindowLimiter, WindowCounter } from './rate-limits.js';
+import {
+  ConcurrencyLimiter,
+  DEFAULT_RATE_LIMITS,
+  describeWait,
+  NO_RATE_LIMITS,
+  SlidingWindowLimiter,
+  WindowCounter,
+  withoutGoogleLimits
+} from './rate-limits.js';
 
 describe('WindowCounter', () => {
   it('allows up to the limit in a window, then refuses until the next window', () => {
@@ -43,6 +51,18 @@ describe('ConcurrencyLimiter', () => {
     limiter.release('ip');
     expect(limiter.acquire('ip')).toBe(true);
     expect(limiter.acquire('other')).toBe(true);
+  });
+});
+
+describe('withoutGoogleLimits', () => {
+  it('lifts only the Google limits; login, flood and connection limits stay', () => {
+    const lifted = withoutGoogleLimits(DEFAULT_RATE_LIMITS);
+    expect(lifted).toEqual({
+      ...DEFAULT_RATE_LIMITS,
+      scansPerIpPerDay: NO_RATE_LIMITS.scansPerIpPerDay,
+      geocodesPerIpPerDay: NO_RATE_LIMITS.geocodesPerIpPerDay,
+      geocodesPerDay: NO_RATE_LIMITS.geocodesPerDay
+    });
   });
 });
 

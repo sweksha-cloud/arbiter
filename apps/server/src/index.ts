@@ -13,7 +13,7 @@ import { FatSecretMenuProvider } from './nutrition/fatsecret-menus.js';
 import { GoogleGeocoder } from './places/geocoder.js';
 import { GooglePhotos } from './places/photos.js';
 import { GooglePlacesProvider } from './places/google-places-provider.js';
-import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS } from './rate-limits.js';
+import { DEFAULT_RATE_LIMITS, NO_RATE_LIMITS, withoutGoogleLimits } from './rate-limits.js';
 import { RedisRoomStore } from './rooms/redis-room-store.js';
 
 const config = loadConfig();
@@ -31,11 +31,12 @@ const pool = createPool(config.DATABASE_URL);
 const db = createDb(pool);
 const guests = new PostgresGuestStore(db);
 const redis = config.REDIS_URL ? new Redis(config.REDIS_URL) : undefined;
+const rateLimits = config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS;
 const { http } = await buildApp({
   webOrigin: config.WEB_ORIGIN,
   logLevel: config.LOG_LEVEL,
   trustProxy: config.TRUST_PROXY,
-  rateLimits: config.RATE_LIMITS === 'on' ? DEFAULT_RATE_LIMITS : NO_RATE_LIMITS,
+  rateLimits: config.GOOGLE_LIMITS === 'on' ? rateLimits : withoutGoogleLimits(rateLimits),
   guests,
   history: new PostgresSessionHistory(db),
   ...(redis ? { rooms: new RedisRoomStore(redis) } : {}),

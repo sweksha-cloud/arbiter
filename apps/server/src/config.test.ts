@@ -11,7 +11,8 @@ describe('loadConfig', () => {
       PORT: 4000,
       NODE_ENV: 'development',
       TRUST_PROXY: false,
-      RATE_LIMITS: 'on'
+      RATE_LIMITS: 'on',
+      GOOGLE_LIMITS: 'on'
     });
   });
 

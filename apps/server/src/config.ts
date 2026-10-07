@@ -32,6 +32,12 @@ const EnvSchema = z.object({
   MAIL_OUTBOX_DIR: z.string().min(1).optional(),
   /** 'off' only for the E2E suite. */
   RATE_LIMITS: z.enum(['on', 'off']).default('on'),
+  /**
+   * 'off' lifts only the Google limits (place searches and typed-place lookups
+   * per IP and per day), so searches are limited by the Google quota and bill
+   * instead; every other limit stays (TRADEOFFS.md 17i).
+   */
+  GOOGLE_LIMITS: z.enum(['on', 'off']).default('on'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')
 });
 

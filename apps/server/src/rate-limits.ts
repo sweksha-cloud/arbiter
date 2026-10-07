@@ -63,6 +63,16 @@ export const NO_RATE_LIMITS: RateLimits = {
   geocodesPerDay: 1_000_000
 };
 
+/** The same limits with the Google ones lifted (GOOGLE_LIMITS=off); the rest are kept. */
+export function withoutGoogleLimits(limits: RateLimits): RateLimits {
+  return {
+    ...limits,
+    scansPerIpPerDay: NO_RATE_LIMITS.scansPerIpPerDay,
+    geocodesPerIpPerDay: NO_RATE_LIMITS.geocodesPerIpPerDay,
+    geocodesPerDay: NO_RATE_LIMITS.geocodesPerDay
+  };
+}
+
 /** Largest REST request body. Preferences, the biggest, are about 2 KB at their limits. */
 export const MAX_BODY_BYTES = 16 * 1024;
 
