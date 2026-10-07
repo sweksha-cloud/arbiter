@@ -11,9 +11,15 @@ import './globals.css';
 // One typeface everywhere (TRADEOFFS.md 23), self-hosted by Next: no request to Google from browsers.
 const sans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 
+const description = 'Where should we eat? Everyone sets their must-haves privately, then you swipe together until you match.';
+
 export const metadata: Metadata = {
+  // Link previews need absolute URLs for the preview image (opengraph-image.tsx).
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://arbiter-topaz.vercel.app'),
   title: 'Arbiter',
-  description: 'Fair group food decisions, fast.',
+  description,
+  openGraph: { title: 'Arbiter: where should we eat?', description, siteName: 'Arbiter', type: 'website' },
+  twitter: { card: 'summary_large_image', title: 'Arbiter: where should we eat?', description },
   // Added to an iPhone's home screen, it opens full screen under this name.
   appleWebApp: { capable: true, title: 'Arbiter', statusBarStyle: 'default' }
 };
@@ -43,7 +49,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </a>
           . Nothing here is nutrition or medical advice.
           <br />
-          <Link href="/terms">Terms of Use</Link> · <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms of Use</Link> · <Link href="/privacy">Privacy Policy</Link> ·{' '}
+          <a href="https://github.com/sweksha-cloud/arbiter" target="_blank" rel="noreferrer">
+            Code on GitHub
+          </a>
         </footer>
       </body>
     </html>

@@ -519,8 +519,8 @@ function MyPreferences({
 
   return (
     <section className="stack">
-      <h2>Your preferences</h2>
-      <p className="muted small">
+      <h2 className="prefs-title">Your preferences</h2>
+      <p className="muted prefs-lead">
         {preferences ? 'Filled in from last time. Change anything, then submit.' : 'Fill these in for this session.'}
       </p>
       <PreferencesForm
