@@ -20,11 +20,12 @@ export default function HomePage() {
       <div className="home-hero">
         <header className="hero">
           <p className="live-pill">
-            <span className="live-dot" aria-hidden /> Real-time restaurant matching for groups
+            <span className="live-dot" aria-hidden /> Real-time restaurant matching, solo or in a group
           </p>
           <h1>Where should we eat?</h1>
           <p className="hero-lead">
-            Everyone sets their must-haves privately. Then swipe together until you match.
+            Everyone sets their must-haves privately. Then swipe together until you match, or go solo and narrow your
+            likes down to one pick.
           </p>
         </header>
 
@@ -117,8 +118,14 @@ function HeroPreview() {
 function HowItWorks() {
   const steps = [
     { title: 'Set private preferences', text: 'Budget, distance, diet and kinds of place. Nobody else in the group sees them.' },
-    { title: 'Join your group session', text: 'Share a link or a six-letter code. Everyone joins from their own phone.' },
-    { title: 'Swipe until everyone matches', text: "Like or pass on the same places, live. When everyone likes one, it's a match." }
+    {
+      title: 'Go solo or bring your group',
+      text: 'Swipe on your own, or share a link or six-letter code so friends join from their own phones.'
+    },
+    {
+      title: 'Swipe until you have a pick',
+      text: "Like or pass, live. In a group, a place everyone likes is a match; alone, your likes narrow down to one top pick."
+    }
   ];
   return (
     <section id="how-it-works" className="how-it-works" aria-labelledby="how-heading">
@@ -165,7 +172,7 @@ function AboutArbiter() {
   ];
   return (
     <section className="about" aria-labelledby="about-heading">
-      <h2 id="about-heading">Why groups use Arbiter</h2>
+      <h2 id="about-heading">Why use Arbiter</h2>
       <ul className="about-grid">
         {features.map((f) => (
           <li key={f.title} className="card stack tight">

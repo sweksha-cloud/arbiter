@@ -1668,7 +1668,7 @@ body {
     font-size: 1.15rem;
   }
 
-  /* The steps are covered by "Why groups use Arbiter" on desktop. */
+  /* The steps are covered by "How it works" and "Why use Arbiter" on desktop. */
   .page.home .hero-steps {
     display: none;
   }
