@@ -402,7 +402,7 @@ test('a dollar budget removes places that cost more, and cards show dollar range
 test('preference boxes can be closed without losing answers, and say answers are private', async ({ newPhone }) => {
   const phone = await newPhone();
   await phone.goto('/');
-  await expect(phone.getByText('Your answers are never shared')).toBeVisible();
+  await expect(phone.getByText('Nobody else in the group sees them.')).toBeVisible();
   await becomeGuest(phone, 'Oli');
   await expect(phone.getByText('All your answers are private.')).toBeVisible();
   await expect(phone.getByRole('heading', { name: 'Allergies', exact: true })).toBeVisible();
