@@ -159,7 +159,7 @@ test('meeting between everyone: where you\'re coming from is asked first and sta
   await expect(friend.getByText('Sweksha chose: Find a spot between us')).toBeVisible();
   await expect(friend.getByText("Arbiter searches around the average of everyone's locations.", { exact: false })).toBeVisible();
   // Location comes before preferences.
-  await expect(friend.getByText("First, share where you're coming from (above).", { exact: false })).toBeVisible();
+  await expect(friend.getByText("First, share where you're coming from.", { exact: false })).toBeVisible();
   await expect(friend.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
 
   await friend.getByLabel(/Where are you coming from\?.*type a place/).fill('Santa Clara');
