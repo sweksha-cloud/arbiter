@@ -435,6 +435,12 @@ function RoundEnd({
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
   const pick = liked.length === 1 ? liked[0] : undefined;
+  // With a group, places everyone liked are shown first and not repeated among your likes.
+  const groupMatches =
+    !narrowing && view.members.length > 1
+      ? view.matches.map((id) => liked.find((p) => p.id === id)).filter((p): p is PlaceCandidate => p !== undefined)
+      : [];
+  const otherLikes = liked.filter((p) => !groupMatches.includes(p));
 
   async function searchMore() {
     setSearching(true);
@@ -462,6 +468,24 @@ function RoundEnd({
             Directions ↗
           </a>
         </>
+      ) : groupMatches.length > 0 ? (
+        // In a group, the matches come first, then the rest of your likes (owner, 2026-10-06).
+        <>
+          <p>
+            <strong>End of this round.</strong>
+          </p>
+          <p className="round-matches-title">
+            <strong>
+              🎉 {groupMatches.length === 1 ? "It's a match! Everyone liked:" : `${groupMatches.length} matches! Everyone liked:`}
+            </strong>
+          </p>
+          <LikedList places={groupMatches} view={view} />
+          {otherLikes.length > 0 && (
+            <p>
+              <strong>Your other likes:</strong>
+            </p>
+          )}
+        </>
       ) : (
         <p>
           <strong>
@@ -476,7 +500,7 @@ function RoundEnd({
         </p>
       )}
       {/* Your choices so far, so the next step is an informed one. */}
-      {!pick && liked.length > 0 && <LikedList places={liked} view={view} />}
+      {!pick && otherLikes.length > 0 && <LikedList places={otherLikes} view={view} />}
       <div className="stack tight round-actions">
         {/* With a group, choosing between everyone's likes together comes first (TRADEOFFS.md 25). */}
         {!narrowing && <FinalRoundButton view={view} onFinalRound={onFinalRound} />}

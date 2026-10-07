@@ -1,12 +1,14 @@
 # Arbiter
 
+## ▶ Live: [arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)
+
+**Try it alone in 30 seconds:** tap **Try a demo with sample friends** on the home page. Installs on your phone like an app ([how](#install-it-as-an-app)).
+
 [![CI](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml/badge.svg)](https://github.com/sweksha-cloud/arbiter/actions/workflows/ci.yml)
 
-Arbiter quickly helps a friend group decide where to eat. Everyone sets their preferences privately, places that don't work for someone are removed automatically, and then the group **swipes**: right to like, left to pass, Tinder-style. When everyone likes the same place, it's a match. Each card shows a photo, rating, price, distance, what the place offers, and which of *your* must-haves it misses, so nobody needs to open Google Maps to decide.
+Arbiter quickly helps a friend group (or just you) decide where to eat. Everyone sets their preferences privately, places that don't work for someone are removed automatically, and then the group **swipes**: right to like, left to pass, Tinder-style. When everyone likes the same place, it's a match; alone, your likes narrow down to one top pick. Each card shows a photo, rating, price, distance, what the place offers, and which of *your* must-haves it misses, so nobody needs to open Google Maps to decide.
 
-## Live
-
-**[arbiter-topaz.vercel.app](https://arbiter-topaz.vercel.app)**
+## Try it
 
 - **Try it alone in 30 seconds:** tap **Try a demo with sample friends** on the home page. Two simulated friends (Alex and Sam) join, have already chosen, and swipe along with you on sample places, so you'll see "It's a match!" and the group's final round without needing anyone else.
 - **Try it with a real group:** start a session, share the link or 6-letter code, and everyone joins from their own phone (or test it yourself with a normal and a private window).
