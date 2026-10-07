@@ -1,5 +1,6 @@
 'use client';
 
+import './zod-config';
 import { CreateGuestResponseSchema } from '@arbiter/shared';
 import { useMemo, useSyncExternalStore } from 'react';
 import { z } from 'zod';

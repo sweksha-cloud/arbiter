@@ -241,13 +241,19 @@ export class SessionService {
    * `meeting` is the host's choice from the setup page. `hostIp` is the
    * network scans are charged to (see scanBudget); it stays in memory only.
    */
-  async create(host: Guest, meeting?: MeetingChoice, hostIp?: string): Promise<string> {
+  async create(
+    host: Guest,
+    meeting?: MeetingChoice,
+    hostIp?: string,
+    /** Demo sessions use sample places whatever the server is set to (BUG-039). */
+    placesSource: SessionView['placesSource'] = this.options.placesSource
+  ): Promise<string> {
     for (;;) {
       const sessionId = newSessionCode();
       try {
         // History first: it remembers every code ever used, so this is what
         // guarantees an old link can only ever mean one session.
-        await this.options.history.create(sessionId, host, this.options.placesSource);
+        await this.options.history.create(sessionId, host, placesSource);
         await this.options.rooms.create({
           sessionId,
           hostId: host.id,
@@ -981,7 +987,7 @@ export class SessionService {
    * matches happen. Everything else is a normal session.
    */
   async createDemo(host: Guest, hostIp?: string): Promise<string> {
-    const sessionId = await this.create(host, { mode: 'area', area: DEMO_AREA }, hostIp);
+    const sessionId = await this.create(host, { mode: 'area', area: DEMO_AREA }, hostIp, 'sample');
     const bots: string[] = [];
     for (const friend of DEMO_FRIENDS) {
       const { guest } = await this.options.guests.create(friend.name);

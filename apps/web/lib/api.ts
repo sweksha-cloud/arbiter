@@ -1,3 +1,4 @@
+import './zod-config';
 import {
   AuthResponseSchema,
   CreateGuestResponseSchema,

@@ -87,7 +87,9 @@ for _ in $(seq 1 $((minutes * 6 + 60))); do
   out="$(ssh_vm "cat '$RUN_DIR/out.log' 2>/dev/null" || true)"
   now=$(printf '%s\n' "$out" | grep -c . || true)
   if [ "$now" -gt "$lines" ]; then
-    printf '%s\n' "$out" | tail -n +$((lines + 1)) | grep -v '^RESULT' | sed 's/^/  /'
+    # `|| true`: when the only new lines are RESULT lines, grep finds nothing and
+    # (with pipefail) would end the whole run (BUG-038, like BUG-028).
+    printf '%s\n' "$out" | tail -n +$((lines + 1)) | { grep -v '^RESULT' || true; } | sed 's/^/  /'
     lines=$now
     quiet=0
   else

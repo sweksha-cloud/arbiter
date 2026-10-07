@@ -28,38 +28,38 @@ export default function HomePage() {
           </p>
         </header>
 
-        {/* One main action: Start. Joining (inside the same card) and rejoining are quieter (TRADEOFFS.md 23d). */}
-        {identity === undefined ? null : (
-          <div className="card stack start-card home-actions">
-            {identity === null ? (
-              <StartSessionForm onStart={startWith} bare />
-            ) : (
-              <>
-                <Greeting identity={identity} />
-                <button className="button primary" onClick={start} disabled={busy}>
-                  {busy ? 'Starting…' : 'Start a session'}
-                </button>
-                <p className="muted small">
-                  You&apos;ll choose where to meet in the next step.
-                  {/* Signed-in people only: guests fill these in during the session (owner, 2026-10-06). */}
-                  {hasAccount(identity) && (
-                    <>
-                      {' · '}
-                      <Link href="/preferences">Edit my preferences</Link>
-                    </>
-                  )}
-                </p>
-                <RejoinBanner token={identity.token} inline />
-                {error && <p className="error">{error}</p>}
-              </>
-            )}
-            <p className="or" aria-hidden>
-              or
-            </p>
-            <JoinCodeForm compact />
-            <DemoButton identity={identity} />
-          </div>
-        )}
+        {/* One main action: Start. Joining (inside the same card) and rejoining are quieter (TRADEOFFS.md 23d).
+            Rendered from the first paint, as the new-visitor form until a saved sign-in loads, so nothing
+            below it jumps (it used to pop in late: layout shift 0.35 on Lighthouse). */}
+        <div className="card stack start-card home-actions">
+          {!identity ? (
+            <StartSessionForm onStart={startWith} bare />
+          ) : (
+            <>
+              <Greeting identity={identity} />
+              <button className="button primary" onClick={start} disabled={busy}>
+                {busy ? 'Starting…' : 'Start a session'}
+              </button>
+              <p className="muted small">
+                You&apos;ll choose where to meet in the next step.
+                {/* Signed-in people only: guests fill these in during the session (owner, 2026-10-06). */}
+                {hasAccount(identity) && (
+                  <>
+                    {' · '}
+                    <Link href="/preferences">Edit my preferences</Link>
+                  </>
+                )}
+              </p>
+              <RejoinBanner token={identity.token} inline />
+              {error && <p className="error">{error}</p>}
+            </>
+          )}
+          <p className="or" aria-hidden>
+            or
+          </p>
+          <JoinCodeForm compact />
+          <DemoButton identity={identity ?? null} />
+        </div>
 
         <section className="hero-more" aria-label="How it works">
           <HeroPreview />

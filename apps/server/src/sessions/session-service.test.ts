@@ -1050,6 +1050,8 @@ describe('SessionService', () => {
       await service.settle();
       // The match is kept in the session's history.
       expect((await history.get(sessionId))!.places.find((p) => p.placeId === 'a')!.matched).toBe(true);
+      // Recorded as sample places, so Past sessions shows no Maps links and usage counts skip it (BUG-039).
+      expect((await history.get(sessionId))!.placesSource).toBe('sample');
     });
 
     it('in a final round, the simulated friends join once and vote once', async () => {
