@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@arbiter/shared": "workspace:*",
-    "next": "^16.3.7",
+    "next": "^16.4.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "socket.io-client": "^4.8.4",
