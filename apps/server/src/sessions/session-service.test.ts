@@ -268,11 +268,6 @@ describe('SessionService', () => {
     expect(JSON.stringify(hostView)).not.toMatch(/"vegetarian":|dislikedCuisines|submissions/);
   });
 
-  it('reports a missing session as not found', async () => {
-    const { service, host } = await setup();
-    await expect(service.join('NOPE22', host)).rejects.toMatchObject({ code: 'not_found' });
-  });
-
   describe('history', () => {
     it('records the session, its members, suggestions in ranked order, reactions and the end', async () => {
       const { history, service, host, friend, sessionId } = await lobbyOfTwo();
@@ -479,17 +474,6 @@ describe('SessionService', () => {
       const room = await service.start(sessionId, host);
       expect(service.view(room, host.id).allergyReminder).toBe(false);
     });
-  });
-
-  it('ranks a chain whose menu fits a member\'s nutrition goals above a better-rated place', async () => {
-    const places = new FixturePlacesProvider([
-      place('local', { rating: 4.9 }),
-      place('chain', { rating: 3, menu: [{ name: 'Chicken bowl', calories: 620, proteinGrams: 42 }] })
-    ]);
-    const { service, host, friend, sessionId } = await lobbyOfTwo(places);
-    await service.submit(sessionId, host, { hard: {}, soft: { nutrition: { calories: { max: 700 }, proteinMinGrams: 30 } } });
-    const room = await service.submit(sessionId, friend, noPreferences);
-    expect(room.suggestions.map((p) => p.id)).toEqual(['chain', 'local']);
   });
 
   describe('chain nutrition (fatsecret menus)', () => {

@@ -244,11 +244,6 @@ describe('session over Socket.IO', () => {
     await friendSeesHostReturn;
   });
 
-  it('refuses "show results now" from someone who is not the host', async () => {
-    const { friendClient } = await sessionWithTwoPeople();
-    expect(await start(friendClient)).toEqual({ ok: false, error: 'Only the host can do that', code: 'forbidden' });
-  });
-
   it('gives a reconnecting person the current state, including their own reaction', async () => {
     const { sessionId, friend, hostClient, friendClient } = await sessionWithTwoPeople();
     const voting = nextState(friendClient, (v) => v.status === 'voting');

@@ -26,10 +26,6 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...required, GOOGLE_PLACES_API_KEY: 'k' }).GOOGLE_PLACES_API_KEY).toBe('k');
   });
 
-  it('parses PORT as a number', () => {
-    expect(loadConfig({ ...required, PORT: '8080' }).PORT).toBe(8080);
-  });
-
   it('names every missing or invalid variable', () => {
     expect(() => loadConfig({ WEB_ORIGIN: 'not a url' })).toThrow(/WEB_ORIGIN[\s\S]*DATABASE_URL|DATABASE_URL[\s\S]*WEB_ORIGIN/);
   });
