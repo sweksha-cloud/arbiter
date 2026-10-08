@@ -15,7 +15,7 @@
 import { parseArgs } from 'node:util';
 import { performance } from 'node:perf_hooks';
 
-import type { Ack, ClientToServerEvents, ServerToClientEvents, SessionView } from '@arbiter/shared';
+import { applyVote, type Ack, type ClientToServerEvents, type ServerToClientEvents, type SessionView } from '@arbiter/shared';
 import { io, type Socket } from 'socket.io-client';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -74,6 +74,11 @@ function connect(token: string): Promise<Member> {
   return new Promise((resolve, reject) => {
     const socket: Client = io(URL, { auth: { token }, transports: ['websocket'], forceNew: true, reconnection: false });
     const member: Member = { token, socket, seen: new Map() };
+    // Votes arrive as small updates since TRADEOFFS.md 31; both count as "seen".
+    socket.on('session:vote', (update) => {
+      if (!member.seen.has(update.version)) member.seen.set(update.version, performance.now());
+      member.view = applyVote(member.view, update, '').view;
+    });
     socket.on('session:state', (view) => {
       if (!member.seen.has(view.version)) member.seen.set(view.version, performance.now());
       if (!member.view || view.version > member.view.version) member.view = view;

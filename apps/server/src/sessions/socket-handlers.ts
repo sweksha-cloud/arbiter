@@ -9,7 +9,8 @@ import {
   type Ack,
   type ClientToServerEvents,
   type Guest,
-  type ServerToClientEvents
+  type ServerToClientEvents,
+  type VoteUpdate
 } from '@arbiter/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Server, Socket } from 'socket.io';
@@ -88,7 +89,15 @@ export function registerSocketHandlers(
   }
 
   // Changes no request caused (demo friends swiping) still reach everyone.
-  sessions.onBackgroundChange((sessionId, room) => void broadcast(sessionId, room));
+  sessions.onBackgroundChange((sessionId, room, vote) => (vote ? sendVote(vote) : void broadcast(sessionId, room)));
+
+  /**
+   * A vote goes to the whole group as one small update, encoded once, instead
+   * of each person's full view (TRADEOFFS.md 31).
+   */
+  function sendVote(vote: VoteUpdate) {
+    io.to(roomName(vote.sessionId)).emit('session:vote', vote);
+  }
 
   /** `context` (guest, session, event) goes into the log if the action fails unexpectedly. */
   async function respond(ack: unknown, context: object, action: () => Promise<void>) {
@@ -233,7 +242,9 @@ export function registerSocketHandlers(
       respond(ack, logContext('session:react'), async () => {
         const sessionId = currentSession(socket);
         const { placeId, reaction } = ReactPayloadSchema.parse(payload);
-        await broadcast(sessionId, await sessions.react(sessionId, guest, placeId, reaction));
+        const { room, update } = await sessions.vote(sessionId, guest, placeId, reaction);
+        if (update) sendVote(update);
+        else await broadcast(sessionId, room);
       })
     );
 

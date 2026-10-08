@@ -12,8 +12,36 @@ import {
   type SessionRecord
 } from './session-history.js';
 
+/**
+ * The reaction write, prepared once: every vote makes one, and building it
+ * with Drizzle each time was over a fifth of the server's CPU under load
+ * (TRADEOFFS.md 31). Values are placeholders; the conflict update reads the
+ * new row (`excluded`), and an older write arriving late never wins.
+ */
+function prepareRecordReaction(db: Db) {
+  return db
+    .insert(reactions)
+    .values({
+      sessionId: sql.placeholder('sessionId'),
+      userId: sql.placeholder('memberId'),
+      placeId: sql.placeholder('placeId'),
+      reaction: sql.placeholder('reaction'),
+      roomVersion: sql.placeholder('version')
+    })
+    .onConflictDoUpdate({
+      target: [reactions.sessionId, reactions.userId, reactions.placeId],
+      set: { reaction: sql`excluded.reaction`, roomVersion: sql`excluded.room_version`, updatedAt: sql`now()` },
+      setWhere: sql`${reactions.roomVersion} < excluded.room_version`
+    })
+    .prepare('record_reaction');
+}
+
 export class PostgresSessionHistory implements SessionHistory {
-  constructor(private readonly db: Db) {}
+  private readonly recordReactionStatement: ReturnType<typeof prepareRecordReaction>;
+
+  constructor(private readonly db: Db) {
+    this.recordReactionStatement = prepareRecordReaction(db);
+  }
 
   async create(sessionId: string, host: Guest, placesSource: PlacesSource) {
     try {
@@ -62,15 +90,7 @@ export class PostgresSessionHistory implements SessionHistory {
   }
 
   async recordReaction(sessionId: string, memberId: string, placeId: string, reaction: Reaction | null, version: number) {
-    await this.db
-      .insert(reactions)
-      .values({ sessionId, userId: memberId, placeId, reaction, roomVersion: version })
-      .onConflictDoUpdate({
-        target: [reactions.sessionId, reactions.userId, reactions.placeId],
-        set: { reaction, roomVersion: version, updatedAt: sql`now()` },
-        // A slower, older write arriving late must not undo a newer one.
-        setWhere: sql`${reactions.roomVersion} < excluded.room_version`
-      });
+    await this.recordReactionStatement.execute({ sessionId, memberId, placeId, reaction, version });
   }
 
   async moveMember(fromId: string, toId: string) {

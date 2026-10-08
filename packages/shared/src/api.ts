@@ -237,6 +237,68 @@ export function newerView(current: SessionView | undefined, incoming: SessionVie
   return incoming;
 }
 
+/**
+ * After a vote, one small update for the whole group instead of each person's
+ * full view (TRADEOFFS.md 31): only what a vote can change, the same for
+ * everyone. The voter's own reaction is applied only on the voter's phone.
+ */
+export const VoteUpdateSchema = z.object({
+  sessionId: z.string(),
+  /** The version this vote produced. */
+  version: z.number().int().nonnegative(),
+  memberId: z.string(),
+  placeId: z.string(),
+  reaction: ReactionSchema.nullable(),
+  /** The place's new totals. */
+  likes: z.number().int().nonnegative(),
+  dislikes: z.number().int().nonnegative(),
+  /** How many places the voter has now swiped on. */
+  swiped: z.number().int().nonnegative(),
+  matches: z.array(z.string()),
+  mostLiked: z.array(z.object({ placeId: z.string(), likes: z.number().int().positive() })),
+  finalRoundPlaces: z.array(z.string())
+});
+export type VoteUpdate = z.infer<typeof VoteUpdateSchema>;
+
+/**
+ * Applies a vote update to the view on screen. `resync` is true when an update
+ * was missed (versions skip), so the phone should ask for the full state;
+ * older or unrelated updates are ignored.
+ */
+export function applyVote(
+  current: SessionView | undefined,
+  update: VoteUpdate,
+  myId: string
+): { view: SessionView | undefined; resync: boolean } {
+  if (!current || current.sessionId !== update.sessionId || update.version <= current.version) {
+    return { view: current, resync: false };
+  }
+  if (update.version !== current.version + 1) return { view: current, resync: true };
+  const mine = update.memberId === myId;
+  let myReactions = current.myReactions;
+  if (mine) {
+    const { [update.placeId]: _previous, ...rest } = current.myReactions;
+    myReactions = update.reaction ? { ...rest, [update.placeId]: update.reaction } : rest;
+  }
+  return {
+    resync: false,
+    view: {
+      ...current,
+      version: update.version,
+      suggestions: current.suggestions.map((s) =>
+        s.place.id === update.placeId
+          ? { ...s, likes: update.likes, dislikes: update.dislikes, myReaction: mine ? update.reaction : s.myReaction }
+          : s
+      ),
+      members: current.members.map((m) => (m.id === update.memberId ? { ...m, swiped: update.swiped } : m)),
+      myReactions,
+      matches: update.matches,
+      mostLiked: update.mostLiked,
+      finalRoundPlaces: update.finalRoundPlaces
+    }
+  };
+}
+
 // ---- Socket.IO events ----
 
 export const JoinSessionPayloadSchema = z.object({ sessionId: z.string().min(1) });
@@ -289,4 +351,6 @@ export interface ClientToServerEvents {
 
 export interface ServerToClientEvents {
   'session:state': (view: SessionView) => void;
+  /** A vote: a small update to apply to the view already shown (see `applyVote`). */
+  'session:vote': (update: VoteUpdate) => void;
 }

@@ -30,7 +30,8 @@ import {
   type Preferences,
   type Reaction,
   type ReorganizeReason,
-  type SessionView
+  type SessionView,
+  type VoteUpdate
 } from '@arbiter/shared';
 
 import { SessionCodeTakenError, type SessionHistory } from '../history/session-history.js';
@@ -233,7 +234,7 @@ export class SessionService {
   /** Set when shutting down: demo friends stop scheduling more swipes. */
   private closing = false;
   /** Told about changes nobody's request caused (demo friends swiping), to send everyone the new state. */
-  private backgroundListener?: (sessionId: string, room: RoomState) => void;
+  private backgroundListener?: (sessionId: string, room: RoomState, vote?: VoteUpdate | null) => void;
 
   constructor(private readonly options: SessionServiceOptions) {}
 
@@ -451,6 +452,21 @@ export class SessionService {
    * that's the only reaction allowed on them.
    */
   async react(sessionId: string, guest: Guest, placeId: string, reaction: Reaction | null): Promise<RoomState> {
+    return (await this.vote(sessionId, guest, placeId, reaction)).room;
+  }
+
+  /**
+   * A reaction, plus the small update to send the group instead of everyone's
+   * full view (TRADEOFFS.md 31). `update` is null when the vote changed the
+   * lists themselves (liking a "more options" place adds it to the main list),
+   * which needs full views.
+   */
+  async vote(
+    sessionId: string,
+    guest: Guest,
+    placeId: string,
+    reaction: Reaction | null
+  ): Promise<{ room: RoomState; update: VoteUpdate | null }> {
     let added = false;
     const updated = await this.update(sessionId, (room) => {
       added = false;
@@ -483,7 +499,26 @@ export class SessionService {
         this.record(sessionId, 'match', () => this.options.history.recordMatch(sessionId, placeId));
       }
     }
-    return updated;
+    return { room: updated, update: added ? null : this.voteUpdate(updated, guest.id, placeId, reaction) };
+  }
+
+  /** What a vote changed, the same for everyone (only the voter applies `reaction` as their own). */
+  private voteUpdate(room: RoomState, memberId: string, placeId: string, reaction: Reaction | null): VoteUpdate {
+    const totals = tallyReactions(room.reactions, [placeId])[placeId] ?? { likes: 0, dislikes: 0 };
+    const { matches, mostLiked } = this.swipeResults(room, memberId);
+    return {
+      sessionId: room.sessionId,
+      version: room.version,
+      memberId,
+      placeId,
+      reaction,
+      likes: totals.likes,
+      dislikes: totals.dislikes,
+      swiped: Object.keys(room.reactions[memberId] ?? {}).length,
+      matches,
+      mostLiked,
+      finalRoundPlaces: this.finalRoundView(room, memberId).finalRoundPlaces
+    };
   }
 
   /**
@@ -976,7 +1011,7 @@ export class SessionService {
   }
 
   /** Called with changes no request caused, e.g. demo friends swiping; the socket layer sends them out. */
-  onBackgroundChange(listener: (sessionId: string, room: RoomState) => void): void {
+  onBackgroundChange(listener: (sessionId: string, room: RoomState, vote?: VoteUpdate | null) => void): void {
     this.backgroundListener = listener;
   }
 
@@ -1034,8 +1069,13 @@ export class SessionService {
         const coin = [...`${id}${place.id}`].reduce((sum, c) => sum + c.charCodeAt(0), 0) % 10;
         const member = room.members.find((m) => m.id === id);
         if (!member) continue;
-        const updated = await this.react(sessionId, { id, displayName: member.displayName } as Guest, place.id, index < 3 || coin < 5 ? 'like' : 'dislike');
-        this.backgroundListener?.(sessionId, updated);
+        const { room: updated, update } = await this.vote(
+          sessionId,
+          { id, displayName: member.displayName } as Guest,
+          place.id,
+          index < 3 || coin < 5 ? 'like' : 'dislike'
+        );
+        this.backgroundListener?.(sessionId, updated, update);
         return schedule();
       }
       return stop();

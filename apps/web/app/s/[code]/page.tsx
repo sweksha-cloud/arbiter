@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  applyVote,
   newerView,
   type Ack,
   type ClientToServerEvents,
@@ -73,6 +74,13 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
   const socketRef = useRef<ArbiterSocket | null>(null);
   const joinedRef = useRef<JoinedGate>(closedGate());
   const [view, setView] = useState<SessionView>();
+  // The view on screen, readable from socket handlers (vote updates apply to it).
+  const viewRef = useRef<SessionView>(undefined);
+  const showView = (next: SessionView | undefined) => {
+    if (next === viewRef.current) return;
+    viewRef.current = next;
+    setView(next);
+  };
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [notFound, setNotFound] = useState(false);
@@ -117,16 +125,23 @@ function LiveSession({ code, identity }: { code: string; identity: Identity }) {
       if (err.message === 'unauthorized') clearIdentity();
     });
     socket.on('session:state', (next) => {
-      setView((current) => newerView(current, next));
+      showView(newerView(viewRef.current, next));
       setError(undefined);
       if (next.status === 'ended') forgetActiveSession(next.sessionId);
+    });
+    // A vote is a small update to the view already shown (TRADEOFFS.md 31). If
+    // one was missed, joining again brings the full state.
+    socket.on('session:vote', (update) => {
+      const { view: next, resync } = applyVote(viewRef.current, update, identity.guest.id);
+      showView(next);
+      if (resync) socket.emit('session:join', { sessionId: code }, () => {});
     });
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [code, identity.token]);
+  }, [code, identity.token, identity.guest.id]);
 
   const handleAck = (ack: Ack) => {
     if (!ack.ok) setError(ack.error);

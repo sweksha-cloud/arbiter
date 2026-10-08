@@ -1,6 +1,14 @@
 import type { AddressInfo } from 'node:net';
 
-import type { Ack, ClientToServerEvents, Preferences, ServerToClientEvents, SessionView } from '@arbiter/shared';
+import {
+  applyVote,
+  newerView,
+  type Ack,
+  type ClientToServerEvents,
+  type Preferences,
+  type ServerToClientEvents,
+  type SessionView
+} from '@arbiter/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -33,21 +41,33 @@ describe('session over Socket.IO', () => {
     return response.json<{ guest: { id: string }; token: string }>();
   }
 
-  function connectClient(token: string): Client {
+  // Like the web page: each client keeps its latest view, from full states and
+  // small vote updates (TRADEOFFS.md 31), and waiters see every change.
+  const latest = new Map<Client, SessionView>();
+  const waiters = new Map<Client, ((view: SessionView) => boolean)[]>();
+
+  function connectClient(token: string, myId = ''): Client {
     const client: Client = connect(url, { auth: { token }, transports: ['websocket'], forceNew: true });
     clients.push(client);
+    const changed = (view: SessionView | undefined) => {
+      if (!view || view === latest.get(client)) return;
+      latest.set(client, view);
+      waiters.set(client, (waiters.get(client) ?? []).filter((waiter) => !waiter(view)));
+    };
+    client.on('session:state', (view) => changed(newerView(latest.get(client), view)));
+    client.on('session:vote', (update) => changed(applyVote(latest.get(client), update, myId).view));
     return client;
   }
 
   /** Resolves with the next state that matches `predicate`. */
   function nextState(client: Client, predicate: (view: SessionView) => boolean = () => true) {
     return new Promise<SessionView>((resolve) => {
-      const listener = (view: SessionView) => {
-        if (!predicate(view)) return;
-        client.off('session:state', listener);
+      const waiter = (view: SessionView) => {
+        if (!predicate(view)) return false;
         resolve(view);
+        return true;
       };
-      client.on('session:state', listener);
+      waiters.set(client, [...(waiters.get(client) ?? []), waiter]);
     });
   }
 
@@ -75,8 +95,8 @@ describe('session over Socket.IO', () => {
     });
     const { sessionId } = created.json<{ sessionId: string }>();
 
-    const hostClient = connectClient(host.token);
-    const friendClient = connectClient(friend.token);
+    const hostClient = connectClient(host.token, host.guest.id);
+    const friendClient = connectClient(friend.token, friend.guest.id);
     expect(await join(hostClient, sessionId)).toEqual({ ok: true });
     const hostSeesFriend = nextState(hostClient, (v) => v.members.length === 2);
     expect(await join(friendClient, sessionId)).toEqual({ ok: true });
@@ -222,6 +242,39 @@ describe('session over Socket.IO', () => {
 
     const view = await hostSeesBoth;
     expect(view.suggestions[0]?.myReaction).toBe('like');
+  });
+
+  it('sends a vote to everyone as one small update, not full views (TRADEOFFS.md 31)', async () => {
+    const { hostClient, friendClient } = await sessionWithTwoPeople();
+    const friendSeesVoting = nextState(friendClient, (v) => v.status === 'voting');
+    await submit(friendClient);
+    await submit(hostClient);
+    const voting = await friendSeesVoting;
+
+    const fullStates: SessionView[] = [];
+    const updates: unknown[] = [];
+    friendClient.on('session:state', (v) => fullStates.push(v));
+    friendClient.on('session:vote', (u) => updates.push(u));
+    const placeId = voting.suggestions[0]!.place.id;
+    const friendSeesLike = nextState(friendClient, (v) => v.suggestions[0]?.likes === 1);
+    expect(await react(hostClient, placeId, 'like')).toEqual({ ok: true });
+    const seen = await friendSeesLike;
+
+    expect(fullStates).toHaveLength(0);
+    expect(updates).toHaveLength(1);
+    expect(JSON.stringify(updates[0]).length).toBeLessThan(JSON.stringify(seen).length / 5);
+    // The friend's own reaction isn't touched by someone else's vote.
+    expect(seen.suggestions[0]!.myReaction).toBeNull();
+    expect(seen.members.find((m) => m.displayName === 'Host')!.swiped).toBe(1);
+
+    // Liking a "more options" place changes the lists, so everyone gets a full view.
+    const more = seen.moreOptions[0];
+    if (more) {
+      const friendSeesItAdded = nextState(friendClient, (v) => v.suggestions.some((s) => s.place.id === more.id));
+      expect(await react(hostClient, more.id, 'like')).toEqual({ ok: true });
+      await friendSeesItAdded;
+      expect(fullStates.length).toBeGreaterThan(0);
+    }
   });
 
   it('answers joining an unknown session with a not_found code', async () => {
