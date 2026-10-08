@@ -216,15 +216,16 @@ pnpm test:e2e                                                                   
 
 Load-tested on the production machine type (a free-tier Google Cloud **e2-micro**: 2 shared vCPUs, 1 GB) with the production server image, Redis and Postgres, using `apps/server/scripts/load-test.ts`. Each simulated person joins a group of 4, the group gets results, then everyone votes about every 2 seconds for 20 seconds. "Seen by the whole group" is the time from sending a vote until every member's phone has the updated session.
 
-Measured 2026-10-07 with `gcp/benchmark.sh` (both orders, the VM rested before each version; only numbers that hold in both runs are shown as reliable):
+Measured 2026-10-08 with `gcp/benchmark.sh` (both orders, the VM rested before each version; ranges are the two runs):
 
 | Groups (people) | Votes/s | Seen by whole group p50 | p95 | p99 | Failed |
 | --- | --- | --- | --- | --- | --- |
-| **25 (100)** | **41–42** | **6–8 ms** | **19–43 ms** | **32–95 ms** | **0** |
-| 50 (200) | 26–84 | 7–73 ms | 30 ms – 4.5 s | 59 ms – 6 s | 0 |
-| 75 (300) | 13–65 | 15 ms – 6 s | 7–9.5 s | 8.8–12.7 s | 0 |
+| 25 (100) | 42 | 4 ms | 8–12 ms | 10–61 ms | 0 |
+| **50 (200)** | **83** | **4 ms** | **11 ms** | **19–22 ms** | **0** |
+| 75 (300) | 30–47 | 0.7–1 s | 2.8–4.5 s | 3.3–5 s | 0 |
 
-- **Capacity:** 100 people voting at once, every update reaching the whole group within 43 ms for 95% of votes, reproducibly, with no failures. Around 200 people the e2-micro saturates: an e2-micro gets 2 vCPUs only while it has burst credits, then is throttled, so the same load is fast on a rested machine (30 ms p95 in one run; 89 ms on 2026-10-05) and seconds once credits run out. Nothing fails at any level; it slows down. Real groups vote far less often than every 2 seconds, so this is a pessimistic load.
+- **Capacity:** 200 people voting at once, every update reaching the whole group within 11 ms for 95% of votes, in both runs, with no failures. Around 300 people the e2-micro saturates (it slows down; nothing fails). Real groups vote far less often than every 2 seconds, so this is a pessimistic load.
+- **What changed (2026-10-08):** a CPU profile showed most of the server's time per vote went to sending every person their full ~8 KB view and rebuilding the same history query. A vote now goes to the group as one ~300-byte update encoded once, and the history write is prepared once. Same load, before → after: at 200 people p95 went from 47 ms–3 s (depending on the VM's CPU burst credits) to 11 ms; at 100 people from ~20 ms to ~10 ms.
 - **What's measured:** server-side latency inside the data center (the load generator ran on the same VM, also using some of its CPU). Phones add their own network trip, about 100 ms from the US west coast. Memory stayed under 630 MB of 1 GB.
 - **Reproduce:** start a server with `RATE_LIMITS=off` and no Google key (sample places), then `pnpm --filter @arbiter/server load-test --url <server> --groups 50 --seconds 20` from a machine close to it. Never against production: it fills the database and, with a key, uses Google searches.
 
