@@ -8,6 +8,10 @@
 
 Arbiter quickly helps a friend group (or just you) decide where to eat. Everyone sets their preferences privately, places that don't work for someone are removed automatically, and then the group **swipes**: right to like, left to pass, Tinder-style. When everyone likes the same place, it's a match; alone, your likes narrow down to one top pick. Each card shows a photo, rating, price, distance, what the place offers, and which of *your* must-haves it misses, so nobody needs to open Google Maps to decide.
 
+<p align="center"><img src="docs/arbiter-final-round.webp" alt="Two friends set different must-haves, swipe at their own pace, match twice (the second match arrives live after one of them has finished), then agree on the group's pick in a final round" width="648"></p>
+
+*Maya and Jordan set different must-haves and swipe at their own pace. Jordan finishes first; when Maya then likes Eos & Nyx, which Jordan already liked, his phone updates live to "2 matches!" (held for a moment above). Jordan starts a final round, Maya joins, and they agree on the group's pick.*
+
 ## Try it
 
 - **Try it alone in 30 seconds:** tap **Try a demo with sample friends** on the home page. Two simulated friends (Alex and Sam) join, have already chosen, and swipe along with you on sample places, so you'll see "It's a match!" and the group's final round without needing anyone else.
