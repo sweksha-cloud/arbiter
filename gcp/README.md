@@ -16,12 +16,37 @@ The API server runs on a free-tier **e2-micro** VM in Google Cloud, behind Caddy
 
 ## Setting up a server (about 20 minutes)
 
-1. **Google Cloud resources:** in Cloud Shell, with the Arbiter project selected, run `bash gcp/setup.sh "<public SSH key for the ubuntu user>"` (from a clone, or pasted as `bash -s -- "<key>" <<'SETUP' … SETUP` so a failing step can't close the session). It's safe to run again. It prints the IP and the three GitHub repo variables.
+1. **Google Cloud resources:** defined in Terraform (see [Infrastructure as code](#infrastructure-as-code)). In a new project, delete `gcp/terraform/imports.tf`, change the project ID in `variables.tf` and the bucket name in `versions.tf`, then run `terraform apply -var 'ssh_public_key=<public SSH key for the ubuntu user>'`. It prints the IP and the three GitHub repo variables.
 2. **The machine:** `ssh -i ~/git/arbiter.pem ubuntu@<IP> 'bash -s' < deploy/provision-vm.sh` installs Docker, adds 1 GB of swap and clones the repo.
 3. **Secrets:** copy `deploy/server.env` and `deploy/.env` from the current server (never through git), then `chmod 600 deploy/server.env`.
 4. **Google key:** add the IP to the Places key's allowed IP addresses (Credentials → the key → Application restrictions).
 5. **Start it:** `sudo ~/arbiter/deploy/deploy.sh latest`. Until DNS points here Caddy can't get its certificate, so check with `curl -s http://<IP>` (Caddy answers with a redirect) and `docker compose -f deploy/docker-compose.yml ps` (server healthy).
 6. **Switch:** on duckdns.org, set `arbiter-sweksha` to the new IP. Within minutes Caddy gets a certificate and `https://arbiter-sweksha.duckdns.org/health` answers. Live sessions on the old server end (room state is in memory), so switch when nobody's mid-session.
+
+## Infrastructure as code
+
+Everything in [What exists](#what-exists) is defined in `gcp/terraform/`: the APIs, the static IP, both firewall rules, the VM, and the keyless deploy identity with its four permissions. To change any of it, edit the `.tf` files and run, in Cloud Shell (Terraform is preinstalled and already signed in):
+
+```bash
+cd gcp/terraform
+terraform init
+terraform plan    # shows exactly what would change; nothing is touched
+terraform apply   # asks for "yes" before changing anything
+```
+
+`plan` also reports anything changed by hand in the console. State is kept in the versioned bucket `gs://evocative-ethos-510309-t9-tfstate` (free tier, `us-west1`), so it's the same from any machine. CI checks formatting and validity on every push, but never signs in to Google Cloud.
+
+Guard rails: the VM and the IP can't be destroyed by Terraform (`prevent_destroy`), a newer Ubuntu image never rebuilds the VM, and SSH keys on the VM are left alone (CI adds and prunes its own).
+
+**One-time adoption (the resources were first made by a script):**
+
+1. In Cloud Shell, create the state bucket:
+   ```bash
+   gcloud storage buckets create gs://evocative-ethos-510309-t9-tfstate --location us-west1 --uniform-bucket-level-access --public-access-prevention
+   gcloud storage buckets update gs://evocative-ethos-510309-t9-tfstate --versioning
+   ```
+2. `git clone https://github.com/sweksha-cloud/arbiter.git && cd arbiter/gcp/terraform && terraform init && terraform plan`. The plan should say **16 to import, 0 to add, 0 to change, 0 to destroy**. If it shows a change or a replacement, stop: the files don't yet match what's running.
+3. `terraform apply`. This only records the existing resources in the state; the server keeps running.
 
 ## Automatic deploys
 

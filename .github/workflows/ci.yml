@@ -57,6 +57,20 @@ jobs:
           REDIS_URL: redis://localhost:6379
       - run: pnpm build
 
+  # The Google Cloud infrastructure (gcp/terraform) is formatted and valid.
+  # Offline: no cloud sign-in, no state; `terraform plan` is run by hand.
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gcp/terraform
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
   # The server image, built once, side by side with the tests (TRADEOFFS.md 20d).
   # On main it's pushed under the commit SHA; deploy ships that exact image only
   # after every check passes. Elsewhere it's just built, to prove it still builds.
