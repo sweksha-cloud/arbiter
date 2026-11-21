@@ -1,0 +1,90 @@
+# Unit tests for alerts.yml, run in CI:
+#   promtool test rules deploy/monitoring/alerts.test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Blue/green: one slot stopped is normal; both down is an outage.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="arbiter-server",instance="server-blue:4000",slot="blue"}'
+        values: '1x9 0x20'
+      - series: 'up{job="arbiter-server",instance="server-green:4000",slot="green"}'
+        values: '0x29'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ArbiterServerDown
+        exp_alerts: []
+      # Down since 10m; "for: 2m" means not yet at 11m.
+      - eval_time: 11m
+        alertname: ArbiterServerDown
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: ArbiterServerDown
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: No server slot has answered Prometheus for 2 minutes.
+              check: "`docker compose -f deploy/docker-compose.yml ps` and the live slot's logs"
+
+  # A deploy: blue goes down only after green is up. No alert.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="arbiter-server",instance="server-blue:4000",slot="blue"}'
+        values: '1x10 0x10'
+      - series: 'up{job="arbiter-server",instance="server-green:4000",slot="green"}'
+        values: '0x9 1x11'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ArbiterServerDown
+        exp_alerts: []
+
+  # 10% of requests failing at ~1 request a second.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="200"}'
+        values: '0+54x30'
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
+        values: '0+6x30'
+    alert_rule_test:
+      # Failing since the start; "for: 5m" means not yet at 4m.
+      - eval_time: 4m
+        alertname: ArbiterHighErrorRate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: ArbiterHighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: More than 5% of requests are failing (now 10%).
+              check: The server logs for "Request failed".
+
+  # One failed request in a quiet hour isn't an alert.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
+        values: '0+0.1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ArbiterHighErrorRate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="arbiter-vm"}'
+        values: '500000000x5 50000000x20'
+      - series: 'node_memory_MemTotal_bytes{instance="arbiter-vm"}'
+        values: '1000000000x25'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: VmLowMemory
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: VmLowMemory
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: arbiter-vm }
+            exp_annotations:
+              summary: Under 10% of memory is free (now 5%).
+              check: "`docker stats`; a deploy runs two server slots for a moment."

@@ -1,0 +1,114 @@
+# Alert rules (TRADEOFFS.md 33). Each alert has a `for:` delay so a blip
+# doesn't page; Alertmanager groups repeats and sends one "resolved".
+# Tested by alerts.test.yml (`promtool test rules`, run in CI).
+groups:
+  - name: recording
+    rules:
+      # p95 latency of API requests, excluding health checks.
+      - record: arbiter:http_p95_seconds:5m
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le) (rate(arbiter_http_request_duration_seconds_bucket{route!="/health"}[5m])))
+      - record: arbiter:http_requests_per_second:5m
+        expr: sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[5m]))
+      - record: arbiter:http_5xx_ratio:5m
+        expr: >-
+          sum(rate(arbiter_http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+          / sum(rate(arbiter_http_request_duration_seconds_count[5m]))
+
+  - name: arbiter
+    rules:
+      - alert: ArbiterServerDown
+        # Blue/green: fine as long as one slot answers.
+        expr: max(up{job="arbiter-server"}) == 0 or absent(up{job="arbiter-server"})
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: No server slot has answered Prometheus for 2 minutes.
+          check: '`docker compose -f deploy/docker-compose.yml ps` and the live slot''s logs'
+
+      - alert: ArbiterHighErrorRate
+        # At least ~3 requests a minute, so one failed request at 3 a.m. isn't 100%.
+        expr: arbiter:http_5xx_ratio:5m > 0.05 and arbiter:http_requests_per_second:5m > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'More than 5% of requests are failing (now {{ $value | humanizePercentage }}).'
+          check: The server logs for "Request failed".
+
+      - alert: ArbiterSlowResponses
+        expr: arbiter:http_p95_seconds:5m > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'p95 response time has been above 1 s for 10 minutes (now {{ $value | humanizeDuration }}).'
+          check: VM CPU and memory first, then Neon and Google Places.
+
+      # Anomaly, not a fixed line: today's latency against its own last day.
+      - alert: ArbiterUnusualLatency
+        expr: >-
+          arbiter:http_p95_seconds:5m > 3 * avg_over_time(arbiter:http_p95_seconds:5m[1d] offset 1h)
+          and arbiter:http_p95_seconds:5m > 0.25
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: 'p95 response time is over 3x its usual level (now {{ $value | humanizeDuration }}).'
+          check: What changed recently (deploys, traffic, Neon).
+
+  - name: vm
+    rules:
+      - alert: VmHighCpu
+        expr: 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.9
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: 'CPU has been above 90% for 15 minutes (now {{ $value | humanizePercentage }}).'
+          check: '`docker stats`; an e2-micro throttles after its burst credit runs out.'
+
+      - alert: VmLowMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Under 10% of memory is free (now {{ $value | humanizePercentage }}).'
+          check: '`docker stats`; a deploy runs two server slots for a moment.'
+
+      - alert: VmDiskAlmostFull
+        expr: >-
+          node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.10
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Under 10% of the disk is free (now {{ $value | humanizePercentage }}).'
+          check: '`docker system df`; old images can be pruned.'
+
+      - alert: VmDiskFillingUp
+        # At the last 6 hours' rate, the disk is full within 3 days.
+        expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 3 * 86400) < 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: At the current rate the disk fills up within 3 days.
+          check: '`sudo du -xh / --max-depth 2 | sort -h | tail`'
+
+      - alert: VmNetworkPacketDrops
+        expr: >-
+          sum(rate(node_network_receive_drop_total{device!~"lo|veth.*|br-.*|docker.*"}[5m])
+            + rate(node_network_receive_errs_total{device!~"lo|veth.*|br-.*|docker.*"}[5m])
+            + rate(node_network_transmit_drop_total{device!~"lo|veth.*|br-.*|docker.*"}[5m])
+            + rate(node_network_transmit_errs_total{device!~"lo|veth.*|br-.*|docker.*"}[5m])) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'The network interface is dropping or failing over 1 packet a second ({{ $value | humanize }}/s).'
+          check: The VM's network in the Google Cloud console.
+
+  - name: monitoring
+    rules:
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: VM metrics have stopped (node-exporter isn't answering), so VM alerts can't fire.
+          check: '`docker compose -f deploy/docker-compose.yml ps node-exporter`'

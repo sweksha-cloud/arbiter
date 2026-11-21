@@ -1,0 +1,30 @@
+# Alertmanager (TRADEOFFS.md 33): turns Prometheus alerts into phone
+# notifications through ntfy, without the noise of one message per check.
+route:
+  receiver: phone
+  # One notification per kind of problem, however many series fire.
+  group_by: [alertname]
+  # Wait briefly so alerts that start together arrive as one message.
+  group_wait: 30s
+  # New alerts joining a group that already notified wait this long.
+  group_interval: 5m
+  # A problem that's still there is repeated twice a day, not every check.
+  repeat_interval: 12h
+
+receivers:
+  - name: phone
+    webhook_configs:
+      # The ntfy topic is private, so it lives on the server, not in git;
+      # deploy/deploy.sh writes this file from deploy/alerts.env.
+      - url_file: /etc/alerting/ntfy-url
+        # One "resolved" message when it's over.
+        send_resolved: true
+        max_alerts: 10
+
+# When the server is down, its slow or failing requests are a symptom, not
+# separate problems: only the outage notifies.
+inhibit_rules:
+  - source_matchers: [alertname = ArbiterServerDown]
+    target_matchers: [alertname =~ "ArbiterHighErrorRate|ArbiterSlowResponses|ArbiterUnusualLatency"]
+  - source_matchers: [alertname = NodeExporterDown]
+    target_matchers: [alertname =~ "Vm.*"]

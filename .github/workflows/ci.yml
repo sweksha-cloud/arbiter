@@ -57,6 +57,28 @@ jobs:
           REDIS_URL: redis://localhost:6379
       - run: pnpm build
 
+  # Monitoring config (TRADEOFFS.md 33): Prometheus and Alertmanager configs
+  # are valid, and the alert rules pass their unit tests, with the same
+  # versions the server runs.
+  monitoring-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prometheus config and alert rules
+        run: |
+          docker run --rm -v "$PWD/deploy/monitoring:/etc/monitoring:ro" --entrypoint promtool \
+            prom/prometheus:v3.16.0 check config /etc/monitoring/prometheus.yml
+      - name: Alert rule unit tests
+        run: |
+          docker run --rm -v "$PWD/deploy/monitoring:/m:ro" -w /m --entrypoint promtool \
+            prom/prometheus:v3.16.0 test rules alerts.test.yml
+      - name: Alertmanager config
+        run: |
+          docker run --rm -v "$PWD/deploy/monitoring:/etc/monitoring:ro" --entrypoint amtool \
+            prom/alertmanager:v0.35.0 check-config /etc/monitoring/alertmanager.yml
+      - name: Grafana dashboard is valid JSON
+        run: python3 -m json.tool deploy/monitoring/grafana/dashboards/arbiter.json > /dev/null
+
   # The server image, built once, side by side with the tests (TRADEOFFS.md 20d).
   # On main it's pushed under the commit SHA; deploy ships that exact image only
   # after every check passes. Elsewhere it's just built, to prove it still builds.
@@ -153,7 +175,7 @@ jobs:
   # through Google's IAP tunnel. The script rolls back if the new version
   # isn't healthy.
   deploy:
-    needs: [check, browser-tests, server-image]
+    needs: [check, browser-tests, server-image, monitoring-config]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:

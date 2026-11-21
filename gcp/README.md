@@ -31,6 +31,40 @@ Every push to `main` that passes CI goes live: CI builds `ghcr.io/sweksha-cloud/
 
 GitHub repo variables (Settings → Secrets and variables → Actions → Variables): `GCP_PROJECT`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`. The image is public (it follows the repo's visibility) and holds no secrets; secrets live only in `deploy/server.env` on the VM.
 
+## Monitoring and alerts
+
+The VM runs its own monitoring next to the app (`deploy/monitoring/`), started and reloaded by every deploy:
+
+| Piece | What it does | Memory cap |
+| --- | --- | --- |
+| Prometheus | Scrapes the server's `/metrics` (request latency by route, 5xx rate, connected phones, CPU and memory) and the VM every 15 s; keeps 15 days | 160 MB |
+| node-exporter | The VM's CPU, memory, disk, network traffic and packet drops | 32 MB |
+| Alertmanager | Groups alerts and sends phone notifications through ntfy: one message per kind of problem, one "resolved" when it's over, repeated at most every 12 h | 48 MB |
+| Grafana | The "Arbiter" dashboard; started only while you look at it | 192 MB |
+
+Measured locally: Prometheus ~36 MB, Alertmanager ~18 MB, Grafana ~134 MB (hence on demand). Each container has a hard memory cap, so if one outgrows it, that container restarts, never the app. `/metrics` is refused by Caddy and by the server itself for anything that came through Caddy, and no monitoring port is open to the internet.
+
+**Alert rules** (`deploy/monitoring/alerts.yml`, unit-tested in CI with `promtool test rules`): no server slot answering for 2 min; over 5% of requests failing; p95 response time over 1 s for 10 min, or over 3x its own level of the last day (an anomaly check rather than a fixed line); CPU over 90% for 15 min; under 10% memory or disk free; disk on track to fill within 3 days; packet drops or errors; node-exporter down. While the server is down, its error and latency alerts are held back as symptoms. The GitHub `Monitor` workflow still checks from outside every 15 minutes (it would catch the VM itself being gone) and now also fails if Prometheus, Alertmanager or node-exporter stop.
+
+**Phone alerts (one time):** install the ntfy app, subscribe to a topic nobody could guess (e.g. `arbiter-alerts-` plus random letters), then on the VM:
+
+```bash
+echo 'ALERTS_NTFY_TOPIC=<your topic>' > ~/arbiter/deploy/alerts.env
+sudo ~/arbiter/deploy/deploy.sh "$(cat ~/arbiter/deploy/.deployed-tag)"   # no downtime
+```
+
+Until then, alerts still show in Alertmanager and Grafana, and each deploy prints that phone alerts are off.
+
+**Looking at it:** from Cloud Shell or a laptop with gcloud,
+
+```bash
+gcloud compute ssh ubuntu@arbiter --zone us-west1-b --tunnel-through-iap -- -t \
+  -L 3000:localhost:3000 -L 9090:localhost:9090 -L 9093:localhost:9093 \
+  'cd ~/arbiter && sudo docker compose -f deploy/docker-compose.yml --profile dashboard up -d grafana && read -p "Open localhost:3000, then press Enter to stop Grafana" && sudo docker compose -f deploy/docker-compose.yml stop grafana'
+```
+
+then open `localhost:3000` (dashboard), `localhost:9090` (Prometheus) or `localhost:9093` (Alertmanager). In Cloud Shell, use Web Preview on port 3000.
+
 ## By hand
 
 From `~/arbiter` on the VM (`ssh -i ~/git/arbiter.pem ubuntu@34.168.132.145`):

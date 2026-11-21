@@ -88,3 +88,30 @@ echo "$TAG" > "$STATE"
 # Unused images older than 10 days (the stopped slot's image stays: it's in use).
 docker image prune -af --filter until=240h > /dev/null
 echo "Deployed $TAG on the $NEXT slot"
+
+# Monitoring (TRADEOFFS.md 33), after the app is safely live: a problem here
+# never fails or slows a deploy. Started if missing, recreated if its compose
+# settings changed, and told to re-read its config files (SIGHUP) otherwise.
+monitoring() {
+  # Phone alerts go to a private ntfy topic, set once in deploy/alerts.env
+  # (ALERTS_NTFY_TOPIC=...; not in git). Without it, alerts still show in
+  # Alertmanager and Grafana, and Alertmanager logs that it can't send.
+  local topic url
+  topic="$( { grep -E '^ALERTS_NTFY_TOPIC=' deploy/alerts.env 2>/dev/null || true; } | tail -1 | cut -d= -f2-)"
+  mkdir -p deploy/alerting
+  if [ -n "$topic" ]; then
+    # ntfy fills in the title and message from Alertmanager's JSON.
+    url="$(python3 -c '
+import sys, urllib.parse as u
+title = "Arbiter {{.status}}: {{.groupLabels.alertname}}"
+message = "{{range .alerts}}{{.annotations.summary}}\nCheck: {{.annotations.check}}\n{{end}}"
+print(f"https://ntfy.sh/{u.quote(sys.argv[1])}?tpl=yes&t={u.quote(title)}&m={u.quote(message)}")' "$topic")"
+  else
+    echo "Phone alerts are off: set ALERTS_NTFY_TOPIC in deploy/alerts.env (gcp/README.md)"
+    url="http://127.0.0.1:9/phone-alerts-not-set-up"
+  fi
+  printf '%s\n' "$url" > deploy/alerting/ntfy-url
+  "${COMPOSE[@]}" up -d --no-build prometheus alertmanager node-exporter
+  "${COMPOSE[@]}" kill -s SIGHUP prometheus alertmanager
+}
+monitoring || echo "Warning: monitoring didn't start or reload (the app deploy is fine)"

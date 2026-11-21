@@ -1,0 +1,41 @@
+# Prometheus on the server VM (TRADEOFFS.md 33). Scrapes every 15 s; keeps
+# 15 days (capped at 1 GB). Reloaded by deploy/deploy.sh on every deploy.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/monitoring/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Both blue/green slots (TRADEOFFS.md 8e). Normally one is stopped, so its
+  # target is down; alerts look at the best slot, never a single one.
+  - job_name: arbiter-server
+    static_configs:
+      - targets: ['server-blue:4000', 'server-green:4000']
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: 'server-(blue|green):4000'
+        target_label: slot
+
+  # The VM itself: CPU, memory, disk, network. node-exporter runs on the
+  # host's network so it sees the real interfaces; port 9100 is closed to
+  # the internet by the Google Cloud firewall (gcp/terraform/main.tf).
+  - job_name: node
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+        labels:
+          instance: arbiter-vm
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager:9093']

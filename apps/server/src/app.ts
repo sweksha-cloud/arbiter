@@ -21,6 +21,7 @@ import { InMemoryRoomStore } from './rooms/in-memory-room-store.js';
 import type { RoomStore } from './rooms/room-store.js';
 import { DEFAULT_RATE_LIMITS, MAX_BODY_BYTES, SlidingWindowLimiter, type RateLimits } from './rate-limits.js';
 import { PhotoSigner, type PhotoSource } from './places/photos.js';
+import { registerMetrics } from './metrics.js';
 import { registerRoutes } from './routes.js';
 import { MISSING_DATA_POLICY, SCAN_RADIUS_METERS } from './sessions/scan-settings.js';
 import { SessionService } from './sessions/session-service.js';
@@ -82,8 +83,9 @@ export async function buildApp({
   await http.register(rateLimit, {
     max: rateLimits.requestsPerMinute,
     timeWindow: '1 minute',
-    // Health checks come from the deploy system and must never be refused.
-    allowList: (request) => request.url === '/health',
+    // Health checks (the deploy system) and metrics (Prometheus, every 15 s,
+    // from inside the server's network) must never be refused.
+    allowList: (request) => request.url === '/health' || request.url === '/metrics',
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: `Too many requests. Try again in ${Math.ceil(context.ttl / 1000)} seconds.`
@@ -177,6 +179,7 @@ export async function buildApp({
     geocodeBudget: new SlidingWindowLimiter(rateLimits.geocodesPerIpPerDay, 24 * 60 * 60_000)
   });
   registerSocketHandlers(io, { guests, sessions, log: http.log, rateLimits, trustProxy });
+  registerMetrics(http, io);
 
   // A card's photo (TRADEOFFS.md 22b): only with a valid signature from that
   // session's view; the browser is sent on to Google's image, never the key.

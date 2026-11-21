@@ -16,3 +16,5 @@ playwright-report/
 # Production secrets on the server
 deploy/server.env
 deploy/.deployed-tag
+deploy/alerts.env
+deploy/alerting/

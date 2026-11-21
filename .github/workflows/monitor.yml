@@ -48,7 +48,7 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v3
 
-      - name: The live server slot, Redis and Caddy are healthy, and no errors in the last 15 minutes
+      - name: The live server slot, Redis, Caddy and monitoring are healthy, and no errors in the last 15 minutes
         run: |
           # The command runs on the server, so it's single-quoted on purpose.
           # shellcheck disable=SC2016
@@ -63,7 +63,9 @@ jobs:
           # Two server slots (TRADEOFFS.md 8e): one runs, the other is normally stopped.
           live=$(echo "$report" | grep -cE "^container server-(blue|green) running healthy" || true)
           if [ "$live" -eq 0 ]; then echo "::error::No server slot is running and healthy"; problems=1; fi
-          for service in redis caddy; do
+          # Prometheus, Alertmanager and node-exporter too: this check is what notices
+          # if the monitoring itself stops (TRADEOFFS.md 33).
+          for service in redis caddy prometheus alertmanager node-exporter; do
             line=$(echo "$report" | grep "^container $service " || true)
             if [ -z "$line" ]; then echo "::error::$service isn't running"; problems=1; continue; fi
             read -r _ _ state health <<< "$line"
