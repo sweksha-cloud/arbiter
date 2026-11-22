@@ -1,6 +1,6 @@
 # Alert rules (TRADEOFFS.md 33). Each alert has a `for:` delay so a blip
 # doesn't page; Alertmanager groups repeats and sends one "resolved".
-# Tested by alerts.test.yml (`promtool test rules`, run in CI).
+# SLO alerts are in slo.yml. Tested by alerts.test.yml (`promtool test rules`, run in CI).
 groups:
   - name: recording
     rules:
@@ -27,22 +27,9 @@ groups:
           summary: No server slot has answered Prometheus for 2 minutes.
           check: '`docker compose -f deploy/docker-compose.yml ps` and the live slot''s logs'
 
-      - alert: ArbiterHighErrorRate
-        # At least ~3 requests a minute, so one failed request at 3 a.m. isn't 100%.
-        expr: arbiter:http_5xx_ratio:5m > 0.05 and arbiter:http_requests_per_second:5m > 0.05
-        for: 5m
-        labels: { severity: warning }
-        annotations:
-          summary: 'More than 5% of requests are failing (now {{ $value | humanizePercentage }}).'
-          check: The server logs for "Request failed".
-
-      - alert: ArbiterSlowResponses
-        expr: arbiter:http_p95_seconds:5m > 1
-        for: 10m
-        labels: { severity: warning }
-        annotations:
-          summary: 'p95 response time has been above 1 s for 10 minutes (now {{ $value | humanizeDuration }}).'
-          check: VM CPU and memory first, then Neon and Google Places.
+      # Error rate and response time are covered by SLO burn-rate alerts
+      # (slo.yml), which page on how fast the error budget is being spent
+      # instead of a fixed threshold.
 
       # Anomaly, not a fixed line: today's latency against its own last day.
       - alert: ArbiterUnusualLatency

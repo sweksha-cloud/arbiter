@@ -1,0 +1,92 @@
+# Unit tests for slo.yml, run in CI:
+#   promtool test rules deploy/monitoring/slo.test.yml
+rule_files:
+  - slo.yml
+
+evaluation_interval: 1m
+
+tests:
+  # 10% of requests failing at 1 request a second: 20x the 0.5% budget.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="200"}'
+        values: '0+54x400'
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
+        values: '0+6x400'
+      - series: 'arbiter_http_request_duration_seconds_bucket{route="/api/sessions",method="POST",status_code="200",le="1"}'
+        values: '0+54x400'
+      - series: 'arbiter_http_request_duration_seconds_bucket{route="/api/sessions",method="POST",status_code="500",le="1"}'
+        values: '0+6x400'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ArbiterAvailabilityBudgetFastBurn
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: ArbiterAvailabilityBudgetFastBurn
+        exp_alerts:
+          - exp_labels: { severity: critical, slo: availability }
+            exp_annotations:
+              summary: Failing requests are burning the availability budget 14x too fast (10% failing over the last hour).
+              check: The server logs for "Request failed", then Neon and Google Places.
+      - eval_time: 6h
+        alertname: ArbiterAvailabilityBudgetSlowBurn
+        exp_alerts:
+          - exp_labels: { severity: warning, slo: availability }
+            exp_annotations:
+              summary: Failing requests are burning the availability budget 6x too fast (10% failing over 6 hours).
+              check: The server logs for "Request failed" since the last deploy.
+      # Every request is fast: no latency alert.
+      - eval_time: 6h
+        alertname: ArbiterLatencyBudgetFastBurn
+        exp_alerts: []
+
+  # 1% failing: inside a slow burn's threshold (3%), so nothing pages.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="200"}'
+        values: '0+59.4x400'
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
+        values: '0+0.6x400'
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: ArbiterAvailabilityBudgetFastBurn
+        exp_alerts: []
+      - eval_time: 6h
+        alertname: ArbiterAvailabilityBudgetSlowBurn
+        exp_alerts: []
+
+  # A quiet night: the only request in an hour fails. Below the traffic floor.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
+        values: '0x30 1x30'
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: ArbiterAvailabilityBudgetFastBurn
+        exp_alerts: []
+
+  # 25% of requests take over 1 s: 25x the 1% latency budget.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/api/places",method="GET",status_code="200"}'
+        values: '0+60x120'
+      - series: 'arbiter_http_request_duration_seconds_bucket{route="/api/places",method="GET",status_code="200",le="1"}'
+        values: '0+45x120'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ArbiterLatencyBudgetFastBurn
+        exp_alerts:
+          - exp_labels: { severity: critical, slo: latency }
+            exp_annotations:
+              summary: Slow requests are burning the latency budget 14x too fast (25% over 1 s in the last hour).
+              check: VM CPU and memory first, then Neon and Google Places.
+
+  # Health checks never count, however slow or failing.
+  - interval: 1m
+    input_series:
+      - series: 'arbiter_http_request_duration_seconds_count{route="/health",method="GET",status_code="500"}'
+        values: '0+60x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ArbiterAvailabilityBudgetFastBurn
+        exp_alerts: []

@@ -23,6 +23,12 @@ COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /out/dist ./dist
 # Migrations run on startup (src/db/migrate.ts reads ../../drizzle from dist/db).
 COPY --from=build /out/drizzle ./drizzle
+# The server only needs `node`. npm, npx, corepack and yarn ship with the base
+# image and carry their own vulnerable dependencies (flagged by the Trivy scan
+# in CI), so they are removed from the runtime image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn-* \
+    /usr/local/bin/yarn /usr/local/bin/yarnpkg
 USER node
 EXPOSE 4000
 # 60 s to start: migrations wait on the database, which may be waking up (Neon).

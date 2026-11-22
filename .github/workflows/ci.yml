@@ -68,10 +68,10 @@ jobs:
         run: |
           docker run --rm -v "$PWD/deploy/monitoring:/etc/monitoring:ro" --entrypoint promtool \
             prom/prometheus:v3.16.0 check config /etc/monitoring/prometheus.yml
-      - name: Alert rule unit tests
+      - name: Alert and SLO rule unit tests
         run: |
           docker run --rm -v "$PWD/deploy/monitoring:/m:ro" -w /m --entrypoint promtool \
-            prom/prometheus:v3.16.0 test rules alerts.test.yml
+            prom/prometheus:v3.16.0 test rules alerts.test.yml slo.test.yml
       - name: Alertmanager config
         run: |
           docker run --rm -v "$PWD/deploy/monitoring:/etc/monitoring:ro" --entrypoint amtool \
@@ -82,29 +82,69 @@ jobs:
   # The server image, built once, side by side with the tests (TRADEOFFS.md 20d).
   # On main it's pushed under the commit SHA; deploy ships that exact image only
   # after every check passes. Elsewhere it's just built, to prove it still builds.
+  # Supply chain (TRADEOFFS.md 34): the image is scanned before it can ship,
+  # its SBOM is kept, and on main the pushed image is signed with a keyless
+  # cosign signature (GitHub's OIDC identity, no stored keys).
   server-image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
+    env:
+      IMAGE: ghcr.io/sweksha-cloud/arbiter-server
+      TRIVY: aquasec/trivy:0.76.2
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
+      # Build once into the local Docker engine so it can be scanned before any push.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          load: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan the image (fails on fixable high or critical vulnerabilities)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY" image \
+            --quiet --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:${{ github.sha }}"
+      - name: SBOM (CycloneDX)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY" image \
+            --quiet --format cyclonedx "$IMAGE:${{ github.sha }}" > sbom.cdx.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: server-image-sbom
+          path: sbom.cdx.json
       - uses: docker/login-action@v4
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+      # The same build, from cache: only now, after the scan, is it pushed.
+      - id: push
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/server/Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-          tags: ghcr.io/sweksha-cloud/arbiter-server:${{ github.sha }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - uses: sigstore/cosign-installer@v4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Sign the image and attach its SBOM (keyless)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign sign --yes "$IMAGE@$DIGEST"
+          cosign attest --yes --type cyclonedx --predicate sbom.cdx.json "$IMAGE@$DIGEST"
 
   # Browser tests, one GitHub machine per engine, side by side with `check`
   # (TRADEOFFS.md 20d). Each machine builds the app and runs its own server.
