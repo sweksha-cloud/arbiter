@@ -23,6 +23,18 @@ The API server runs on a free-tier **e2-micro** VM in Google Cloud, behind Caddy
 5. **Start it:** `sudo ~/arbiter/deploy/deploy.sh latest`. Until DNS points here Caddy can't get its certificate, so check with `curl -s http://<IP>` (Caddy answers with a redirect) and `docker compose -f deploy/docker-compose.yml ps` (server healthy).
 6. **Switch:** on duckdns.org, set `arbiter-sweksha` to the new IP. Within minutes Caddy gets a certificate and `https://arbiter-sweksha.duckdns.org/health` answers. Live sessions on the old server end (room state is in memory), so switch when nobody's mid-session.
 
+## Supply chain
+
+CI builds the server image, scans it with Trivy and fails on any fixable high or critical vulnerability before anything is pushed, and keeps a CycloneDX SBOM as a build artifact. On `main`, the pushed image is signed with cosign (keyless: GitHub's OIDC identity, no stored keys) and the SBOM is attached as a signed attestation. The runtime image drops npm, corepack and yarn, which the server never uses (they carried every finding the first scan reported). Check a deployed image:
+
+```bash
+cosign verify ghcr.io/sweksha-cloud/arbiter-server:<sha> \
+  --certificate-identity-regexp '^https://github.com/sweksha-cloud/arbiter/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Dependabot opens one grouped PR a week per ecosystem (npm, the Docker base image, GitHub Actions); security fixes still come right away.
+
 ## Automatic deploys
 
 Deploys have **no downtime**: there are two server slots, blue and green. `deploy/deploy.sh` starts the new version in the idle slot, waits until it's healthy, hands Caddy its config, then stops the old slot; Caddy always sends traffic to a healthy slot and retries a request caught mid-switch. Phones on the old slot reconnect to the new one in about a second (the "Reconnecting…" banner waits 1.5 s, so it doesn't show). If the new version never gets healthy, its slot is stopped and the old one keeps running: there's nothing to roll back. Before stopping, a server finishes any search in progress and its queued history writes; a session left "searching" by a crash recovers when someone rejoins.
@@ -44,7 +56,9 @@ The VM runs its own monitoring next to the app (`deploy/monitoring/`), started a
 
 Measured locally: Prometheus ~36 MB, Alertmanager ~18 MB, Grafana ~134 MB (hence on demand). Each container has a hard memory cap, so if one outgrows it, that container restarts, never the app. `/metrics` is refused by Caddy and by the server itself for anything that came through Caddy, and no monitoring port is open to the internet.
 
-**Alert rules** (`deploy/monitoring/alerts.yml`, unit-tested in CI with `promtool test rules`): no server slot answering for 2 min; over 5% of requests failing; p95 response time over 1 s for 10 min, or over 3x its own level of the last day (an anomaly check rather than a fixed line); CPU over 90% for 15 min; under 10% memory or disk free; disk on track to fill within 3 days; packet drops or errors; node-exporter down. While the server is down, its error and latency alerts are held back as symptoms. The GitHub `Monitor` workflow still checks from outside every 15 minutes (it would catch the VM itself being gone) and now also fails if Prometheus, Alertmanager or node-exporter stop.
+**SLOs** (`deploy/monitoring/slo.yml`, over a rolling 14 days): 99.5% of API requests succeed, and 99% finish within 1 s (health checks excluded). Alerts use multi-window burn rates: page when the error budget burns 14.4x too fast over both the last hour and 5 minutes, warn at 6x over 6 hours and 30 minutes, with a traffic floor so one failure on a quiet night doesn't page. The dashboard shows each budget left and its burn rate.
+
+**Other alert rules** (`deploy/monitoring/alerts.yml`; both files unit-tested in CI with `promtool test rules`): no server slot answering for 2 min; p95 response time over 3x its own level of the last day (an anomaly check rather than a fixed line); CPU over 90% for 15 min; under 10% memory or disk free; disk on track to fill within 3 days; packet drops or errors; node-exporter down. While the server is down, its SLO and latency alerts are held back as symptoms. The GitHub `Monitor` workflow still checks from outside every 15 minutes (it would catch the VM itself being gone) and now also fails if Prometheus, Alertmanager or node-exporter stop.
 
 **Phone alerts (one time):** install the ntfy app, subscribe to a topic nobody could guess (e.g. `arbiter-alerts-` plus random letters), then on the VM:
 

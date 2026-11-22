@@ -6,6 +6,7 @@ global:
 
 rule_files:
   - /etc/monitoring/alerts.yml
+  - /etc/monitoring/slo.yml
 
 alerting:
   alertmanagers:

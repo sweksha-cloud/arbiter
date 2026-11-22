@@ -41,36 +41,6 @@ tests:
         alertname: ArbiterServerDown
         exp_alerts: []
 
-  # 10% of requests failing at ~1 request a second.
-  - interval: 1m
-    input_series:
-      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="200"}'
-        values: '0+54x30'
-      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
-        values: '0+6x30'
-    alert_rule_test:
-      # Failing since the start; "for: 5m" means not yet at 4m.
-      - eval_time: 4m
-        alertname: ArbiterHighErrorRate
-        exp_alerts: []
-      - eval_time: 20m
-        alertname: ArbiterHighErrorRate
-        exp_alerts:
-          - exp_labels: { severity: warning }
-            exp_annotations:
-              summary: More than 5% of requests are failing (now 10%).
-              check: The server logs for "Request failed".
-
-  # One failed request in a quiet hour isn't an alert.
-  - interval: 1m
-    input_series:
-      - series: 'arbiter_http_request_duration_seconds_count{route="/api/sessions",method="POST",status_code="500"}'
-        values: '0+0.1x30'
-    alert_rule_test:
-      - eval_time: 20m
-        alertname: ArbiterHighErrorRate
-        exp_alerts: []
-
   - interval: 1m
     input_series:
       - series: 'node_memory_MemAvailable_bytes{instance="arbiter-vm"}'

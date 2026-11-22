@@ -25,6 +25,6 @@ receivers:
 # separate problems: only the outage notifies.
 inhibit_rules:
   - source_matchers: [alertname = ArbiterServerDown]
-    target_matchers: [alertname =~ "ArbiterHighErrorRate|ArbiterSlowResponses|ArbiterUnusualLatency"]
+    target_matchers: [alertname =~ "Arbiter(Availability|Latency)Budget.*|ArbiterUnusualLatency"]
   - source_matchers: [alertname = NodeExporterDown]
     target_matchers: [alertname =~ "Vm.*"]

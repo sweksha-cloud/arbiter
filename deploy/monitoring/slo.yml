@@ -1,0 +1,116 @@
+# Service level objectives (TRADEOFFS.md 34), over a rolling 14 days (the
+# span Prometheus keeps):
+#   Availability: 99.5% of API requests don't fail with a 5xx (budget 0.5%).
+#   Latency:      99% of API requests finish within 1 second (budget 1%).
+# Health checks are excluded: they're Caddy's and Docker's, not users'.
+#
+# Alerts use multi-window burn rates (Google SRE Workbook, ch. 5): page when
+# the budget is burning 14.4x too fast over both the last hour and the last
+# 5 minutes (2% of 30 days' budget in an hour, and still happening); warn at
+# 6x over 6 hours and 30 minutes. A floor on traffic keeps one failed request
+# at 3 a.m. from looking like a 100% error rate.
+# Tested by slo.test.yml (`promtool test rules`, run in CI).
+groups:
+  - name: slo-recording
+    rules:
+      - record: arbiter:slo_requests:rate5m
+        expr: sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[5m]))
+      - record: arbiter:slo_requests:rate1h
+        expr: sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[1h]))
+      - record: arbiter:slo_requests:rate6h
+        expr: sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[6h]))
+
+      - record: arbiter:slo_errors:ratio_rate5m
+        expr: >-
+          sum(rate(arbiter_http_request_duration_seconds_count{route!="/health",status_code=~"5.."}[5m]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[5m]))
+      - record: arbiter:slo_errors:ratio_rate30m
+        expr: >-
+          sum(rate(arbiter_http_request_duration_seconds_count{route!="/health",status_code=~"5.."}[30m]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[30m]))
+      - record: arbiter:slo_errors:ratio_rate1h
+        expr: >-
+          sum(rate(arbiter_http_request_duration_seconds_count{route!="/health",status_code=~"5.."}[1h]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[1h]))
+      - record: arbiter:slo_errors:ratio_rate6h
+        expr: >-
+          sum(rate(arbiter_http_request_duration_seconds_count{route!="/health",status_code=~"5.."}[6h]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[6h]))
+
+      # Share of requests slower than 1 s (the 1 s histogram bucket's complement).
+      - record: arbiter:slo_slow:ratio_rate5m
+        expr: >-
+          1 - sum(rate(arbiter_http_request_duration_seconds_bucket{route!="/health",le="1"}[5m]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[5m]))
+      - record: arbiter:slo_slow:ratio_rate30m
+        expr: >-
+          1 - sum(rate(arbiter_http_request_duration_seconds_bucket{route!="/health",le="1"}[30m]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[30m]))
+      - record: arbiter:slo_slow:ratio_rate1h
+        expr: >-
+          1 - sum(rate(arbiter_http_request_duration_seconds_bucket{route!="/health",le="1"}[1h]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[1h]))
+      - record: arbiter:slo_slow:ratio_rate6h
+        expr: >-
+          1 - sum(rate(arbiter_http_request_duration_seconds_bucket{route!="/health",le="1"}[6h]))
+          / sum(rate(arbiter_http_request_duration_seconds_count{route!="/health"}[6h]))
+
+      # Error budget left over the 14-day window: 1 = untouched, 0 = spent.
+      - record: arbiter:slo_availability_budget_remaining:14d
+        expr: >-
+          1 - (
+            sum(increase(arbiter_http_request_duration_seconds_count{route!="/health",status_code=~"5.."}[14d]))
+            / sum(increase(arbiter_http_request_duration_seconds_count{route!="/health"}[14d]))
+          ) / 0.005
+      - record: arbiter:slo_latency_budget_remaining:14d
+        expr: >-
+          1 - (
+            1 - sum(increase(arbiter_http_request_duration_seconds_bucket{route!="/health",le="1"}[14d]))
+            / sum(increase(arbiter_http_request_duration_seconds_count{route!="/health"}[14d]))
+          ) / 0.01
+
+  - name: slo-alerts
+    rules:
+      - alert: ArbiterAvailabilityBudgetFastBurn
+        expr: >-
+          arbiter:slo_errors:ratio_rate1h > (14.4 * 0.005)
+          and arbiter:slo_errors:ratio_rate5m > (14.4 * 0.005)
+          and arbiter:slo_requests:rate1h > 0.01
+        for: 2m
+        labels: { severity: critical, slo: availability }
+        annotations:
+          summary: 'Failing requests are burning the availability budget 14x too fast ({{ $value | humanizePercentage }} failing over the last hour).'
+          check: The server logs for "Request failed", then Neon and Google Places.
+
+      - alert: ArbiterAvailabilityBudgetSlowBurn
+        expr: >-
+          arbiter:slo_errors:ratio_rate6h > (6 * 0.005)
+          and arbiter:slo_errors:ratio_rate30m > (6 * 0.005)
+          and arbiter:slo_requests:rate6h > 0.01
+        for: 15m
+        labels: { severity: warning, slo: availability }
+        annotations:
+          summary: 'Failing requests are burning the availability budget 6x too fast ({{ $value | humanizePercentage }} failing over 6 hours).'
+          check: The server logs for "Request failed" since the last deploy.
+
+      - alert: ArbiterLatencyBudgetFastBurn
+        expr: >-
+          arbiter:slo_slow:ratio_rate1h > (14.4 * 0.01)
+          and arbiter:slo_slow:ratio_rate5m > (14.4 * 0.01)
+          and arbiter:slo_requests:rate1h > 0.01
+        for: 2m
+        labels: { severity: critical, slo: latency }
+        annotations:
+          summary: 'Slow requests are burning the latency budget 14x too fast ({{ $value | humanizePercentage }} over 1 s in the last hour).'
+          check: VM CPU and memory first, then Neon and Google Places.
+
+      - alert: ArbiterLatencyBudgetSlowBurn
+        expr: >-
+          arbiter:slo_slow:ratio_rate6h > (6 * 0.01)
+          and arbiter:slo_slow:ratio_rate30m > (6 * 0.01)
+          and arbiter:slo_requests:rate6h > 0.01
+        for: 15m
+        labels: { severity: warning, slo: latency }
+        annotations:
+          summary: 'Slow requests are burning the latency budget 6x too fast ({{ $value | humanizePercentage }} over 1 s in 6 hours).'
+          check: The dashboard's slowest routes panel.
