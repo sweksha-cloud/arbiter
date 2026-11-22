@@ -1,7 +1,7 @@
 # The Arbiter API server. Build from the repo root:
 #   docker build -f apps/server/Dockerfile -t arbiter-server .
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /repo
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
@@ -15,7 +15,7 @@ RUN pnpm --filter @arbiter/shared build && pnpm --filter @arbiter/server build
 # (the shared package included as a real folder, not a workspace link).
 RUN pnpm --filter @arbiter/server deploy --prod --legacy /out
 
-FROM node:22-alpine
+FROM node:26-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /out/package.json ./
