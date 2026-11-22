@@ -136,7 +136,7 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.3
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       - name: Sign the image and attach its SBOM (keyless)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
