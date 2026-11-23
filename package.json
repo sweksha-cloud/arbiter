@@ -28,7 +28,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
-    "@types/node": "^22.20.4",
+    "@types/node": "^26.6.6",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
     "typescript": "^5.9.3",
